@@ -12,6 +12,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<BankAccountHistory> BankAccountHistory => Set<BankAccountHistory>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<SecurityAuditLog> SecurityAuditLogs => Set<SecurityAuditLog>();
+    public DbSet<Family> Families => Set<Family>();
+    public DbSet<AssistanceType> AssistanceTypes => Set<AssistanceType>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -125,6 +127,49 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId);
             e.HasOne(x => x.Organization).WithMany().HasForeignKey(x => x.OrganizationId);
             e.HasOne(x => x.Session).WithMany().HasForeignKey(x => x.SessionId);
+        });
+
+        modelBuilder.Entity<Family>(e =>
+        {
+            e.ToTable("families");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
+            e.Property(x => x.FamilyCode).HasMaxLength(20);
+            e.Property(x => x.HeadOfHouseholdName).HasMaxLength(200);
+            e.Property(x => x.HeadIdNumber).HasMaxLength(9);
+            e.Property(x => x.Phone).HasMaxLength(30);
+            e.Property(x => x.Address).HasMaxLength(300);
+            e.Property(x => x.Status).HasMaxLength(20);
+            e.Property(x => x.Notes).HasMaxLength(2000);
+            e.HasIndex(x => new { x.OrganizationId, x.FamilyCode })
+                .IsUnique()
+                .HasDatabaseName("ux_families_org_code");
+            e.HasIndex(x => new { x.OrganizationId, x.Status })
+                .HasDatabaseName("ix_families_org_status");
+            e.HasIndex(x => new { x.OrganizationId, x.AssignedCoordinatorId, x.Status })
+                .HasDatabaseName("ix_families_org_coordinator_status");
+            e.HasOne(x => x.Organization).WithMany(x => x.Families).HasForeignKey(x => x.OrganizationId);
+            e.HasOne(x => x.AssignedCoordinator).WithMany().HasForeignKey(x => x.AssignedCoordinatorId);
+        });
+
+        modelBuilder.Entity<AssistanceType>(e =>
+        {
+            e.ToTable("assistance_types");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
+            e.Property(x => x.TypeCode).HasMaxLength(50);
+            e.Property(x => x.Name).HasMaxLength(200);
+            e.Property(x => x.Description).HasMaxLength(1000);
+            e.Property(x => x.Currency).HasMaxLength(3);
+            e.Property(x => x.Frequency).HasMaxLength(20);
+            e.Property(x => x.Status).HasMaxLength(20);
+            e.Property(x => x.DefaultAmount).HasColumnType("numeric(14,2)");
+            e.HasIndex(x => new { x.OrganizationId, x.TypeCode })
+                .IsUnique()
+                .HasDatabaseName("ux_assistance_types_org_code");
+            e.HasIndex(x => new { x.OrganizationId, x.Status })
+                .HasDatabaseName("ix_assistance_types_org_status");
+            e.HasOne(x => x.Organization).WithMany(x => x.AssistanceTypes).HasForeignKey(x => x.OrganizationId);
         });
     }
 

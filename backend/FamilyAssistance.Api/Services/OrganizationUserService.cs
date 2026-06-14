@@ -292,6 +292,19 @@ public sealed class OrganizationUserService(
                     "לא ניתן להשבית את מנהל הארגון היחיד הפעיל");
         }
 
+        if (user.Role == Roles.Coordinator)
+        {
+            var activeFamilies = await db.Families
+                .CountAsync(
+                    f => f.OrganizationId == organizationId
+                        && f.AssignedCoordinatorId == user.Id
+                        && f.Status == "active",
+                    cancellationToken);
+            if (activeFamilies > 0)
+                return ServiceResult<OrgUserDto>.Fail(409, "COORDINATOR_HAS_ACTIVE_FAMILIES",
+                    $"לא ניתן להשבית מתאם/ת עם משפחות פעילות ({activeFamilies}). יש להעביר או להשבית את המשפחות תחילה.");
+        }
+
         var oldStatus = user.Status;
         user.Status = "disabled";
         user.Version++;

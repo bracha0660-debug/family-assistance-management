@@ -12,7 +12,9 @@ public class AuditService(AppDbContext db) : IAuditService
         "amount_change",
         "supplier_change",
         "user_disable",
-        "organization_suspend"
+        "organization_suspend",
+        "family_deactivate",
+        "assistance_type_deactivate"
     ];
 
     public void Stage(AuditEntry entry)

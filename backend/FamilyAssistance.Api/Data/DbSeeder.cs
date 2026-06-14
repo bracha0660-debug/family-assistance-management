@@ -16,7 +16,9 @@ public static class DbSeeder
         "bank_accounts",
         "bank_account_history",
         "audit_logs",
-        "security_audit_logs"
+        "security_audit_logs",
+        "families",
+        "assistance_types"
     ];
 
     public static async Task SeedAsync(AppDbContext db, IConfiguration configuration, ILogger logger)
@@ -82,7 +84,7 @@ public static class DbSeeder
                 $"Database schema incomplete. Missing tables: {string.Join(", ", missing)}");
         }
 
-        logger.LogInformation("Database schema verified: all 7 Step 1 tables exist");
+        logger.LogInformation("Database schema verified: all {Count} required tables exist", RequiredTables.Length);
     }
 
     private static async Task<bool> AllRequiredTablesExistAsync(AppDbContext db)

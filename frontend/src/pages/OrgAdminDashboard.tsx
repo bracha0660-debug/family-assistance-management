@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { logout } from '../api/auth';
 import type { UserDto } from '../api/auth';
 import { OrgActivityLogPage } from './OrgActivityLogPage';
+import { OrgAdminAssistanceTypesPage } from './OrgAdminAssistanceTypesPage';
+import { OrgAdminFamiliesPage } from './OrgAdminFamiliesPage';
 import { OrgUsersPage } from './OrgUsersPage';
 
 interface OrgAdminDashboardProps {
@@ -9,7 +11,7 @@ interface OrgAdminDashboardProps {
   onLogout: () => void;
 }
 
-type TabId = 'users' | 'activity';
+type TabId = 'users' | 'families' | 'types' | 'activity';
 
 export function OrgAdminDashboard({ user, onLogout }: OrgAdminDashboardProps) {
   const [tab, setTab] = useState<TabId>('users');
@@ -42,6 +44,20 @@ export function OrgAdminDashboard({ user, onLogout }: OrgAdminDashboardProps) {
         </button>
         <button
           type="button"
+          className={`tab-button ${tab === 'families' ? 'tab-active' : ''}`}
+          onClick={() => setTab('families')}
+        >
+          משפחות
+        </button>
+        <button
+          type="button"
+          className={`tab-button ${tab === 'types' ? 'tab-active' : ''}`}
+          onClick={() => setTab('types')}
+        >
+          סוגי סיוע
+        </button>
+        <button
+          type="button"
           className={`tab-button ${tab === 'activity' ? 'tab-active' : ''}`}
           onClick={() => setTab('activity')}
         >
@@ -50,7 +66,10 @@ export function OrgAdminDashboard({ user, onLogout }: OrgAdminDashboardProps) {
       </nav>
 
       <main className="dashboard-main super-admin-main">
-        {tab === 'users' ? <OrgUsersPage /> : <OrgActivityLogPage />}
+        {tab === 'users' && <OrgUsersPage />}
+        {tab === 'families' && <OrgAdminFamiliesPage />}
+        {tab === 'types' && <OrgAdminAssistanceTypesPage />}
+        {tab === 'activity' && <OrgActivityLogPage />}
       </main>
     </div>
   );

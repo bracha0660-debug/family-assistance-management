@@ -28,6 +28,8 @@ builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<OrganizationAdminService>();
 builder.Services.AddScoped<OrganizationUserService>();
 builder.Services.AddScoped<OrganizationActivityService>();
+builder.Services.AddScoped<FamilyService>();
+builder.Services.AddScoped<AssistanceTypeService>();
 builder.Services.AddAuthorizationPolicies();
 
 var corsOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
@@ -61,5 +63,7 @@ app.MapAuthEndpoints();
 app.MapAdminOrganizationsEndpoints();
 app.MapOrgUsersEndpoints();
 app.MapOrgActivityEndpoints();
+app.MapFamiliesEndpoints();
+app.MapAssistanceTypesEndpoints();
 
 app.Run();

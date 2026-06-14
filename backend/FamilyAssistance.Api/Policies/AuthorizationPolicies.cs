@@ -86,4 +86,93 @@ public static class SessionAuthorizationExtensions
             return await next(context);
         });
     }
+
+    public static RouteHandlerBuilder RequireCoordinator(this RouteHandlerBuilder builder)
+    {
+        return RequireRoleWithOrg(builder, Roles.Coordinator);
+    }
+
+    public static RouteHandlerBuilder RequireFinance(this RouteHandlerBuilder builder)
+    {
+        return RequireRoleWithOrg(builder, Roles.Finance);
+    }
+
+    public static RouteHandlerBuilder RequireManager(this RouteHandlerBuilder builder)
+    {
+        return RequireRoleWithOrg(builder, Roles.Manager);
+    }
+
+    public static RouteHandlerBuilder RequireOrgUser(this RouteHandlerBuilder builder)
+    {
+        return builder.RequireAuthorization().AddEndpointFilter(async (context, next) =>
+        {
+            var httpContext = context.HttpContext;
+            var currentUser = httpContext.GetCurrentUser();
+            if (currentUser is null
+                || currentUser.Role == Roles.SuperAdmin
+                || currentUser.OrganizationId is null)
+            {
+                return Results.Json(
+                    new Models.ApiError { Error = "אין הרשאה", Code = "FORBIDDEN" },
+                    statusCode: StatusCodes.Status403Forbidden);
+            }
+
+            return await next(context);
+        });
+    }
+
+    public static RouteHandlerBuilder RequireFamilyViewer(this RouteHandlerBuilder builder)
+    {
+        return RequireOrgRoles(
+            builder,
+            Roles.Coordinator,
+            Roles.Manager,
+            Roles.OrganizationAdministrator);
+    }
+
+    public static RouteHandlerBuilder RequireTypeViewer(this RouteHandlerBuilder builder)
+    {
+        return RequireOrgRoles(
+            builder,
+            Roles.Finance,
+            Roles.Manager,
+            Roles.OrganizationAdministrator);
+    }
+
+    private static RouteHandlerBuilder RequireRoleWithOrg(RouteHandlerBuilder builder, string role)
+    {
+        return builder.RequireAuthorization().AddEndpointFilter(async (context, next) =>
+        {
+            var httpContext = context.HttpContext;
+            var currentUser = httpContext.GetCurrentUser();
+            if (currentUser?.Role != role || currentUser.OrganizationId is null)
+            {
+                return Results.Json(
+                    new Models.ApiError { Error = "אין הרשאה", Code = "FORBIDDEN" },
+                    statusCode: StatusCodes.Status403Forbidden);
+            }
+
+            return await next(context);
+        });
+    }
+
+    private static RouteHandlerBuilder RequireOrgRoles(RouteHandlerBuilder builder, params string[] roles)
+    {
+        var allowed = new HashSet<string>(roles, StringComparer.Ordinal);
+        return builder.RequireAuthorization().AddEndpointFilter(async (context, next) =>
+        {
+            var httpContext = context.HttpContext;
+            var currentUser = httpContext.GetCurrentUser();
+            if (currentUser is null
+                || currentUser.OrganizationId is null
+                || !allowed.Contains(currentUser.Role))
+            {
+                return Results.Json(
+                    new Models.ApiError { Error = "אין הרשאה", Code = "FORBIDDEN" },
+                    statusCode: StatusCodes.Status403Forbidden);
+            }
+
+            return await next(context);
+        });
+    }
 }

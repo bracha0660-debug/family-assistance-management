@@ -11,6 +11,7 @@ interface DisableUserDialogProps {
 export function DisableUserDialog({ user, onClose, onDisabled }: DisableUserDialogProps) {
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
+  const [blocked, setBlocked] = useState(false);
   const [loading, setLoading] = useState(false);
 
   function handleClose(e?: MouseEvent) {
@@ -22,13 +23,18 @@ export function DisableUserDialog({ user, onClose, onDisabled }: DisableUserDial
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
+    setBlocked(false);
     setLoading(true);
     try {
       await disableOrgUser(user.id, user.version, reason);
       onDisabled();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'שגיאת מערכת');
+      const message = err instanceof Error ? err.message : 'שגיאת מערכת';
+      setError(message);
+      if (message.includes('משפחות פעילות')) {
+        setBlocked(true);
+      }
     } finally {
       setLoading(false);
     }
@@ -57,6 +63,11 @@ export function DisableUserDialog({ user, onClose, onDisabled }: DisableUserDial
             maxLength={500}
           />
           {error && <div className="error" role="alert">{error}</div>}
+          {blocked && (
+            <p className="hint-text">
+              ניתן לסגור את החלון. יש לפתור את המשפחות הפעילות לפני השבתת המתאם/ת.
+            </p>
+          )}
           <div className="modal-actions">
             <button
               type="button"
@@ -64,9 +75,9 @@ export function DisableUserDialog({ user, onClose, onDisabled }: DisableUserDial
               onClick={handleClose}
               disabled={loading}
             >
-              ביטול
+              {blocked ? 'סגור' : 'ביטול'}
             </button>
-            <button type="submit" className="btn-danger" disabled={loading}>
+            <button type="submit" className="btn-danger" disabled={loading || blocked}>
               {loading ? 'משבית...' : 'השבת משתמש'}
             </button>
           </div>
