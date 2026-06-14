@@ -26,6 +26,8 @@ builder.Services.AddScoped<SessionService>();
 builder.Services.AddScoped<ISecurityAuditService, SecurityAuditService>();
 builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<OrganizationAdminService>();
+builder.Services.AddScoped<OrganizationUserService>();
+builder.Services.AddScoped<OrganizationActivityService>();
 builder.Services.AddAuthorizationPolicies();
 
 var corsOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
@@ -57,5 +59,7 @@ app.UseSessionAuth();
 app.MapHealthEndpoints();
 app.MapAuthEndpoints();
 app.MapAdminOrganizationsEndpoints();
+app.MapOrgUsersEndpoints();
+app.MapOrgActivityEndpoints();
 
 app.Run();

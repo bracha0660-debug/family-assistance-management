@@ -24,8 +24,10 @@ services:
       ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=family_assistance;Username=fam;Password=fam_dev_password"
       SUPERADMIN_INITIAL_PASSWORD: "ChangeMe123!"
       Cors__AllowedOrigins__0: "http://localhost:5173"
-      Cors__AllowedOrigins__1: "http://localhost"
-      Cors__AllowedOrigins__2: "http://web"
+      Cors__AllowedOrigins__1: "http://localhost:3000"
+      Cors__AllowedOrigins__2: "http://127.0.0.1:3000"
+      Cors__AllowedOrigins__3: "http://localhost"
+      Cors__AllowedOrigins__4: "http://web"
     ports:
       - "8080:8080"
     depends_on:

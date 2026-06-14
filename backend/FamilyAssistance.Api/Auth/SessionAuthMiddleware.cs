@@ -6,6 +6,7 @@ public class SessionAuthMiddleware(RequestDelegate next)
     {
         var cookieName = sessionService.CookieName;
         context.Request.Cookies.TryGetValue(cookieName, out var rawToken);
+        rawToken ??= context.Request.Headers[SessionHeaderNames.SessionToken].FirstOrDefault();
 
         if (!string.IsNullOrWhiteSpace(rawToken))
         {

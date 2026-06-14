@@ -1,3 +1,6 @@
+import { apiFetch, apiJson } from './client';
+import { clearSessionToken, saveSessionToken } from './session';
+
 export interface UserDto {
   id: string;
   username: string;
@@ -14,55 +17,36 @@ export interface ApiError {
   details?: string[];
 }
 
-const baseUrl = import.meta.env.VITE_API_URL ?? '';
-
-async function parseError(response: Response): Promise<ApiError> {
-  try {
-    return (await response.json()) as ApiError;
-  } catch {
-    return { error: 'שגיאת מערכת', code: 'INTERNAL_ERROR' };
-  }
-}
-
 export async function login(username: string, password: string): Promise<UserDto> {
-  const response = await fetch(`${baseUrl}/api/v1/auth/login`, {
+  const data = await apiJson<{ user: UserDto; sessionToken?: string }>('/api/v1/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify({ username, password }),
   });
 
-  if (!response.ok) {
-    const err = await parseError(response);
-    throw new Error(err.error);
+  if (data.sessionToken) {
+    saveSessionToken(data.sessionToken);
   }
 
-  const data = (await response.json()) as { user: UserDto };
-  return data.user;
+  try {
+    return await getMe();
+  } catch {
+    clearSessionToken();
+    throw new Error('ההתחברות נכשלה. נסה שוב.');
+  }
 }
 
 export async function logout(): Promise<void> {
-  const response = await fetch(`${baseUrl}/api/v1/auth/logout`, {
-    method: 'POST',
-    credentials: 'include',
-  });
+  const response = await apiFetch('/api/v1/auth/logout', { method: 'POST' });
+  clearSessionToken();
 
   if (!response.ok && response.status !== 204) {
-    const err = await parseError(response);
+    const err = (await response.json()) as ApiError;
     throw new Error(err.error);
   }
 }
 
 export async function getMe(): Promise<UserDto> {
-  const response = await fetch(`${baseUrl}/api/v1/auth/me`, {
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    const err = await parseError(response);
-    throw new Error(err.error);
-  }
-
-  const data = (await response.json()) as { user: UserDto };
+  const data = await apiJson<{ user: UserDto }>('/api/v1/auth/me');
   return data.user;
 }

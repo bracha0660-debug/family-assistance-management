@@ -27,4 +27,5 @@ public sealed class UserDto
 public sealed class LoginResponse
 {
     public required UserDto User { get; init; }
+    public string? SessionToken { get; init; }
 }

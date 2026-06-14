@@ -3,12 +3,20 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  server: {
+    server: {
     port: 5173,
     proxy: {
       '/api': {
         target: 'http://localhost:8080',
         changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq, req) => {
+            const sessionHeader = req.headers['x-fam-session'];
+            if (typeof sessionHeader === 'string') {
+              proxyReq.setHeader('X-FAM-Session', sessionHeader);
+            }
+          });
+        },
       },
     },
   },

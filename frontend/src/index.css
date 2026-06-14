@@ -100,6 +100,22 @@ body {
   margin-top: 0.5rem;
 }
 
+.success {
+  color: #166534;
+  background: #dcfce7;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 0.75rem 0;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.hint-text {
+  color: #666;
+  font-size: 0.9rem;
+}
+
 .dashboard {
   min-height: 100vh;
 }
@@ -310,12 +326,21 @@ body {
 }
 
 .modal-card input,
-.modal-card textarea {
+.modal-card textarea,
+.modal-card select {
   padding: 0.65rem;
   border: 1px solid #ccc;
   border-radius: 8px;
   font-size: 1rem;
   font-family: inherit;
+  background: #fff;
+}
+
+.modal-card input:disabled,
+.modal-card select:disabled,
+.modal-card textarea:disabled {
+  background: #f3f4f6;
+  color: #4b5563;
 }
 
 .modal-actions {
@@ -323,4 +348,78 @@ body {
   gap: 0.75rem;
   justify-content: flex-start;
   margin-top: 0.75rem;
+}
+
+.tab-nav {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0 2rem;
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.tab-button {
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  padding: 0.85rem 1rem;
+  margin-bottom: -1px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #4b5563;
+  cursor: pointer;
+}
+
+.tab-button:hover {
+  color: #1f2937;
+}
+
+.tab-active {
+  color: #1d4ed8;
+  border-bottom-color: #1d4ed8;
+}
+
+.row-disabled td {
+  color: #6b7280;
+  background: #f9fafb;
+}
+
+.confirmation-panel {
+  background: #fff;
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  max-width: 640px;
+}
+
+.confirmation-panel h2 {
+  margin: 0 0 1.25rem;
+  font-size: 1.5rem;
+  color: #166534;
+}
+
+.confirmation-details {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+}
+
+.confirmation-details > div {
+  display: grid;
+  grid-template-columns: 8rem 1fr;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: #f9fafb;
+  border-radius: 8px;
+}
+
+.confirmation-details dt {
+  color: #4b5563;
+  font-weight: 600;
+}
+
+.confirmation-details dd {
+  margin: 0;
+  color: #1f2937;
 }

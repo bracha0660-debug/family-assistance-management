@@ -105,4 +105,14 @@ public class SessionService(AppDbContext db, FamSessionOptions options)
                 s => s.SetProperty(x => x.RevokedAt, now),
                 cancellationToken);
     }
+
+    public async Task RevokeUserSessionsAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var now = DateTime.UtcNow;
+        await db.UserSessions
+            .Where(s => s.RevokedAt == null && s.UserId == userId)
+            .ExecuteUpdateAsync(
+                s => s.SetProperty(x => x.RevokedAt, now),
+                cancellationToken);
+    }
 }

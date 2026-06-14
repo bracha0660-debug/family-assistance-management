@@ -1,4 +1,4 @@
-import type { ApiError } from './auth';
+import { apiJson } from './client';
 
 export interface OrganizationSummary {
   total: number;
@@ -31,43 +31,16 @@ export interface BootstrapUserDto {
   status: string;
 }
 
-const baseUrl = import.meta.env.VITE_API_URL ?? '';
-
-async function parseError(response: Response): Promise<ApiError> {
-  try {
-    return (await response.json()) as ApiError;
-  } catch {
-    return { error: 'שגיאת מערכת', code: 'INTERNAL_ERROR' };
-  }
-}
-
 export async function listOrganizations(): Promise<OrganizationListResponse> {
-  const response = await fetch(`${baseUrl}/api/v1/admin/organizations`, {
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    const err = await parseError(response);
-    throw new Error(err.error);
-  }
-
-  return (await response.json()) as OrganizationListResponse;
+  return apiJson<OrganizationListResponse>('/api/v1/admin/organizations');
 }
 
 export async function createOrganization(name: string, code: string): Promise<OrganizationDto> {
-  const response = await fetch(`${baseUrl}/api/v1/admin/organizations`, {
+  const data = await apiJson<{ organization: OrganizationDto }>('/api/v1/admin/organizations', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify({ name, code }),
   });
-
-  if (!response.ok) {
-    const err = await parseError(response);
-    throw new Error(err.error);
-  }
-
-  const data = (await response.json()) as { organization: OrganizationDto };
   return data.organization;
 }
 
@@ -76,22 +49,17 @@ export async function suspendOrganization(
   version: number,
   reason: string,
 ): Promise<OrganizationDto> {
-  const response = await fetch(`${baseUrl}/api/v1/admin/organizations/${id}/suspend`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-      'If-Match': String(version),
+  const data = await apiJson<{ organization: OrganizationDto }>(
+    `/api/v1/admin/organizations/${id}/suspend`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'If-Match': String(version),
+      },
+      body: JSON.stringify({ reason }),
     },
-    credentials: 'include',
-    body: JSON.stringify({ reason }),
-  });
-
-  if (!response.ok) {
-    const err = await parseError(response);
-    throw new Error(err.error);
-  }
-
-  const data = (await response.json()) as { organization: OrganizationDto };
+  );
   return data.organization;
 }
 
@@ -101,18 +69,13 @@ export async function bootstrapOrgAdmin(
   password: string,
   fullName: string,
 ): Promise<BootstrapUserDto> {
-  const response = await fetch(`${baseUrl}/api/v1/admin/organizations/${organizationId}/admin`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({ username, password, fullName }),
-  });
-
-  if (!response.ok) {
-    const err = await parseError(response);
-    throw new Error(err.error);
-  }
-
-  const data = (await response.json()) as { user: BootstrapUserDto };
+  const data = await apiJson<{ user: BootstrapUserDto }>(
+    `/api/v1/admin/organizations/${organizationId}/admin`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password, fullName }),
+    },
+  );
   return data.user;
 }

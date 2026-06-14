@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { FormEvent } from 'react';
+import type { FormEvent, MouseEvent } from 'react';
 import type { OrganizationDto } from '../api/admin';
 import { bootstrapOrgAdmin } from '../api/admin';
 
@@ -19,15 +19,20 @@ export function BootstrapAdminModal({
   const [fullName, setFullName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [createdUsername, setCreatedUsername] = useState<string | null>(null);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
-      await bootstrapOrgAdmin(organization.id, username, password, fullName);
-      onBootstrapped();
-      onClose();
+      const created = await bootstrapOrgAdmin(
+        organization.id,
+        username,
+        password,
+        fullName,
+      );
+      setCreatedUsername(created.username);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'שגיאת מערכת');
     } finally {
@@ -35,8 +40,38 @@ export function BootstrapAdminModal({
     }
   }
 
+  function handleFormClose(e?: MouseEvent) {
+    if (e) e.stopPropagation();
+    onClose();
+  }
+
+  function handleSuccessClose(e?: MouseEvent) {
+    if (e) e.stopPropagation();
+    onBootstrapped();
+    setCreatedUsername(null);
+    onClose();
+  }
+
+  if (createdUsername) {
+    return (
+      <div className="modal-overlay">
+        <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+          <h2>מנהל ארגון נוצר</h2>
+          <div className="success" role="status" aria-live="polite">
+            מנהל נוצר בהצלחה. שמרי את הסיסמה שהזנת. הסיסמה לא תוצג שוב במערכת.
+          </div>
+          <p>ארגון: <strong>{organization.name}</strong> ({organization.code})</p>
+          <p>שם משתמש: <strong>{createdUsername}</strong></p>
+          <div className="modal-actions">
+            <button type="button" onClick={handleSuccessClose}>סגירה</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={handleFormClose}>
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <h2>יצירת מנהל ארגון ראשון</h2>
         <p>ארגון: <strong>{organization.name}</strong> ({organization.code})</p>
@@ -71,7 +106,12 @@ export function BootstrapAdminModal({
           />
           {error && <div className="error" role="alert">{error}</div>}
           <div className="modal-actions">
-            <button type="button" className="btn-secondary" onClick={onClose} disabled={loading}>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={handleFormClose}
+              disabled={loading}
+            >
               ביטול
             </button>
             <button type="submit" disabled={loading}>

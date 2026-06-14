@@ -1,14 +1,18 @@
 # Step 2 Verification Script
 # Run from repo root: .\scripts\verify-step02.ps1
+#
+# SAFETY: Creates ONLY isolated disposable test data (org code VERIF-*).
+# Does NOT modify, overwrite, or bootstrap admins on existing user organizations.
+# Test password is generated per run — never use on real accounts.
 
 $ErrorActionPreference = "Stop"
 $baseApi = "http://localhost:8080"
 $baseWeb = "http://localhost:3000"
 $ts = Get-Date -Format "yyyyMMddHHmmss"
-$orgCode = "TEST-$ts"
-$orgName = "Test Org $ts"
-$adminUser = "admin.$ts"
-$adminPass = "SecurePass123!"
+$orgCode = "VERIF-$ts"
+$orgName = "Verification Org $ts"
+$adminUser = "verif.admin.$ts"
+$adminPass = "VerifPass-$ts!"
 $cookieSa = Join-Path $env:TEMP "fam-step02-sa-$ts.txt"
 $cookieOa = Join-Path $env:TEMP "fam-step02-oa-$ts.txt"
 $results = @()
@@ -65,6 +69,7 @@ function Get-JsonField($jsonText, $path) {
 }
 
 Write-Host "=== Step 2 Verification ===" -ForegroundColor Cyan
+Write-Host "NOTE: Creates isolated test org VERIF-* only. Does not touch existing organizations." -ForegroundColor Yellow
 
 Push-Location (Split-Path $PSScriptRoot -Parent)
 try {
@@ -125,7 +130,7 @@ try {
     if ($orgId) {
         $audQuery = "SELECT event_code FROM audit_logs WHERE event_code = 'AUD-001' AND entity_id = '$orgId';"
         $audRows = docker compose exec -T postgres psql -U fam -d family_assistance -c $audQuery 2>&1
-        Write-Result 8 "AUD-001 written on create" ($audRows -match "AUD-001") ""
+        Write-Result 8 'AUD-001 written on create' ($audRows -match 'AUD-001') ''
     } else {
         Write-Result 8 "AUD-001 written on create" $false "No org created"
     }
@@ -144,7 +149,7 @@ try {
 
         $audQuery = "SELECT event_code FROM audit_logs WHERE event_code = 'AUD-003' ORDER BY created_at DESC LIMIT 1;"
         $audRows = docker compose exec -T postgres psql -U fam -d family_assistance -c $audQuery 2>&1
-        Write-Result 11 "AUD-003 written on bootstrap" ($audRows -match "AUD-003") ""
+        Write-Result 11 'AUD-003 written on bootstrap' ($audRows -match 'AUD-003') ''
 
         $boot2Body = (@{ username = "other.$ts"; password = $adminPass; fullName = "Second Admin" } | ConvertTo-Json -Compress)
         $boot2 = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/admin/organizations/$orgId/admin" -Body $boot2Body -CookieFile $cookieSa
@@ -178,7 +183,7 @@ try {
 
         $audQuery = "SELECT event_code FROM audit_logs WHERE event_code = 'AUD-002' AND entity_id = '$orgId';"
         $audRows = docker compose exec -T postgres psql -U fam -d family_assistance -c $audQuery 2>&1
-        Write-Result 17 "AUD-002 written on suspend" ($audRows -match "AUD-002") ""
+        Write-Result 17 'AUD-002 written on suspend' ($audRows -match 'AUD-002') ''
 
         $suspend2 = Invoke-CurlJson -Method PATCH -Uri "$baseApi/api/v1/admin/organizations/$orgId/suspend" `
             -Body '{"reason":"Second attempt"}' -CookieFile $cookieSa -Headers @{ "If-Match" = "99" }

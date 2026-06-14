@@ -33,6 +33,7 @@ export function SuperAdminDashboard({ user, onLogout }: SuperAdminDashboardProps
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadOrganizations();
   }, [loadOrganizations]);
 

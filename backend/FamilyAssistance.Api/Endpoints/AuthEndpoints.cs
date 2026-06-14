@@ -159,7 +159,7 @@ public static class AuthEndpoints
         }
 
         SetSessionCookie(httpContext, sessionOptions.CookieName, rawToken, sessionOptions.IdleTimeoutHours, httpContext.Request.IsHttps);
-        return Results.Ok(new LoginResponse { User = MapUser(user) });
+        return Results.Ok(new LoginResponse { User = MapUser(user), SessionToken = rawToken });
     }
 
     private static async Task<IResult> Logout(
@@ -255,7 +255,7 @@ public static class AuthEndpoints
         ctx.Response.Cookies.Append(name, token, new CookieOptions
         {
             HttpOnly = true,
-            SameSite = SameSiteMode.Strict,
+            SameSite = SameSiteMode.Lax,
             Secure = secure,
             Path = "/",
             MaxAge = TimeSpan.FromHours(idleHours)
@@ -267,7 +267,7 @@ public static class AuthEndpoints
         ctx.Response.Cookies.Append(name, string.Empty, new CookieOptions
         {
             HttpOnly = true,
-            SameSite = SameSiteMode.Strict,
+            SameSite = SameSiteMode.Lax,
             Secure = secure,
             Path = "/",
             MaxAge = TimeSpan.Zero

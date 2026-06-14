@@ -69,4 +69,21 @@ public static class SessionAuthorizationExtensions
             return await next(context);
         });
     }
+
+    public static RouteHandlerBuilder RequireOrgAdmin(this RouteHandlerBuilder builder)
+    {
+        return builder.RequireAuthorization().AddEndpointFilter(async (context, next) =>
+        {
+            var httpContext = context.HttpContext;
+            var currentUser = httpContext.GetCurrentUser();
+            if (currentUser?.Role != Roles.OrganizationAdministrator || currentUser.OrganizationId is null)
+            {
+                return Results.Json(
+                    new Models.ApiError { Error = "אין הרשאה", Code = "FORBIDDEN" },
+                    statusCode: StatusCodes.Status403Forbidden);
+            }
+
+            return await next(context);
+        });
+    }
 }
