@@ -285,3 +285,53 @@ Templates must be generated from entity metadata so each screen can automaticall
 - Concurrency strategy for bulk inserts that touch system-generated per-org counters (e.g. `family_code_counter`).
 
 These will be answered when the capability is taken off deferred status.
+
+### 6.2 Configurable Permissions Framework
+
+**Status:** Deferred.
+**Priority:** Future phase. Requires the core operational workflow (Steps 5+) to be sufficiently complete that the hard-coded role boundaries can be safely loosened.
+**Explicit scope marker:** **NOT part of Step 5.**
+
+#### Purpose
+
+Replace hard-coded role behavior with organization-configurable permissions. Today every authorization filter in `Policies/AuthorizationPolicies.cs` encodes the allowed roles in code. This future capability moves that decision into data so each organization can fine-tune what each role can do within the platform's published catalog of permissions.
+
+#### Capabilities
+
+- Permission catalog (system-defined; immutable list of permission keys)
+- Role-permission mapping (which roles hold which permissions, per organization)
+- Organization-level permission configuration (OrgAdmin UI to view and adjust mappings)
+- Permission-based API authorization (endpoints check permission keys instead of fixed role names)
+- Permission-based frontend menu visibility (tabs and action buttons hide when the caller lacks the relevant permission)
+- Audit logging for permission changes (new AUD-xxx events with `Reason` as a material action)
+
+#### Examples of permissions
+
+- `families.view`
+- `families.create`
+- `families.edit`
+- `families.deactivate`
+- `assistance_types.view`
+- `assistance_types.create`
+- `suppliers.view`
+- `suppliers.create`
+- `committee_decisions.view`
+- `committee_decisions.create`
+- `reports.view`
+
+(The full catalog will be derived from entity metadata at design time, following the same metadata-first principle stated in §6.1.)
+
+#### Architectural rule
+
+The permission catalog is system-defined and versioned with the platform. Organizations choose which permissions each role holds; they cannot invent new permission keys. This keeps the authorization surface auditable and prevents schema drift.
+
+#### Open design questions (not for resolution now)
+
+- Whether `SuperAdmin` is bypassable (always-allow) or also driven by permissions for symmetry.
+- Migration strategy from today's hard-coded `Require*` filters to permission-driven filters without a flag-day cutover.
+- Default permission preset per role on organization creation (so a brand-new org behaves identically to today's hard-coded defaults).
+- Whether org-level overrides may *remove* a permission from `OrganizationAdministrator` (risk: lock-out scenarios).
+- Interaction with the deferred Data Import Framework (§6.1) — bulk import of role-permission mappings.
+- Audit shape: one `AUD-xxx` per added/removed permission vs. a single aggregate event per role configuration change.
+
+These will be answered when the capability is taken off deferred status.
