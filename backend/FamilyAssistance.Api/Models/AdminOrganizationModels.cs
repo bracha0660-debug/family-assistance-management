@@ -11,6 +11,11 @@ public sealed class SuspendOrganizationRequest
     public string Reason { get; set; } = string.Empty;
 }
 
+public sealed class RestoreOrganizationRequest
+{
+    public string Reason { get; set; } = string.Empty;
+}
+
 public sealed class BootstrapOrgAdminRequest
 {
     public string Username { get; set; } = string.Empty;

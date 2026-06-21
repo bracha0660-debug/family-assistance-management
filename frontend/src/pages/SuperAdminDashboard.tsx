@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { logout } from '../api/auth';
 import type { UserDto } from '../api/auth';
 import type { OrganizationDto, OrganizationListResponse } from '../api/admin';
-import { listOrganizations } from '../api/admin';
+import { listOrganizations, enterOrganization } from '../api/admin';
 import { BootstrapAdminModal } from '../components/BootstrapAdminModal';
 import { CreateOrganizationModal } from '../components/CreateOrganizationModal';
 import { SuspendOrganizationDialog } from '../components/SuspendOrganizationDialog';
@@ -10,9 +10,10 @@ import { SuspendOrganizationDialog } from '../components/SuspendOrganizationDial
 interface SuperAdminDashboardProps {
   user: UserDto;
   onLogout: () => void;
+  onUserUpdated?: (user: UserDto) => void;
 }
 
-export function SuperAdminDashboard({ user, onLogout }: SuperAdminDashboardProps) {
+export function SuperAdminDashboard({ user, onLogout, onUserUpdated }: SuperAdminDashboardProps) {
   const [data, setData] = useState<OrganizationListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -47,6 +48,20 @@ export function SuperAdminDashboard({ user, onLogout }: SuperAdminDashboardProps
 
   function statusLabel(status: string) {
     return status === 'active' ? 'פעיל' : status === 'suspended' ? 'מושעה' : status;
+  }
+
+  async function handleEnterOrg(orgId: string) {
+    setError('');
+    try {
+      const updated = await enterOrganization(orgId);
+      if (!updated?.actingOrganizationId) {
+        setError('כניסה לארגון נכשלה');
+        return;
+      }
+      onUserUpdated?.(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'שגיאת מערכת');
+    }
   }
 
   return (
@@ -117,6 +132,13 @@ export function SuperAdminDashboard({ user, onLogout }: SuperAdminDashboardProps
                     <td className="actions-cell">
                       {org.status === 'active' && (
                         <>
+                          <button
+                            type="button"
+                            className="btn-small"
+                            onClick={() => handleEnterOrg(org.id)}
+                          >
+                            כניסה
+                          </button>
                           <button
                             type="button"
                             className="btn-small btn-danger"

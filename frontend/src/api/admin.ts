@@ -1,3 +1,5 @@
+import { getMe } from './auth';
+import type { UserDto } from './auth';
 import { apiJson } from './client';
 
 export interface OrganizationSummary {
@@ -78,4 +80,45 @@ export async function bootstrapOrgAdmin(
     },
   );
   return data.user;
+}
+
+export async function restoreOrganization(
+  id: string,
+  version: number,
+  reason: string,
+): Promise<OrganizationDto> {
+  const data = await apiJson<{ organization: OrganizationDto }>(
+    `/api/v1/admin/organizations/${id}/restore`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'If-Match': String(version),
+      },
+      body: JSON.stringify({ reason }),
+    },
+  );
+  return data.organization;
+}
+
+export async function enterOrganization(id: string): Promise<UserDto> {
+  const data = await apiJson<{ user: UserDto }>(
+    `/api/v1/admin/organizations/${id}/enter`,
+    { method: 'POST' },
+  );
+  if (data.user?.actingOrganizationId) {
+    return data.user;
+  }
+  return getMe();
+}
+
+export async function exitOrganization(id: string): Promise<UserDto> {
+  const data = await apiJson<{ user: UserDto }>(
+    `/api/v1/admin/organizations/${id}/exit`,
+    { method: 'POST' },
+  );
+  if (data.user && !data.user.actingOrganizationId) {
+    return data.user;
+  }
+  return getMe();
 }

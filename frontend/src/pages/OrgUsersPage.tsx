@@ -51,6 +51,11 @@ export function OrgUsersPage() {
     setShowCreate(true);
   }
 
+  function displayRole(u: OrgUserDto): string {
+    if (u.role === 'OrganizationAdministrator') return translateRole(u.role);
+    return u.organizationRoleName ?? translateRole(u.role);
+  }
+
   if (createdUser) {
     return (
       <UserCreatedConfirmation
@@ -114,7 +119,7 @@ export function OrgUsersPage() {
                     {u.isSelf && <span className="hint-text"> (אני)</span>}
                   </td>
                   <td><code>{u.username}</code></td>
-                  <td>{translateRole(u.role)}</td>
+                  <td>{displayRole(u)}</td>
                   <td>
                     <span className={`status-badge status-${u.status === 'disabled' ? 'suspended' : u.status}`}>
                       {translateStatus(u.status)}

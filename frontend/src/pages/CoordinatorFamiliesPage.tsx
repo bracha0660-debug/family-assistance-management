@@ -1,25 +1,30 @@
 import { useCallback, useEffect, useState } from 'react';
+import type { UserDto } from '../api/auth';
 import {
   listFamilies,
   type FamilyDto,
   type FamilyListResponse,
 } from '../api/families';
+import { PERMISSION_KEYS } from '../api/permissions';
 import { CreateFamilyModal } from '../components/CreateFamilyModal';
 import { DeactivateFamilyDialog } from '../components/DeactivateFamilyDialog';
 import { EditFamilyModal } from '../components/EditFamilyModal';
+import { RestoreFamilyDialog } from '../components/RestoreFamilyDialog';
 import { FamiliesTable } from '../components/FamiliesTable';
+import { hasPermission, usesMyRecordsFamilyScope } from '../hooks/usePermissions';
 
 interface CoordinatorFamiliesPageProps {
-  currentUserId: string;
+  user: UserDto;
 }
 
-export function CoordinatorFamiliesPage({ currentUserId }: CoordinatorFamiliesPageProps) {
+export function CoordinatorFamiliesPage({ user }: CoordinatorFamiliesPageProps) {
   const [data, setData] = useState<FamilyListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [editTarget, setEditTarget] = useState<FamilyDto | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<FamilyDto | null>(null);
+  const [restoreTarget, setRestoreTarget] = useState<FamilyDto | null>(null);
   const [createdFamily, setCreatedFamily] = useState<FamilyDto | null>(null);
 
   const loadFamilies = useCallback(async () => {
@@ -67,7 +72,7 @@ export function CoordinatorFamiliesPage({ currentUserId }: CoordinatorFamiliesPa
       {createdFamily && (
         <div className="success-banner" role="status">
           המשפחה <strong>{createdFamily.familyCode}</strong> נוצרה בהצלחה (
-          {createdFamily.headOfHouseholdName}).
+          {createdFamily.familyLastName}).
           <button
             type="button"
             className="btn-small"
@@ -79,7 +84,9 @@ export function CoordinatorFamiliesPage({ currentUserId }: CoordinatorFamiliesPa
       )}
 
       <div className="toolbar">
-        <button type="button" onClick={() => setShowCreate(true)}>משפחה חדשה</button>
+        {hasPermission(user, PERMISSION_KEYS.familiesCreate) && (
+          <button type="button" onClick={() => setShowCreate(true)}>משפחה חדשה</button>
+        )}
         <button type="button" className="btn-secondary" onClick={loadFamilies}>רענן</button>
       </div>
 
@@ -90,15 +97,23 @@ export function CoordinatorFamiliesPage({ currentUserId }: CoordinatorFamiliesPa
       ) : (
         <FamiliesTable
           families={data?.families ?? []}
-          canManage={(f) => f.assignedCoordinatorId === currentUserId}
-          showCoordinator={false}
-          onEdit={(f) => setEditTarget(f)}
-          onDeactivate={(f) => setDeactivateTarget(f)}
+          canManage={(f) => {
+            const canEdit = hasPermission(user, PERMISSION_KEYS.familiesEdit);
+            const canDeactivate = hasPermission(user, PERMISSION_KEYS.familiesDeactivate);
+            if (!canEdit && !canDeactivate) return false;
+            if (usesMyRecordsFamilyScope(user)) return f.assignedCoordinatorId === user.id;
+            return true;
+          }}
+          showCoordinator={usesMyRecordsFamilyScope(user) ? false : true}
+          onEdit={hasPermission(user, PERMISSION_KEYS.familiesEdit) ? (f) => setEditTarget(f) : undefined}
+          onDeactivate={hasPermission(user, PERMISSION_KEYS.familiesDeactivate) ? (f) => setDeactivateTarget(f) : undefined}
+          onRestore={hasPermission(user, PERMISSION_KEYS.familiesRestore) ? (f) => setRestoreTarget(f) : undefined}
         />
       )}
 
       {showCreate && (
         <CreateFamilyModal
+          user={user}
           onClose={() => setShowCreate(false)}
           onCreated={handleFamilyCreated}
         />
@@ -115,6 +130,13 @@ export function CoordinatorFamiliesPage({ currentUserId }: CoordinatorFamiliesPa
           family={deactivateTarget}
           onClose={() => setDeactivateTarget(null)}
           onDeactivated={loadFamilies}
+        />
+      )}
+      {restoreTarget && (
+        <RestoreFamilyDialog
+          family={restoreTarget}
+          onClose={() => setRestoreTarget(null)}
+          onRestored={loadFamilies}
         />
       )}
     </div>

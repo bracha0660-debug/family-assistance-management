@@ -7,6 +7,7 @@ public static class Roles
     public const string Coordinator = "Coordinator";
     public const string Manager = "Manager";
     public const string Finance = "Finance";
+    public const string OrganizationUser = "OrganizationUser";
 
     public static readonly string[] All =
     [
@@ -14,6 +15,7 @@ public static class Roles
         OrganizationAdministrator,
         Coordinator,
         Manager,
-        Finance
+        Finance,
+        OrganizationUser
     ];
 }

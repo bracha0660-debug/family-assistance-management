@@ -1,4 +1,5 @@
 using FamilyAssistance.Api.Auth;
+using FamilyAssistance.Api.Constants;
 using FamilyAssistance.Api.Models;
 using FamilyAssistance.Api.Policies;
 using FamilyAssistance.Api.Services;
@@ -15,6 +16,8 @@ public static class OrgUsersEndpoints
         group.MapPost("/users", CreateUser).RequireOrgAdmin();
         group.MapPatch("/users/{id:guid}", UpdateUser).RequireOrgAdmin();
         group.MapPatch("/users/{id:guid}/disable", DisableUser).RequireOrgAdmin();
+        group.MapPatch("/users/{id:guid}/restore", RestoreUser).RequireOrgAdmin();
+        group.MapPost("/users/{id:guid}/reset-password", ResetPassword).RequireOrgAdmin();
     }
 
     private static async Task<IResult> ListUsers(
@@ -24,7 +27,7 @@ public static class OrgUsersEndpoints
     {
         var currentUser = httpContext.GetCurrentUser()!;
         var result = await service.ListUsersAsync(
-            currentUser.OrganizationId!.Value, currentUser.UserId, cancellationToken);
+            currentUser.GetEffectiveOrganizationId()!.Value, currentUser.UserId, cancellationToken);
         return Results.Ok(result);
     }
 
@@ -36,13 +39,11 @@ public static class OrgUsersEndpoints
     {
         var currentUser = httpContext.GetCurrentUser()!;
         var result = await service.CreateUserAsync(
-            currentUser.OrganizationId!.Value, request, currentUser.UserId, cancellationToken);
+            currentUser.GetEffectiveOrganizationId()!.Value, request, currentUser.UserId, cancellationToken);
         if (!result.IsSuccess)
             return ToError(result);
 
-        return Results.Json(
-            new OrgUserResponse { User = result.Value! },
-            statusCode: StatusCodes.Status201Created);
+        return Results.Json(new OrgUserResponse { User = result.Value! }, statusCode: StatusCodes.Status201Created);
     }
 
     private static async Task<IResult> UpdateUser(
@@ -52,10 +53,10 @@ public static class OrgUsersEndpoints
         OrganizationUserService service,
         CancellationToken cancellationToken)
     {
-        var version = ReadIfMatch(httpContext);
         var currentUser = httpContext.GetCurrentUser()!;
         var result = await service.UpdateUserAsync(
-            currentUser.OrganizationId!.Value, id, request, version, currentUser.UserId, cancellationToken);
+            currentUser.GetEffectiveOrganizationId()!.Value, id, request, ReadIfMatch(httpContext),
+            currentUser.UserId, cancellationToken);
         if (!result.IsSuccess)
             return ToError(result);
 
@@ -69,10 +70,43 @@ public static class OrgUsersEndpoints
         OrganizationUserService service,
         CancellationToken cancellationToken)
     {
-        var version = ReadIfMatch(httpContext);
         var currentUser = httpContext.GetCurrentUser()!;
         var result = await service.DisableUserAsync(
-            currentUser.OrganizationId!.Value, id, request, version, currentUser.UserId, cancellationToken);
+            currentUser.GetEffectiveOrganizationId()!.Value, id, request, ReadIfMatch(httpContext),
+            currentUser.UserId, cancellationToken);
+        if (!result.IsSuccess)
+            return ToError(result);
+
+        return Results.Ok(new OrgUserResponse { User = result.Value! });
+    }
+
+    private static async Task<IResult> RestoreUser(
+        Guid id,
+        RestoreOrgUserRequest request,
+        HttpContext httpContext,
+        OrganizationUserService service,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = httpContext.GetCurrentUser()!;
+        var result = await service.RestoreUserAsync(
+            currentUser.GetEffectiveOrganizationId()!.Value, id, request, ReadIfMatch(httpContext),
+            currentUser.UserId, cancellationToken);
+        if (!result.IsSuccess)
+            return ToError(result);
+
+        return Results.Ok(new OrgUserResponse { User = result.Value! });
+    }
+
+    private static async Task<IResult> ResetPassword(
+        Guid id,
+        ResetOrgUserPasswordRequest request,
+        HttpContext httpContext,
+        OrganizationUserService service,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = httpContext.GetCurrentUser()!;
+        var result = await service.ResetPasswordAsync(
+            currentUser.GetEffectiveOrganizationId()!.Value, id, request, currentUser.UserId, cancellationToken);
         if (!result.IsSuccess)
             return ToError(result);
 
@@ -83,19 +117,12 @@ public static class OrgUsersEndpoints
     {
         if (httpContext.Request.Headers.TryGetValue("If-Match", out var ifMatch) &&
             int.TryParse(ifMatch.ToString(), out var parsed))
-        {
             return parsed;
-        }
         return null;
     }
 
     private static IResult ToError<T>(ServiceResult<T> result) =>
         Results.Json(
-            new ApiError
-            {
-                Error = result.Error,
-                Code = result.Code,
-                Details = result.Details
-            },
+            new ApiError { Error = result.Error, Code = result.Code, Details = result.Details },
             statusCode: result.StatusCode);
 }

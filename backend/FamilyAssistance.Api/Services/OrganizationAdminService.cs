@@ -14,7 +14,8 @@ namespace FamilyAssistance.Api.Services;
 public sealed class OrganizationAdminService(
     AppDbContext db,
     IAuditService auditService,
-    SessionService sessionService)
+    SessionService sessionService,
+    PermissionService permissionService)
 {
     private static readonly Regex OrgCodeRegex = new("^[A-Z0-9-]{2,50}$", RegexOptions.CultureInvariant);
 
@@ -104,6 +105,8 @@ public sealed class OrganizationAdminService(
             await tx.RollbackAsync(cancellationToken);
             return ServiceResult<OrganizationDto>.Fail(500, "INTERNAL_ERROR", "שגיאת מערכת");
         }
+
+        await permissionService.SeedOrganizationRolesAsync(org.Id, actorUserId, cancellationToken);
 
         return ServiceResult<OrganizationDto>.Ok(MapOrganization(org, hasOrgAdmin: false));
     }
@@ -257,6 +260,124 @@ public sealed class OrganizationAdminService(
             OrganizationId = user.OrganizationId!.Value,
             Status = user.Status
         });
+    }
+
+    public async Task<ServiceResult<OrganizationDto>> RestoreOrganizationAsync(
+        Guid organizationId,
+        RestoreOrganizationRequest request,
+        int? expectedVersion,
+        Guid actorUserId,
+        CancellationToken cancellationToken = default)
+    {
+        if (expectedVersion is null)
+            return ServiceResult<OrganizationDto>.Fail(409, "VERSION_CONFLICT",
+                "הרשומה עודכנה על ידי משתמש אחר. יש לטעון מחדש.");
+
+        var reason = request.Reason?.Trim() ?? string.Empty;
+        if (reason.Length < 3 || reason.Length > 500)
+            return ServiceResult<OrganizationDto>.Fail(400, "VALIDATION_ERROR", "יש לציין סיבה לשינוי מהותי");
+
+        var org = await db.Organizations.FindAsync([organizationId], cancellationToken);
+        if (org is null)
+            return ServiceResult<OrganizationDto>.Fail(404, "NOT_FOUND", "הארגון לא נמצא");
+        if (org.Status == "active")
+            return ServiceResult<OrganizationDto>.Fail(400, "NO_CHANGES", "אין שינויים לעדכון");
+        if (org.Version != expectedVersion)
+            return ServiceResult<OrganizationDto>.Fail(409, "VERSION_CONFLICT",
+                "הרשומה עודכנה על ידי משתמש אחר. יש לטעון מחדש.");
+
+        var oldStatus = org.Status;
+        org.Status = "active";
+        org.Version++;
+        org.UpdatedAt = DateTime.UtcNow;
+
+        await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            auditService.Stage(new AuditEntry
+            {
+                EventCode = BusinessEventCodes.OrganizationRestore,
+                OrganizationId = null,
+                ActorUserId = actorUserId,
+                EntityType = "organization",
+                EntityId = org.Id,
+                Action = "restore",
+                FieldName = "status",
+                OldValue = oldStatus,
+                NewValue = "active",
+                Reason = reason,
+            });
+            await db.SaveChangesAsync(cancellationToken);
+            await tx.CommitAsync(cancellationToken);
+        }
+        catch (ArgumentException ex)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return ServiceResult<OrganizationDto>.Fail(400, "VALIDATION_ERROR", ex.Message);
+        }
+        catch
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return ServiceResult<OrganizationDto>.Fail(500, "INTERNAL_ERROR", "שגיאת מערכת");
+        }
+
+        var hasOrgAdmin = await db.Users.AnyAsync(
+            u => u.OrganizationId == org.Id && u.Role == Roles.OrganizationAdministrator,
+            cancellationToken);
+        return ServiceResult<OrganizationDto>.Ok(MapOrganization(org, hasOrgAdmin));
+    }
+
+    public async Task<ServiceResult<OrganizationDto>> EnterOrganizationAsync(
+        Guid organizationId,
+        Guid sessionId,
+        Guid actorUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var org = await db.Organizations.FindAsync([organizationId], cancellationToken);
+        if (org is null)
+            return ServiceResult<OrganizationDto>.Fail(404, "NOT_FOUND", "הארגון לא נמצא");
+        if (org.Status != "active")
+            return ServiceResult<OrganizationDto>.Fail(409, "ORG_SUSPENDED", "הארגון אינו פעיל");
+
+        await sessionService.SetActingOrganizationAsync(sessionId, organizationId, cancellationToken);
+
+        auditService.Stage(new AuditEntry
+        {
+            EventCode = BusinessEventCodes.SuperAdminEnterOrg,
+            OrganizationId = organizationId,
+            ActorUserId = actorUserId,
+            EntityType = "organization",
+            EntityId = organizationId,
+            Action = "enter_org",
+        });
+        await db.SaveChangesAsync(cancellationToken);
+
+        return ServiceResult<OrganizationDto>.Ok(MapOrganization(org, hasOrgAdmin: true));
+    }
+
+    public async Task<ServiceResult<object>> ExitOrganizationAsync(
+        Guid sessionId,
+        Guid actorUserId,
+        Guid? previousOrgId,
+        CancellationToken cancellationToken = default)
+    {
+        await sessionService.SetActingOrganizationAsync(sessionId, null, cancellationToken);
+
+        if (previousOrgId is not null)
+        {
+            auditService.Stage(new AuditEntry
+            {
+                EventCode = BusinessEventCodes.SuperAdminExitOrg,
+                OrganizationId = previousOrgId,
+                ActorUserId = actorUserId,
+                EntityType = "organization",
+                EntityId = previousOrgId.Value,
+                Action = "exit_org",
+            });
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
+        return ServiceResult<object>.Ok(new { exited = true });
     }
 
     private static List<string> ValidateCreateRequest(CreateOrganizationRequest request)

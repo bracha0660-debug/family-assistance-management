@@ -1,0 +1,501 @@
+using System.Text.Json;
+using FamilyAssistance.Api.Audit;
+using FamilyAssistance.Api.Constants;
+using FamilyAssistance.Api.Data;
+using FamilyAssistance.Api.Entities;
+using FamilyAssistance.Api.Models;
+using FamilyAssistance.Api.Validation;
+using Microsoft.EntityFrameworkCore;
+
+namespace FamilyAssistance.Api.Services;
+
+public sealed class SupplierService(
+    AppDbContext db,
+    IAuditService auditService)
+{
+    private const string MaterialReasonRequiredMessage = "יש לציין סיבה לשינוי מהותי";
+
+    public async Task<SupplierListResponse> ListAsync(
+        Guid organizationId,
+        CancellationToken cancellationToken = default)
+    {
+        var suppliers = await db.Suppliers
+            .Where(s => s.OrganizationId == organizationId)
+            .OrderBy(s => s.SupplierCode)
+            .Select(s => Map(s))
+            .ToListAsync(cancellationToken);
+
+        return new SupplierListResponse
+        {
+            Summary = new SupplierSummaryDto
+            {
+                Total = suppliers.Count,
+                Active = suppliers.Count(s => s.Status == "active"),
+                Inactive = suppliers.Count(s => s.Status == "inactive")
+            },
+            Suppliers = suppliers
+        };
+    }
+
+    public async Task<ServiceResult<SupplierDto>> GetAsync(
+        Guid organizationId,
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        var supplier = await db.Suppliers
+            .FirstOrDefaultAsync(s => s.Id == id && s.OrganizationId == organizationId, cancellationToken);
+        if (supplier is null)
+            return ServiceResult<SupplierDto>.Fail(404, "NOT_FOUND", "הספק לא נמצא");
+
+        return ServiceResult<SupplierDto>.Ok(Map(supplier));
+    }
+
+    public async Task<ServiceResult<SupplierDto>> CreateAsync(
+        Guid organizationId,
+        CreateSupplierRequest request,
+        Guid actorUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var normalized = NormalizeCreate(request);
+        var errors = ValidateCreate(normalized);
+        errors.AddRange(BankFieldValidator.ValidateCreate(
+            normalized.BankNumber, normalized.BranchNumber, normalized.AccountNumber, normalized.AccountHolderName));
+        if (errors.Count > 0)
+            return ServiceResult<SupplierDto>.Fail(400, "VALIDATION_ERROR", errors[0], errors);
+
+        await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            var nextCounter = await db.Database
+                .SqlQuery<int>(
+                    $@"UPDATE organizations SET supplier_code_counter = supplier_code_counter + 1 WHERE id = {organizationId} RETURNING supplier_code_counter AS ""Value""")
+                .ToListAsync(cancellationToken);
+
+            if (nextCounter.Count == 0)
+                return ServiceResult<SupplierDto>.Fail(404, "NOT_FOUND", "הארגון לא נמצא");
+
+            var now = DateTime.UtcNow;
+            var supplier = new Supplier
+            {
+                Id = Guid.NewGuid(),
+                OrganizationId = organizationId,
+                SupplierCode = $"S-{nextCounter[0]:D6}",
+                Name = normalized.Name!,
+                RegistrationNumber = normalized.RegistrationNumber,
+                Phone = normalized.Phone,
+                Address = normalized.Address,
+                BankNumber = normalized.BankNumber!.Trim(),
+                BranchNumber = normalized.BranchNumber!.Trim(),
+                AccountNumber = normalized.AccountNumber!.Trim(),
+                AccountHolderName = normalized.AccountHolderName!.Trim(),
+                BankVerifiedExternally = normalized.BankVerifiedExternally,
+                Status = "active",
+                Version = 1,
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+
+            db.Suppliers.Add(supplier);
+            auditService.Stage(new AuditEntry
+            {
+                EventCode = BusinessEventCodes.SupplierCreate,
+                OrganizationId = organizationId,
+                ActorUserId = actorUserId,
+                EntityType = "supplier",
+                EntityId = supplier.Id,
+                Action = "create",
+                NewValue = JsonSerializer.Serialize(new { supplier.SupplierCode, supplier.Name })
+            });
+
+            await db.SaveChangesAsync(cancellationToken);
+            await tx.CommitAsync(cancellationToken);
+            return ServiceResult<SupplierDto>.Ok(Map(supplier));
+        }
+        catch
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return ServiceResult<SupplierDto>.Fail(500, "INTERNAL_ERROR", "שגיאת מערכת");
+        }
+    }
+
+    public async Task<ServiceResult<SupplierDto>> UpdateAsync(
+        Guid organizationId,
+        Guid id,
+        UpdateSupplierRequest request,
+        int? expectedVersion,
+        Guid actorUserId,
+        CancellationToken cancellationToken = default)
+    {
+        if (expectedVersion is null)
+            return ServiceResult<SupplierDto>.Fail(409, "VERSION_CONFLICT",
+                "הרשומה עודכנה על ידי משתמש אחר. יש לטעון מחדש.");
+
+        var supplier = await db.Suppliers.FirstOrDefaultAsync(
+            s => s.Id == id && s.OrganizationId == organizationId, cancellationToken);
+        if (supplier is null)
+            return ServiceResult<SupplierDto>.Fail(404, "NOT_FOUND", "הספק לא נמצא");
+
+        if (supplier.Status != "active")
+            return ServiceResult<SupplierDto>.Fail(409, "SUPPLIER_INACTIVE", "הספק אינו פעיל");
+
+        if (supplier.Version != expectedVersion)
+            return ServiceResult<SupplierDto>.Fail(409, "VERSION_CONFLICT",
+                "הרשומה עודכנה על ידי משתמש אחר. יש לטעון מחדש.");
+
+        var changes = new List<(string Field, string? Old, string? New, string Action, string EventCode)>();
+        var errors = new List<string>();
+
+        if (request.Name is not null)
+        {
+            var newName = request.Name.Trim();
+            if (newName.Length < 2 || newName.Length > 200)
+                errors.Add("שם הספק הוא שדה חובה");
+            else if (newName != supplier.Name)
+            {
+                changes.Add(("name", supplier.Name, newName, "update", BusinessEventCodes.SupplierUpdate));
+                supplier.Name = newName;
+            }
+        }
+
+        if (request.RegistrationNumber is not null)
+        {
+            var registrationError = IsraeliCompanyRegistrationValidator.Validate(request.RegistrationNumber);
+            if (registrationError is not null)
+                errors.Add(registrationError);
+            else
+            {
+                var newReg = request.RegistrationNumber.Trim();
+                if (newReg != supplier.RegistrationNumber)
+                {
+                    changes.Add(("registration_number", supplier.RegistrationNumber, newReg,
+                        "supplier_identity_change", BusinessEventCodes.SupplierIdentityChange));
+                    supplier.RegistrationNumber = newReg;
+                }
+            }
+        }
+
+        if (request.Phone is not null)
+        {
+            var newPhone = NormalizeOptional(request.Phone);
+            if (newPhone is not null && newPhone.Length > 30)
+                errors.Add("טלפון חייב להיות עד 30 תווים");
+            else if (newPhone != supplier.Phone)
+            {
+                changes.Add(("phone", supplier.Phone, newPhone, "update", BusinessEventCodes.SupplierUpdate));
+                supplier.Phone = newPhone;
+            }
+        }
+
+        if (request.Address is not null)
+        {
+            var newAddress = NormalizeOptional(request.Address);
+            if (newAddress is not null && newAddress.Length > 300)
+                errors.Add("כתובת חייבת להיות עד 300 תווים");
+            else if (newAddress != supplier.Address)
+            {
+                changes.Add(("address", supplier.Address, newAddress, "update", BusinessEventCodes.SupplierUpdate));
+                supplier.Address = newAddress;
+            }
+        }
+
+        ApplyBankUpdate(request, supplier, errors, changes);
+
+        if (request.BankVerifiedExternally is not null
+            && request.BankVerifiedExternally != supplier.BankVerifiedExternally)
+        {
+            changes.Add(("bank_verified_externally",
+                supplier.BankVerifiedExternally.ToString(),
+                request.BankVerifiedExternally.Value.ToString(),
+                "update", BusinessEventCodes.SupplierUpdate));
+            supplier.BankVerifiedExternally = request.BankVerifiedExternally.Value;
+        }
+
+        if (errors.Count > 0)
+            return ServiceResult<SupplierDto>.Fail(400, "VALIDATION_ERROR", errors[0], errors);
+
+        if (changes.Count == 0)
+            return ServiceResult<SupplierDto>.Fail(400, "NO_CHANGES", "אין שינויים לעדכון");
+
+        var materialChanges = changes.Where(c =>
+            c.Action is "supplier_identity_change" or "bank_account_change").ToList();
+        if (materialChanges.Count > 0)
+        {
+            var reason = request.Reason?.Trim() ?? string.Empty;
+            if (reason.Length < 3 || reason.Length > 500)
+                return ServiceResult<SupplierDto>.Fail(400, "VALIDATION_ERROR", MaterialReasonRequiredMessage);
+        }
+
+        supplier.Version++;
+        supplier.UpdatedAt = DateTime.UtcNow;
+        var materialReason = request.Reason?.Trim();
+
+        await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            foreach (var change in changes)
+            {
+                auditService.Stage(new AuditEntry
+                {
+                    EventCode = change.EventCode,
+                    OrganizationId = organizationId,
+                    ActorUserId = actorUserId,
+                    EntityType = "supplier",
+                    EntityId = supplier.Id,
+                    Action = change.Action,
+                    FieldName = change.Field,
+                    OldValue = change.Old,
+                    NewValue = change.New,
+                    Reason = change.Action is "supplier_identity_change" or "bank_account_change" ? materialReason : null
+                });
+            }
+
+            await db.SaveChangesAsync(cancellationToken);
+            await tx.CommitAsync(cancellationToken);
+        }
+        catch (ArgumentException ex)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return ServiceResult<SupplierDto>.Fail(400, "VALIDATION_ERROR", ex.Message);
+        }
+        catch
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return ServiceResult<SupplierDto>.Fail(500, "INTERNAL_ERROR", "שגיאת מערכת");
+        }
+
+        return ServiceResult<SupplierDto>.Ok(Map(supplier));
+    }
+
+    public async Task<ServiceResult<SupplierDto>> DeactivateAsync(
+        Guid organizationId,
+        Guid id,
+        DeactivateSupplierRequest request,
+        int? expectedVersion,
+        Guid actorUserId,
+        CancellationToken cancellationToken = default)
+    {
+        if (expectedVersion is null)
+            return ServiceResult<SupplierDto>.Fail(409, "VERSION_CONFLICT",
+                "הרשומה עודכנה על ידי משתמש אחר. יש לטעון מחדש.");
+
+        var reason = request.Reason?.Trim() ?? string.Empty;
+        if (reason.Length < 3 || reason.Length > 500)
+            return ServiceResult<SupplierDto>.Fail(400, "VALIDATION_ERROR", MaterialReasonRequiredMessage);
+
+        var supplier = await db.Suppliers.FirstOrDefaultAsync(
+            s => s.Id == id && s.OrganizationId == organizationId, cancellationToken);
+        if (supplier is null)
+            return ServiceResult<SupplierDto>.Fail(404, "NOT_FOUND", "הספק לא נמצא");
+
+        if (supplier.Status == "inactive")
+            return ServiceResult<SupplierDto>.Fail(409, "ALREADY_INACTIVE", "הספק כבר אינו פעיל");
+
+        if (supplier.Version != expectedVersion)
+            return ServiceResult<SupplierDto>.Fail(409, "VERSION_CONFLICT",
+                "הרשומה עודכנה על ידי משתמש אחר. יש לטעון מחדש.");
+
+        var oldStatus = supplier.Status;
+        supplier.Status = "inactive";
+        supplier.Version++;
+        supplier.UpdatedAt = DateTime.UtcNow;
+
+        await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            auditService.Stage(new AuditEntry
+            {
+                EventCode = BusinessEventCodes.SupplierDeactivate,
+                OrganizationId = organizationId,
+                ActorUserId = actorUserId,
+                EntityType = "supplier",
+                EntityId = supplier.Id,
+                Action = "supplier_deactivate",
+                FieldName = "status",
+                OldValue = oldStatus,
+                NewValue = "inactive",
+                Reason = reason
+            });
+
+            await db.SaveChangesAsync(cancellationToken);
+            await tx.CommitAsync(cancellationToken);
+        }
+        catch (ArgumentException ex)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return ServiceResult<SupplierDto>.Fail(400, "VALIDATION_ERROR", ex.Message);
+        }
+        catch
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return ServiceResult<SupplierDto>.Fail(500, "INTERNAL_ERROR", "שגיאת מערכת");
+        }
+
+        return ServiceResult<SupplierDto>.Ok(Map(supplier));
+    }
+
+    public async Task<ServiceResult<SupplierDto>> RestoreAsync(
+        Guid organizationId,
+        Guid id,
+        RestoreSupplierRequest request,
+        int? expectedVersion,
+        Guid actorUserId,
+        CancellationToken cancellationToken = default)
+    {
+        if (expectedVersion is null)
+            return ServiceResult<SupplierDto>.Fail(409, "VERSION_CONFLICT",
+                "הרשומה עודכנה על ידי משתמש אחר. יש לטעון מחדש.");
+
+        var reason = request.Reason?.Trim() ?? string.Empty;
+        if (reason.Length < 3 || reason.Length > 500)
+            return ServiceResult<SupplierDto>.Fail(400, "VALIDATION_ERROR", MaterialReasonRequiredMessage);
+
+        var supplier = await db.Suppliers.FirstOrDefaultAsync(
+            s => s.Id == id && s.OrganizationId == organizationId, cancellationToken);
+        if (supplier is null)
+            return ServiceResult<SupplierDto>.Fail(404, "NOT_FOUND", "הספק לא נמצא");
+
+        if (supplier.Status == "active")
+            return ServiceResult<SupplierDto>.Fail(409, "ALREADY_ACTIVE", "הספק כבר פעיל");
+
+        if (supplier.Version != expectedVersion)
+            return ServiceResult<SupplierDto>.Fail(409, "VERSION_CONFLICT",
+                "הרשומה עודכנה על ידי משתמש אחר. יש לטעון מחדש.");
+
+        var oldStatus = supplier.Status;
+        supplier.Status = "active";
+        supplier.Version++;
+        supplier.UpdatedAt = DateTime.UtcNow;
+
+        await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            auditService.Stage(new AuditEntry
+            {
+                EventCode = BusinessEventCodes.SupplierRestore,
+                OrganizationId = organizationId,
+                ActorUserId = actorUserId,
+                EntityType = "supplier",
+                EntityId = supplier.Id,
+                Action = "supplier_restore",
+                FieldName = "status",
+                OldValue = oldStatus,
+                NewValue = "active",
+                Reason = reason
+            });
+
+            await db.SaveChangesAsync(cancellationToken);
+            await tx.CommitAsync(cancellationToken);
+        }
+        catch (ArgumentException ex)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return ServiceResult<SupplierDto>.Fail(400, "VALIDATION_ERROR", ex.Message);
+        }
+        catch
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return ServiceResult<SupplierDto>.Fail(500, "INTERNAL_ERROR", "שגיאת מערכת");
+        }
+
+        return ServiceResult<SupplierDto>.Ok(Map(supplier));
+    }
+
+    private static CreateSupplierRequest NormalizeCreate(CreateSupplierRequest request) => new()
+    {
+        Name = request.Name?.Trim() ?? string.Empty,
+        RegistrationNumber = NormalizeOptional(request.RegistrationNumber),
+        Phone = NormalizeOptional(request.Phone),
+        Address = NormalizeOptional(request.Address),
+        BankNumber = request.BankNumber?.Trim(),
+        BranchNumber = request.BranchNumber?.Trim(),
+        AccountNumber = request.AccountNumber?.Trim(),
+        AccountHolderName = request.AccountHolderName?.Trim(),
+        BankVerifiedExternally = request.BankVerifiedExternally
+    };
+
+    private static List<string> ValidateCreate(CreateSupplierRequest request)
+    {
+        var errors = new List<string>();
+        if (request.Name!.Length < 2 || request.Name.Length > 200)
+            errors.Add("שם הספק הוא שדה חובה");
+
+        var registrationError = IsraeliCompanyRegistrationValidator.Validate(request.RegistrationNumber);
+        if (registrationError is not null)
+            errors.Add(registrationError);
+
+        if (request.Phone is not null && request.Phone.Length > 30)
+            errors.Add("טלפון חייב להיות עד 30 תווים");
+        if (request.Address is not null && request.Address.Length > 300)
+            errors.Add("כתובת חייבת להיות עד 300 תווים");
+        return errors;
+    }
+
+    private static void ApplyBankUpdate(
+        UpdateSupplierRequest request,
+        Supplier supplier,
+        List<string> errors,
+        List<(string Field, string? Old, string? New, string Action, string EventCode)> changes)
+    {
+        ApplyBankField(request.BankNumber, supplier.BankNumber, "bank_number", errors, changes, v => supplier.BankNumber = v);
+        ApplyBankField(request.BranchNumber, supplier.BranchNumber, "branch_number", errors, changes, v => supplier.BranchNumber = v);
+        ApplyBankField(request.AccountNumber, supplier.AccountNumber, "account_number", errors, changes, v => supplier.AccountNumber = v);
+
+        if (request.AccountHolderName is not null)
+        {
+            var newHolder = request.AccountHolderName.Trim();
+            if (newHolder.Length == 0)
+                errors.Add(BankFieldValidator.HolderRequiredMessage);
+            else if (newHolder != supplier.AccountHolderName)
+            {
+                changes.Add(("account_holder_name", supplier.AccountHolderName, newHolder,
+                    "bank_account_change", BusinessEventCodes.SupplierUpdate));
+                supplier.AccountHolderName = newHolder;
+            }
+        }
+    }
+
+    private static void ApplyBankField(
+        string? incoming,
+        string current,
+        string fieldName,
+        List<string> errors,
+        List<(string Field, string? Old, string? New, string Action, string EventCode)> changes,
+        Action<string> apply)
+    {
+        if (incoming is null) return;
+        var newValue = incoming.Trim();
+        if (!BankFieldValidator.IsDigitsOnly(newValue))
+            errors.Add(BankFieldValidator.DigitsOnlyMessage);
+        else if (newValue != current)
+        {
+            changes.Add((fieldName, current, newValue, "bank_account_change", BusinessEventCodes.SupplierUpdate));
+            apply(newValue);
+        }
+    }
+
+    private static string? NormalizeOptional(string? value)
+    {
+        if (value is null) return null;
+        var trimmed = value.Trim();
+        return trimmed.Length == 0 ? null : trimmed;
+    }
+
+    private static SupplierDto Map(Supplier s) => new()
+    {
+        Id = s.Id,
+        SupplierCode = s.SupplierCode,
+        Name = s.Name,
+        RegistrationNumber = s.RegistrationNumber,
+        Phone = s.Phone,
+        Address = s.Address,
+        BankNumber = s.BankNumber,
+        BranchNumber = s.BranchNumber,
+        AccountNumber = s.AccountNumber,
+        AccountHolderName = s.AccountHolderName,
+        BankVerifiedExternally = s.BankVerifiedExternally,
+        Status = s.Status,
+        Version = s.Version,
+        CreatedAt = s.CreatedAt,
+        UpdatedAt = s.UpdatedAt
+    };
+}

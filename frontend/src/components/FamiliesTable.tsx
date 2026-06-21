@@ -1,4 +1,4 @@
-import type { FamilyDto } from '../api/families';
+import { maskBankAccount, type FamilyDto } from '../api/families';
 import { translateStatus } from './roleLabel';
 
 interface FamiliesTableProps {
@@ -7,6 +7,7 @@ interface FamiliesTableProps {
   showCoordinator: boolean;
   onEdit?: (family: FamilyDto) => void;
   onDeactivate?: (family: FamilyDto) => void;
+  onRestore?: (family: FamilyDto) => void;
 }
 
 export function FamiliesTable({
@@ -15,17 +16,22 @@ export function FamiliesTable({
   showCoordinator,
   onEdit,
   onDeactivate,
+  onRestore,
 }: FamiliesTableProps) {
+  const colSpan = showCoordinator ? 10 : 9;
+
   return (
     <div className="table-wrap">
       <table className="org-table">
         <thead>
           <tr>
             <th>קוד משפחה</th>
-            <th>שם ראש משק בית</th>
-            <th>תעודת זהות</th>
+            <th>מספר חשבונאי</th>
+            <th>שם משפחה</th>
+            <th>שם האב</th>
+            <th>ת.ז. האב</th>
+            <th>חשבון בנק</th>
             <th>טלפון</th>
-            <th>גודל משק בית</th>
             {showCoordinator && <th>מתאם/ת</th>}
             <th>סטטוס</th>
             <th>פעולות</th>
@@ -34,7 +40,7 @@ export function FamiliesTable({
         <tbody>
           {families.length === 0 && (
             <tr>
-              <td colSpan={showCoordinator ? 8 : 7} className="empty-row">
+              <td colSpan={colSpan} className="empty-row">
                 אין משפחות להצגה
               </td>
             </tr>
@@ -44,10 +50,12 @@ export function FamiliesTable({
             return (
               <tr key={f.id} className={f.status === 'inactive' ? 'row-disabled' : undefined}>
                 <td><code>{f.familyCode}</code></td>
-                <td>{f.headOfHouseholdName}</td>
-                <td>{f.headIdNumber ?? '—'}</td>
+                <td>{f.accountingCode}</td>
+                <td>{f.familyLastName}</td>
+                <td>{f.fatherName ?? '—'}</td>
+                <td>{f.fatherIsraeliId ?? '—'}</td>
+                <td><code>{maskBankAccount(f)}</code></td>
                 <td>{f.phone ?? '—'}</td>
-                <td>{f.householdSize}</td>
                 {showCoordinator && <td>{f.assignedCoordinatorName}</td>}
                 <td>
                   <span
@@ -75,6 +83,15 @@ export function FamiliesTable({
                       onClick={() => onDeactivate(f)}
                     >
                       השבת
+                    </button>
+                  )}
+                  {manageable && f.status === 'inactive' && onRestore && (
+                    <button
+                      type="button"
+                      className="btn-small"
+                      onClick={() => onRestore(f)}
+                    >
+                      שחזר
                     </button>
                   )}
                   {!manageable && <span className="hint-text">צפייה בלבד</span>}

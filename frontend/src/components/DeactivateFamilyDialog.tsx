@@ -43,7 +43,7 @@ export function DeactivateFamilyDialog({
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <h2>השבתת משפחה</h2>
         <p>
-          משפחה: <strong>{family.familyCode}</strong> — {family.headOfHouseholdName}
+          משפחה: <strong>{family.familyCode}</strong> — {family.familyLastName}
         </p>
         <p className="hint-text">השבתת משפחה תסיר אותה מרשימות העבודה הפעילות.</p>
         <form onSubmit={handleSubmit}>

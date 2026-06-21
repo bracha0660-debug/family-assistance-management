@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { FormEvent, MouseEvent } from 'react';
+import type { FormEvent } from 'react';
 import {
   assistanceFrequencies,
   updateAssistanceType,
@@ -8,6 +8,8 @@ import {
   type UpdateAssistanceTypePayload,
 } from '../api/assistanceTypes';
 import { translateFrequency } from './roleLabel';
+import { FormField, ModalShell } from './ModalShell';
+import { focusFirstInvalidField } from '../utils/formValidation';
 
 interface EditAssistanceTypeModalProps {
   assistanceType: AssistanceTypeDto;
@@ -18,6 +20,8 @@ interface EditAssistanceTypeModalProps {
 function isFrequency(value: string): value is AssistanceFrequency {
   return (assistanceFrequencies as readonly string[]).includes(value);
 }
+
+const FOCUS_ORDER = ['edit-type-name', 'edit-type-amount'];
 
 export function EditAssistanceTypeModal({
   assistanceType,
@@ -34,18 +38,14 @@ export function EditAssistanceTypeModal({
     assistanceType.defaultAmount !== null ? String(assistanceType.defaultAmount) : '',
   );
   const [frequency, setFrequency] = useState<AssistanceFrequency>(initialFrequency);
+  const [amountError, setAmountError] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-
-  function handleClose(e?: MouseEvent) {
-    if (e) e.stopPropagation();
-    if (loading) return;
-    onClose();
-  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
+    setAmountError(null);
 
     const payload: UpdateAssistanceTypePayload = {};
     const trimmedName = name.trim();
@@ -62,7 +62,8 @@ export function EditAssistanceTypeModal({
     } else {
       const parsed = Number(defaultAmount);
       if (Number.isNaN(parsed) || parsed < 0 || parsed > 1000000) {
-        setError('סכום ברירת מחדל חייב להיות בין 0 ל-1,000,000');
+        setAmountError('סכום ברירת מחדל חייב להיות בין 0 ל-1,000,000');
+        focusFirstInvalidField(FOCUS_ORDER);
         return;
       }
       if (parsed !== assistanceType.defaultAmount) {
@@ -74,6 +75,12 @@ export function EditAssistanceTypeModal({
 
     if (Object.keys(payload).length === 0) {
       setError('אין שינויים לעדכון');
+      return;
+    }
+
+    const form = e.currentTarget as HTMLFormElement;
+    if (!form.reportValidity()) {
+      focusFirstInvalidField(FOCUS_ORDER);
       return;
     }
 
@@ -90,73 +97,76 @@ export function EditAssistanceTypeModal({
   }
 
   return (
-    <div className="modal-overlay" onClick={handleClose}>
-      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-        <h2>עריכת סוג סיוע</h2>
-        <p>קוד: <strong>{assistanceType.typeCode}</strong></p>
-        <form onSubmit={handleSubmit}>
-          <label htmlFor="edit-type-name">שם סוג הסיוע</label>
-          <input
-            id="edit-type-name"
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            disabled={loading}
-            required
-            minLength={2}
-            maxLength={200}
-          />
-          <label htmlFor="edit-type-description">תיאור</label>
-          <textarea
-            id="edit-type-description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            disabled={loading}
-            rows={3}
-            maxLength={1000}
-          />
-          <label htmlFor="edit-type-amount">סכום ברירת מחדל בש״ח</label>
-          <input
-            id="edit-type-amount"
-            type="number"
-            value={defaultAmount}
-            onChange={(e) => setDefaultAmount(e.target.value)}
-            disabled={loading}
-            min={0}
-            max={1000000}
-            step="0.01"
-            placeholder="ריק = ללא ברירת מחדל"
-          />
-          <label htmlFor="edit-type-frequency">תדירות</label>
-          <select
-            id="edit-type-frequency"
-            value={frequency}
-            onChange={(e) => setFrequency(e.target.value as AssistanceFrequency)}
-            disabled={loading}
-            required
-          >
-            {assistanceFrequencies.map((f) => (
-              <option key={f} value={f}>
-                {translateFrequency(f)}
-              </option>
-            ))}
-          </select>
-          {error && <div className="error" role="alert">{error}</div>}
-          <div className="modal-actions">
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={handleClose}
-              disabled={loading}
-            >
-              ביטול
-            </button>
-            <button type="submit" disabled={loading}>
-              {loading ? 'שומר...' : 'שמור שינויים'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <ModalShell
+      title="עריכת סוג סיוע"
+      loading={loading}
+      onClose={onClose}
+      onSubmit={handleSubmit}
+      formNoValidate={false}
+      formError={error}
+      footer={(
+        <>
+          <button type="button" className="btn-secondary" onClick={() => onClose()} disabled={loading}>
+            ביטול
+          </button>
+          <button type="submit" disabled={loading}>
+            {loading ? 'שומר...' : 'שמור שינויים'}
+          </button>
+        </>
+      )}
+    >
+      <p>קוד: <strong>{assistanceType.typeCode}</strong></p>
+      <label htmlFor="edit-type-name">שם סוג הסיוע</label>
+      <input
+        id="edit-type-name"
+        type="text"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        disabled={loading}
+        required
+        minLength={2}
+        maxLength={200}
+      />
+      <label htmlFor="edit-type-description">תיאור</label>
+      <textarea
+        id="edit-type-description"
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        disabled={loading}
+        rows={3}
+        maxLength={1000}
+      />
+      <FormField id="edit-type-amount" label="סכום ברירת מחדל בש״ח" error={amountError}>
+        <input
+          id="edit-type-amount"
+          type="number"
+          value={defaultAmount}
+          onChange={(e) => {
+            setDefaultAmount(e.target.value);
+            if (amountError) setAmountError(null);
+          }}
+          disabled={loading}
+          min={0}
+          max={1000000}
+          step="0.01"
+          placeholder="ריק = ללא ברירת מחדל"
+          aria-invalid={amountError ? true : undefined}
+        />
+      </FormField>
+      <label htmlFor="edit-type-frequency">תדירות</label>
+      <select
+        id="edit-type-frequency"
+        value={frequency}
+        onChange={(e) => setFrequency(e.target.value as AssistanceFrequency)}
+        disabled={loading}
+        required
+      >
+        {assistanceFrequencies.map((f) => (
+          <option key={f} value={f}>
+            {translateFrequency(f)}
+          </option>
+        ))}
+      </select>
+    </ModalShell>
   );
 }

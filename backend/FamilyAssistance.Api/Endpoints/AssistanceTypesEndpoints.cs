@@ -1,4 +1,5 @@
 using FamilyAssistance.Api.Auth;
+using FamilyAssistance.Api.Constants;
 using FamilyAssistance.Api.Models;
 using FamilyAssistance.Api.Policies;
 using FamilyAssistance.Api.Services;
@@ -11,20 +12,22 @@ public static class AssistanceTypesEndpoints
     {
         var group = app.MapGroup("/api/v1/org");
 
-        group.MapGet("/assistance-types", List).RequireTypeViewer();
-        group.MapPost("/assistance-types", Create).RequireFinance();
-        group.MapGet("/assistance-types/{id:guid}", Get).RequireTypeViewer();
-        group.MapPatch("/assistance-types/{id:guid}", Update).RequireFinance();
-        group.MapPatch("/assistance-types/{id:guid}/deactivate", Deactivate).RequireFinance();
+        group.MapGet("/assistance-types", List).RequirePermission(PermissionKeys.AssistanceTypesView);
+        group.MapPost("/assistance-types", Create).RequirePermission(PermissionKeys.AssistanceTypesCreate);
+        group.MapGet("/assistance-types/{id:guid}", Get).RequirePermission(PermissionKeys.AssistanceTypesView);
+        group.MapPatch("/assistance-types/{id:guid}", Update).RequirePermission(PermissionKeys.AssistanceTypesEdit);
+        group.MapPatch("/assistance-types/{id:guid}/deactivate", Deactivate).RequirePermission(PermissionKeys.AssistanceTypesDeactivate);
     }
+
+    private static Guid GetOrgId(HttpContext httpContext) =>
+        httpContext.GetAuthorizationContext()!.EffectiveOrganizationId!.Value;
 
     private static async Task<IResult> List(
         HttpContext httpContext,
         AssistanceTypeService service,
         CancellationToken cancellationToken)
     {
-        var currentUser = httpContext.GetCurrentUser()!;
-        var result = await service.ListAsync(currentUser.OrganizationId!.Value, cancellationToken);
+        var result = await service.ListAsync(GetOrgId(httpContext), cancellationToken);
         return Results.Ok(result);
     }
 
@@ -34,9 +37,8 @@ public static class AssistanceTypesEndpoints
         AssistanceTypeService service,
         CancellationToken cancellationToken)
     {
-        var currentUser = httpContext.GetCurrentUser()!;
-        var result = await service.CreateAsync(
-            currentUser.OrganizationId!.Value, request, currentUser.UserId, cancellationToken);
+        var auth = httpContext.GetAuthorizationContext()!;
+        var result = await service.CreateAsync(GetOrgId(httpContext), request, auth.UserId, cancellationToken);
         if (!result.IsSuccess)
             return ToError(result);
 
@@ -51,8 +53,7 @@ public static class AssistanceTypesEndpoints
         AssistanceTypeService service,
         CancellationToken cancellationToken)
     {
-        var currentUser = httpContext.GetCurrentUser()!;
-        var result = await service.GetAsync(currentUser.OrganizationId!.Value, id, cancellationToken);
+        var result = await service.GetAsync(GetOrgId(httpContext), id, cancellationToken);
         if (!result.IsSuccess)
             return ToError(result);
 
@@ -66,10 +67,9 @@ public static class AssistanceTypesEndpoints
         AssistanceTypeService service,
         CancellationToken cancellationToken)
     {
-        var version = ReadIfMatch(httpContext);
-        var currentUser = httpContext.GetCurrentUser()!;
+        var auth = httpContext.GetAuthorizationContext()!;
         var result = await service.UpdateAsync(
-            currentUser.OrganizationId!.Value, id, request, version, currentUser.UserId, cancellationToken);
+            GetOrgId(httpContext), id, request, ReadIfMatch(httpContext), auth.UserId, cancellationToken);
         if (!result.IsSuccess)
             return ToError(result);
 
@@ -83,10 +83,9 @@ public static class AssistanceTypesEndpoints
         AssistanceTypeService service,
         CancellationToken cancellationToken)
     {
-        var version = ReadIfMatch(httpContext);
-        var currentUser = httpContext.GetCurrentUser()!;
+        var auth = httpContext.GetAuthorizationContext()!;
         var result = await service.DeactivateAsync(
-            currentUser.OrganizationId!.Value, id, request, version, currentUser.UserId, cancellationToken);
+            GetOrgId(httpContext), id, request, ReadIfMatch(httpContext), auth.UserId, cancellationToken);
         if (!result.IsSuccess)
             return ToError(result);
 
@@ -97,19 +96,12 @@ public static class AssistanceTypesEndpoints
     {
         if (httpContext.Request.Headers.TryGetValue("If-Match", out var ifMatch) &&
             int.TryParse(ifMatch.ToString(), out var parsed))
-        {
             return parsed;
-        }
         return null;
     }
 
     private static IResult ToError<T>(ServiceResult<T> result) =>
         Results.Json(
-            new ApiError
-            {
-                Error = result.Error,
-                Code = result.Code,
-                Details = result.Details
-            },
+            new ApiError { Error = result.Error, Code = result.Code, Details = result.Details },
             statusCode: result.StatusCode);
 }

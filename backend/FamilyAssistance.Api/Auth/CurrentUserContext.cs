@@ -7,6 +7,8 @@ public sealed class CurrentUserContext
     public string FullName { get; init; } = string.Empty;
     public string Role { get; init; } = string.Empty;
     public Guid? OrganizationId { get; init; }
+    public Guid? OrganizationRoleId { get; init; }
+    public Guid? ActingOrganizationId { get; init; }
     public string? OrganizationName { get; init; }
     public string? OrganizationStatus { get; init; }
     public Guid SessionId { get; init; }
@@ -21,4 +23,21 @@ public static class HttpContextCurrentUserExtensions
 
     public static void SetCurrentUser(this HttpContext context, CurrentUserContext user)
         => context.Items[Key] = user;
+}
+
+public static class CurrentUserOrganizationExtensions
+{
+    public static bool IsOrgAdministrator(this CurrentUserContext current) =>
+        current.Role == Constants.Roles.OrganizationAdministrator && current.OrganizationId is not null;
+
+    public static bool IsSuperAdminInOrganization(this CurrentUserContext current) =>
+        current.Role == Constants.Roles.SuperAdmin && current.ActingOrganizationId is not null;
+
+    public static bool HasOrgAdminAccess(this CurrentUserContext current) =>
+        current.IsOrgAdministrator() || current.IsSuperAdminInOrganization();
+
+    public static Guid? GetEffectiveOrganizationId(this CurrentUserContext current) =>
+        current.Role == Constants.Roles.SuperAdmin
+            ? current.ActingOrganizationId
+            : current.OrganizationId;
 }

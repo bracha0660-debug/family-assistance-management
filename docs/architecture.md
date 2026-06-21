@@ -80,19 +80,21 @@ Step 5 has not been planned or approved at the time of this document.
 
 ## 3. Current Architecture Baseline
 
-### 3.1 Database schema (9 tables)
+### 3.1 Database schema (7 tables + permissions tables pending)
 
 | Table                    | Versioned | Notes |
 | ------------------------ | :-------: | ----- |
 | `organizations`          | Yes       | Per-org `family_code_counter int` for atomic `F-NNNNNN` generation |
 | `users`                  | Yes       | Role ∈ {SuperAdmin, OrganizationAdministrator, Coordinator, Manager, Finance}; status ∈ {active, disabled} |
 | `user_sessions`          | No        | Server-side opaque session tokens (`FAM.Session` cookie); revoked on user disable / logout |
-| `bank_accounts`          | Yes       | Schema present; not yet exposed via API in current scope |
-| `bank_account_history`   | No        | Schema present; append-only |
 | `audit_logs`             | No        | Business events AUD-001..012 (append-only) |
 | `security_audit_logs`    | No        | Security events SEC-001..005 (append-only) |
-| `families`               | Yes       | Step 4; unique `(organization_id, family_code)`; FK to assigned coordinator |
+| `families`               | Yes       | Step 4; **embedded bank fields** (§14 design); unique `(organization_id, family_code)` |
 | `assistance_types`       | Yes       | Step 4; unique `(organization_id, type_code)`; currency fixed to `ILS` |
+
+**Retired (approved design, pre-implementation):** `bank_accounts`, `bank_account_history` — bank details are **embedded** on `families` and `suppliers` (no separate bank entity, no OwnerType/OwnerId). See [permissions_system_design_add4b9ad.plan.md](../.cursor/plans/permissions_system_design_add4b9ad.plan.md) §14–§15.
+
+**Pending:** `suppliers` (with embedded bank), permissions tables (`organization_roles`, `organization_role_grants`).
 
 All editable entities use `version int` for optimistic concurrency.
 All tables use `snake_case` column naming via `AppDbContext.ApplySnakeCaseNames`.

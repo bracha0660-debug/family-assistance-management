@@ -1,5 +1,7 @@
 import { logout } from '../api/auth';
 import type { UserDto } from '../api/auth';
+import { PERMISSION_KEYS } from '../api/permissions';
+import { hasPermission } from '../hooks/usePermissions';
 import { FinanceAssistanceTypesPage } from './FinanceAssistanceTypesPage';
 
 interface FinanceDashboardProps {
@@ -27,7 +29,11 @@ export function FinanceDashboard({ user, onLogout }: FinanceDashboardProps) {
       </header>
 
       <main className="dashboard-main super-admin-main">
-        <FinanceAssistanceTypesPage />
+        {hasPermission(user, PERMISSION_KEYS.assistanceTypesView) ? (
+          <FinanceAssistanceTypesPage user={user} />
+        ) : (
+          <p className="empty-row">אין הרשאות מוגדרות. פנה/י למנהל/ת הארגון.</p>
+        )}
       </main>
     </div>
   );

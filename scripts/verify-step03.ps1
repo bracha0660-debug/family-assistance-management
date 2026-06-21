@@ -89,6 +89,24 @@ function Get-JsonArray($jsonText, $path) {
     return @($v)
 }
 
+function Get-OrgRoleIdByPreset($cookieFile, $presetKey) {
+    $rolesResp = Invoke-CurlJson -Uri "$baseApi/api/v1/org/roles" -CookieFile $cookieFile
+    $roles = Get-JsonArray $rolesResp.Content "roles"
+    $match = $roles | Where-Object { $_.factoryPresetKey -eq $presetKey } | Select-Object -First 1
+    return $match.id
+}
+
+function Create-OrgUser($cookieFile, $username, $fullName, $presetKey) {
+    $roleId = Get-OrgRoleIdByPreset $cookieFile $presetKey
+    $body = (@{
+        username = $username
+        password = $newUserPass
+        fullName = $fullName
+        organizationRoleId = $roleId
+    } | ConvertTo-Json -Compress)
+    return Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/users" -Body $body -CookieFile $cookieFile
+}
+
 Write-Host "=== Step 3 Verification ===" -ForegroundColor Cyan
 Write-Host "NOTE: Creates isolated test orgs VERIF3-A-* and VERIF3-B-* only. Does not touch existing organizations." -ForegroundColor Yellow
 
@@ -98,17 +116,29 @@ try {
         if (Test-Path $c) { Remove-Item $c -Force }
     }
 
-    Write-Host "`nStarting docker compose..."
-    docker compose up --build -d | Out-Null
-    if ($LASTEXITCODE -ne 0) { Write-Result 1 "docker compose up --build" $false "docker compose failed"; exit 1 }
-
-    Write-Host "Waiting for API..."
     $healthy = $false
-    for ($i = 0; $i -lt 30; $i++) {
-        try {
-            $h = Invoke-RestMethod -Uri "$baseApi/api/v1/health" -TimeoutSec 3
-            if ($h.status -eq "healthy") { $healthy = $true; break }
-        } catch { Start-Sleep -Seconds 2 }
+    try {
+        $h = Invoke-RestMethod -Uri "$baseApi/api/v1/health" -TimeoutSec 3
+        if ($h.status -eq "healthy") { $healthy = $true }
+    } catch { }
+
+    if (-not $healthy) {
+        Write-Host "`nStarting docker compose..."
+        $prevEap = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        docker compose up --build -d 2>&1 | Out-Null
+        $ErrorActionPreference = $prevEap
+        if ($LASTEXITCODE -ne 0) { Write-Result 1 "docker compose up --build" $false "docker compose failed"; exit 1 }
+
+        Write-Host "Waiting for API..."
+        for ($i = 0; $i -lt 30; $i++) {
+            try {
+                $h = Invoke-RestMethod -Uri "$baseApi/api/v1/health" -TimeoutSec 3
+                if ($h.status -eq "healthy") { $healthy = $true; break }
+            } catch { Start-Sleep -Seconds 2 }
+        }
+    } else {
+        Write-Host "API already healthy - skipping docker compose up."
     }
     Write-Result 1 "docker compose up --build succeeds (regression)" $healthy $(if (-not $healthy) { "API not healthy after 60s" })
 
@@ -187,49 +217,51 @@ try {
     $listAOk = $listA.StatusCode -eq 200 -and $listATotal -ge 1
     Write-Result 13 "OrgAdmin GET /org/users returns own-org list" $listAOk "HTTP $($listA.StatusCode) total=$listATotal"
 
-    # 14: Create user with valid role (Coordinator)
-    $createUser1Body = (@{ username = $newUser1; password = $newUserPass; fullName = "Verif User One"; role = "Coordinator" } | ConvertTo-Json -Compress)
+    # 14: Create user with valid org role (coordinator preset)
+    $coordRoleId = Get-OrgRoleIdByPreset $cookieOaA "preset_coordinator"
+    $createUser1Body = (@{ username = $newUser1; password = $newUserPass; fullName = "Verif User One"; organizationRoleId = $coordRoleId } | ConvertTo-Json -Compress)
     $createUser1 = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/users" -Body $createUser1Body -CookieFile $cookieOaA
     $user1Id = Get-JsonField $createUser1.Content "user.id"
     $user1Version = Get-JsonField $createUser1.Content "user.version"
     $user1Role = Get-JsonField $createUser1.Content "user.role"
-    Write-Result 14 "Create Coordinator user returns 201" ($createUser1.StatusCode -eq 201 -and $user1Role -eq "Coordinator") "HTTP $($createUser1.StatusCode)"
+    Write-Result 14 "Create org user returns 201" ($createUser1.StatusCode -eq 201 -and $user1Role -eq "OrganizationUser") "HTTP $($createUser1.StatusCode) role=$user1Role"
 
     # 15: AUD-004 written
     $audQuery = "SELECT event_code FROM audit_logs WHERE event_code = 'AUD-004' AND entity_id = '$user1Id';"
     $audRows = docker compose exec -T postgres psql -U fam -d family_assistance -c $audQuery 2>&1
     Write-Result 15 'AUD-004 written on user create' ($audRows -match 'AUD-004') ''
 
-    # 16: Reject role = OrganizationAdministrator
-    $badRole1Body = (@{ username = "$newUser1.x"; password = $newUserPass; fullName = "X"; role = "OrganizationAdministrator" } | ConvertTo-Json -Compress)
+    # 16: Reject create without organizationRoleId
+    $badRole1Body = (@{ username = "$newUser1.x"; password = $newUserPass; fullName = "X" } | ConvertTo-Json -Compress)
     $badRole1 = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/users" -Body $badRole1Body -CookieFile $cookieOaA
     $badRole1Err = Get-JsonField $badRole1.Content "code"
-    Write-Result 16 "Create with role=OrganizationAdministrator returns 400 INVALID_ROLE" ($badRole1.StatusCode -eq 400 -and $badRole1Err -eq "INVALID_ROLE") "HTTP $($badRole1.StatusCode) code=$badRole1Err"
+    Write-Result 16 "Create without organizationRoleId returns 400 VALIDATION_ERROR" ($badRole1.StatusCode -eq 400 -and $badRole1Err -eq "VALIDATION_ERROR") "HTTP $($badRole1.StatusCode) code=$badRole1Err"
 
-    # 17: Reject role = SuperAdmin
-    $badRole2Body = (@{ username = "$newUser1.y"; password = $newUserPass; fullName = "Y"; role = "SuperAdmin" } | ConvertTo-Json -Compress)
+    # 17: Reject invalid organizationRoleId
+    $badRole2Body = (@{ username = "$newUser1.y"; password = $newUserPass; fullName = "Y"; organizationRoleId = "00000000-0000-0000-0000-000000000000" } | ConvertTo-Json -Compress)
     $badRole2 = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/users" -Body $badRole2Body -CookieFile $cookieOaA
     $badRole2Err = Get-JsonField $badRole2.Content "code"
-    Write-Result 17 "Create with role=SuperAdmin returns 400 INVALID_ROLE" ($badRole2.StatusCode -eq 400 -and $badRole2Err -eq "INVALID_ROLE") "HTTP $($badRole2.StatusCode) code=$badRole2Err"
+    Write-Result 17 "Create with invalid organizationRoleId returns 400 VALIDATION_ERROR" ($badRole2.StatusCode -eq 400 -and $badRole2Err -eq "VALIDATION_ERROR") "HTTP $($badRole2.StatusCode) code=$badRole2Err"
 
     # 18: Duplicate username
-    $dupBody = (@{ username = $newUser1; password = $newUserPass; fullName = "Dup"; role = "Coordinator" } | ConvertTo-Json -Compress)
+    $dupBody = (@{ username = $newUser1; password = $newUserPass; fullName = "Dup"; organizationRoleId = $coordRoleId } | ConvertTo-Json -Compress)
     $dup = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/users" -Body $dupBody -CookieFile $cookieOaA
     $dupErr = Get-JsonField $dup.Content "code"
     Write-Result 18 "Duplicate username returns 409 DUPLICATE_USERNAME" ($dup.StatusCode -eq 409 -and $dupErr -eq "DUPLICATE_USERNAME") "HTTP $($dup.StatusCode) code=$dupErr"
 
-    # 19: Update user - change role Coordinator -> Manager
-    $updateBody = (@{ role = "Manager" } | ConvertTo-Json -Compress)
+    # 19: Update user - change role coordinator -> manager
+    $mgrRoleId = Get-OrgRoleIdByPreset $cookieOaA "preset_manager"
+    $updateBody = (@{ organizationRoleId = $mgrRoleId } | ConvertTo-Json -Compress)
     $update = Invoke-CurlJson -Method PATCH -Uri "$baseApi/api/v1/org/users/$user1Id" `
         -Body $updateBody -CookieFile $cookieOaA -Headers @{ "If-Match" = "$user1Version" }
     $updatedRole = Get-JsonField $update.Content "user.role"
     $user1Version = Get-JsonField $update.Content "user.version"
-    Write-Result 19 "Update user role returns 200" ($update.StatusCode -eq 200 -and $updatedRole -eq "Manager") "HTTP $($update.StatusCode) role=$updatedRole"
+    Write-Result 19 "Update user organizationRoleId returns 200" ($update.StatusCode -eq 200 -and $updatedRole -eq "OrganizationUser") "HTTP $($update.StatusCode) role=$updatedRole"
 
-    # 20: AUD-005 written
-    $audQuery = "SELECT event_code FROM audit_logs WHERE event_code = 'AUD-005' AND entity_id = '$user1Id';"
+    # 20: AUD-019 written on role change
+    $audQuery = "SELECT event_code FROM audit_logs WHERE event_code = 'AUD-019' AND entity_id = '$user1Id';"
     $audRows = docker compose exec -T postgres psql -U fam -d family_assistance -c $audQuery 2>&1
-    Write-Result 20 'AUD-005 written on user update' ($audRows -match 'AUD-005') ''
+    Write-Result 20 'AUD-019 written on user role change' ($audRows -match 'AUD-019') ''
 
     # 21: Update with wrong If-Match -> VERSION_CONFLICT
     $badVerBody = (@{ fullName = "Conflict Name" } | ConvertTo-Json -Compress)
@@ -238,12 +270,12 @@ try {
     $badVerErr = Get-JsonField $badVer.Content "code"
     Write-Result 21 "Update with wrong If-Match returns 409 VERSION_CONFLICT" ($badVer.StatusCode -eq 409 -and $badVerErr -eq "VERSION_CONFLICT") "HTTP $($badVer.StatusCode) code=$badVerErr"
 
-    # 22: Update with role=OrganizationAdministrator -> INVALID_ROLE
-    $promoteBody = (@{ role = "OrganizationAdministrator" } | ConvertTo-Json -Compress)
+    # 22: Update with invalid organizationRoleId
+    $promoteBody = (@{ organizationRoleId = "00000000-0000-0000-0000-000000000001" } | ConvertTo-Json -Compress)
     $promote = Invoke-CurlJson -Method PATCH -Uri "$baseApi/api/v1/org/users/$user1Id" `
         -Body $promoteBody -CookieFile $cookieOaA -Headers @{ "If-Match" = "$user1Version" }
     $promoteErr = Get-JsonField $promote.Content "code"
-    Write-Result 22 "Promote to OrganizationAdministrator returns 400 INVALID_ROLE" ($promote.StatusCode -eq 400 -and $promoteErr -eq "INVALID_ROLE") "HTTP $($promote.StatusCode) code=$promoteErr"
+    Write-Result 22 "Update with invalid organizationRoleId returns 400 VALIDATION_ERROR" ($promote.StatusCode -eq 400 -and $promoteErr -eq "VALIDATION_ERROR") "HTTP $($promote.StatusCode) code=$promoteErr"
 
     # 23: Update with no changes
     $noChgBody = (@{ } | ConvertTo-Json -Compress)
@@ -271,7 +303,8 @@ try {
     Write-Result 25 "Self-disable returns 403 SELF_DISABLE" ($selfDisable.StatusCode -eq 403 -and $selfDisableErr -eq "SELF_DISABLE") "HTTP $($selfDisable.StatusCode) code=$selfDisableErr"
 
     # 26: Create another user for disable test
-    $createUser2Body = (@{ username = $newUser2; password = $newUserPass; fullName = "Verif User Two"; role = "Finance" } | ConvertTo-Json -Compress)
+    $finRoleId = Get-OrgRoleIdByPreset $cookieOaA "preset_finance"
+    $createUser2Body = (@{ username = $newUser2; password = $newUserPass; fullName = "Verif User Two"; organizationRoleId = $finRoleId } | ConvertTo-Json -Compress)
     $createUser2 = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/users" -Body $createUser2Body -CookieFile $cookieOaA
     $user2Id = Get-JsonField $createUser2.Content "user.id"
     $user2Version = Get-JsonField $createUser2.Content "user.version"
@@ -332,10 +365,10 @@ try {
     $actA = Invoke-CurlJson -Uri "$baseApi/api/v1/org/activity" -CookieFile $cookieOaA
     $actEntries = Get-JsonArray $actA.Content "entries"
     $hasAud004 = $actEntries | Where-Object { $_.eventCode -eq 'AUD-004' -and $_.entityId -eq $user1Id }
-    $hasAud005 = $actEntries | Where-Object { $_.eventCode -eq 'AUD-005' -and $_.entityId -eq $user1Id }
+    $hasAud019 = $actEntries | Where-Object { $_.eventCode -eq 'AUD-019' -and $_.entityId -eq $user1Id }
     $hasAud006 = $actEntries | Where-Object { $_.eventCode -eq 'AUD-006' -and $_.entityId -eq $user2Id }
-    $allFound = $hasAud004 -and $hasAud005 -and $hasAud006
-    Write-Result 35 "Activity log returns AUD-004/005/006 for own-org" ($actA.StatusCode -eq 200 -and $allFound) "count=$($actEntries.Count)"
+    $allFound = $hasAud004 -and $hasAud019 -and $hasAud006
+    Write-Result 35 "Activity log returns AUD-004/019/006 for own-org" ($actA.StatusCode -eq 200 -and $allFound) "count=$($actEntries.Count)"
 
     # 36: Activity log excludes other-org rows (cross-isolation)
     $actB = Invoke-CurlJson -Uri "$baseApi/api/v1/org/activity" -CookieFile $cookieOaB
@@ -360,7 +393,7 @@ try {
     $user1Login = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/auth/login" -Body $user1LoginBody -CookieFile $cookieUser3
     if ($user1Login.StatusCode -eq 200) {
         $user1Users = Invoke-CurlJson -Uri "$baseApi/api/v1/org/users" -CookieFile $cookieUser3
-        Write-Result 39 "Manager role cannot access /org/users (403)" ($user1Users.StatusCode -eq 403) "HTTP $($user1Users.StatusCode)"
+        Write-Result 39 "Org user cannot access /org/users (403)" ($user1Users.StatusCode -eq 403) "HTTP $($user1Users.StatusCode)"
     } else {
         Write-Result 39 "Manager role cannot access /org/users (403)" $false "user1 login failed HTTP $($user1Login.StatusCode)"
     }

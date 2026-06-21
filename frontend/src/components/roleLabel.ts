@@ -10,6 +10,8 @@ export function translateRole(role: string): string {
       return 'מנהל/ת ועדה';
     case 'Finance':
       return 'כספים';
+    case 'OrganizationUser':
+      return 'משתמש ארגון';
     default:
       return role;
   }
@@ -46,6 +48,8 @@ export function translateAction(action: string): string {
       return 'השבתת סוג סיוע';
     case 'organization_suspend':
       return 'השעיית ארגון';
+    case 'permissions_update':
+      return 'עדכון הרשאות תפקיד';
     default:
       return action;
   }
@@ -60,16 +64,30 @@ export function translateFieldName(field: string | null | undefined): string {
       return 'תפקיד';
     case 'status':
       return 'סטטוס';
+    case 'family_last_name':
+      return 'שם משפחה';
+    case 'external_accounting_number':
+      return 'מספר חשבונאי';
+    case 'father_name':
+      return 'שם האב';
+    case 'father_israeli_id':
+      return 'ת.ז. האב';
+    case 'mother_name':
+      return 'שם האם';
+    case 'mother_israeli_id':
+      return 'ת.ז. האם';
+    case 'number_of_children':
+      return 'מספר ילדים';
     case 'head_of_household_name':
-      return 'שם ראש משק בית';
+      return 'שם משפחה (ישן)';
     case 'head_id_number':
-      return 'תעודת זהות';
+      return 'ת.ז. (ישן)';
+    case 'household_size':
+      return 'מספר ילדים (ישן)';
     case 'phone':
       return 'טלפון';
     case 'address':
       return 'כתובת';
-    case 'household_size':
-      return 'גודל משק בית';
     case 'notes':
       return 'הערות';
     case 'name':

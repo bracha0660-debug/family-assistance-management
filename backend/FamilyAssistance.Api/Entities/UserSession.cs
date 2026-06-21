@@ -10,6 +10,8 @@ public class UserSession
     public string? IpAddress { get; set; }
     public string? UserAgent { get; set; }
     public DateTime CreatedAt { get; set; }
+    public Guid? ActingOrganizationId { get; set; }
 
     public User User { get; set; } = null!;
+    public Organization? ActingOrganization { get; set; }
 }

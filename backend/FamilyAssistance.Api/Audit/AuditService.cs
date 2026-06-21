@@ -9,12 +9,21 @@ public class AuditService(AppDbContext db) : IAuditService
     [
         "status_change",
         "bank_account_change",
+        "accounting_code_change",
+        "identity_change",
+        "assigned_coordinator_change",
         "amount_change",
         "supplier_change",
+        "supplier_identity_change",
         "user_disable",
         "organization_suspend",
         "family_deactivate",
-        "assistance_type_deactivate"
+        "family_restore",
+        "assistance_type_deactivate",
+        "supplier_deactivate",
+        "supplier_restore",
+        "payment_return_to_coordinator",
+        "permissions_update"
     ];
 
     public void Stage(AuditEntry entry)

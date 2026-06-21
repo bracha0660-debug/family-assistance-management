@@ -21,6 +21,8 @@ public class SessionAuthMiddleware(RequestDelegate next)
                     FullName = user.FullName,
                     Role = user.Role,
                     OrganizationId = user.OrganizationId,
+                    OrganizationRoleId = user.OrganizationRoleId,
+                    ActingOrganizationId = session.ActingOrganizationId,
                     OrganizationName = user.Organization?.Name,
                     OrganizationStatus = user.Organization?.Status,
                     SessionId = session.Id

@@ -20,8 +20,13 @@ public sealed class UserDto
     public string FullName { get; init; } = string.Empty;
     public string Role { get; init; } = string.Empty;
     public Guid? OrganizationId { get; init; }
+    public Guid? OrganizationRoleId { get; init; }
+    public Guid? ActingOrganizationId { get; init; }
     public string? OrganizationName { get; init; }
     public string? OrganizationStatus { get; init; }
+    public bool FullAccess { get; init; }
+    public IReadOnlyList<UserGrantDto> Grants { get; init; } = [];
+    public IReadOnlyList<string> Permissions { get; init; } = [];
 }
 
 public sealed class LoginResponse
