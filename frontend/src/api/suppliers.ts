@@ -13,11 +13,10 @@ export interface SupplierDto {
   registrationNumber: string | null;
   phone: string | null;
   address: string | null;
-  bankNumber: string;
-  branchNumber: string;
-  accountNumber: string;
-  accountHolderName: string;
-  bankVerifiedExternally: boolean;
+  bankNumber: string | null;
+  branchNumber: string | null;
+  accountNumber: string | null;
+  accountHolderName: string | null;
   status: string;
   version: number;
   createdAt: string;
@@ -34,11 +33,10 @@ export interface CreateSupplierPayload {
   registrationNumber?: string | null;
   phone?: string | null;
   address?: string | null;
-  bankNumber: string;
-  branchNumber: string;
-  accountNumber: string;
-  accountHolderName: string;
-  bankVerifiedExternally?: boolean;
+  bankNumber?: string | null;
+  branchNumber?: string | null;
+  accountNumber?: string | null;
+  accountHolderName?: string | null;
 }
 
 export interface UpdateSupplierPayload {
@@ -46,11 +44,10 @@ export interface UpdateSupplierPayload {
   registrationNumber?: string | null;
   phone?: string | null;
   address?: string | null;
-  bankNumber?: string;
-  branchNumber?: string;
-  accountNumber?: string;
-  accountHolderName?: string;
-  bankVerifiedExternally?: boolean;
+  bankNumber?: string | null;
+  branchNumber?: string | null;
+  accountNumber?: string | null;
+  accountHolderName?: string | null;
   reason?: string | null;
 }
 

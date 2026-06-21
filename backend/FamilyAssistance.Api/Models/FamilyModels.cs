@@ -11,11 +11,10 @@ public sealed class CreateFamilyRequest
     public string? MotherIsraeliId { get; set; }
     public string? Phone { get; set; }
     public string? Address { get; set; }
-    public string BankNumber { get; set; } = string.Empty;
-    public string BranchNumber { get; set; } = string.Empty;
-    public string AccountNumber { get; set; } = string.Empty;
-    public string AccountHolderName { get; set; } = string.Empty;
-    public bool BankVerifiedExternally { get; set; }
+    public string? BankNumber { get; set; }
+    public string? BranchNumber { get; set; }
+    public string? AccountNumber { get; set; }
+    public string? AccountHolderName { get; set; }
 }
 
 public sealed class UpdateFamilyRequest
@@ -32,7 +31,6 @@ public sealed class UpdateFamilyRequest
     public string? BranchNumber { get; set; }
     public string? AccountNumber { get; set; }
     public string? AccountHolderName { get; set; }
-    public bool? BankVerifiedExternally { get; set; }
     public Guid? AssignedCoordinatorId { get; set; }
     public string? Reason { get; set; }
 }
@@ -66,11 +64,10 @@ public sealed class FamilyDto
     public string? MotherIsraeliId { get; init; }
     public string? Phone { get; init; }
     public string? Address { get; init; }
-    public string BankNumber { get; init; } = string.Empty;
-    public string BranchNumber { get; init; } = string.Empty;
-    public string AccountNumber { get; init; } = string.Empty;
-    public string AccountHolderName { get; init; } = string.Empty;
-    public bool BankVerifiedExternally { get; init; }
+    public string? BankNumber { get; init; }
+    public string? BranchNumber { get; init; }
+    public string? AccountNumber { get; init; }
+    public string? AccountHolderName { get; init; }
     public Guid AssignedCoordinatorId { get; init; }
     public string AssignedCoordinatorName { get; init; } = string.Empty;
     public string Status { get; init; } = string.Empty;

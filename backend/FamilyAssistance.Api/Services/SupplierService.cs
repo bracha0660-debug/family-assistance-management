@@ -58,7 +58,7 @@ public sealed class SupplierService(
     {
         var normalized = NormalizeCreate(request);
         var errors = ValidateCreate(normalized);
-        errors.AddRange(BankFieldValidator.ValidateCreate(
+        errors.AddRange(BankFieldValidator.ValidateForSave(
             normalized.BankNumber, normalized.BranchNumber, normalized.AccountNumber, normalized.AccountHolderName));
         if (errors.Count > 0)
             return ServiceResult<SupplierDto>.Fail(400, "VALIDATION_ERROR", errors[0], errors);
@@ -84,11 +84,10 @@ public sealed class SupplierService(
                 RegistrationNumber = normalized.RegistrationNumber,
                 Phone = normalized.Phone,
                 Address = normalized.Address,
-                BankNumber = normalized.BankNumber!.Trim(),
-                BranchNumber = normalized.BranchNumber!.Trim(),
-                AccountNumber = normalized.AccountNumber!.Trim(),
-                AccountHolderName = normalized.AccountHolderName!.Trim(),
-                BankVerifiedExternally = normalized.BankVerifiedExternally,
+                BankNumber = NormalizeBankField(normalized.BankNumber),
+                BranchNumber = NormalizeBankField(normalized.BranchNumber),
+                AccountNumber = NormalizeBankField(normalized.AccountNumber),
+                AccountHolderName = NormalizeBankField(normalized.AccountHolderName),
                 Status = "active",
                 Version = 1,
                 CreatedAt = now,
@@ -199,16 +198,6 @@ public sealed class SupplierService(
         }
 
         ApplyBankUpdate(request, supplier, errors, changes);
-
-        if (request.BankVerifiedExternally is not null
-            && request.BankVerifiedExternally != supplier.BankVerifiedExternally)
-        {
-            changes.Add(("bank_verified_externally",
-                supplier.BankVerifiedExternally.ToString(),
-                request.BankVerifiedExternally.Value.ToString(),
-                "update", BusinessEventCodes.SupplierUpdate));
-            supplier.BankVerifiedExternally = request.BankVerifiedExternally.Value;
-        }
 
         if (errors.Count > 0)
             return ServiceResult<SupplierDto>.Fail(400, "VALIDATION_ERROR", errors[0], errors);
@@ -409,9 +398,15 @@ public sealed class SupplierService(
         BankNumber = request.BankNumber?.Trim(),
         BranchNumber = request.BranchNumber?.Trim(),
         AccountNumber = request.AccountNumber?.Trim(),
-        AccountHolderName = request.AccountHolderName?.Trim(),
-        BankVerifiedExternally = request.BankVerifiedExternally
+        AccountHolderName = request.AccountHolderName?.Trim()
     };
+
+    private static string? NormalizeBankField(string? value)
+    {
+        if (value is null) return null;
+        var trimmed = value.Trim();
+        return trimmed.Length == 0 ? null : trimmed;
+    }
 
     private static List<string> ValidateCreate(CreateSupplierRequest request)
     {
@@ -436,41 +431,36 @@ public sealed class SupplierService(
         List<string> errors,
         List<(string Field, string? Old, string? New, string Action, string EventCode)> changes)
     {
-        ApplyBankField(request.BankNumber, supplier.BankNumber, "bank_number", errors, changes, v => supplier.BankNumber = v);
-        ApplyBankField(request.BranchNumber, supplier.BranchNumber, "branch_number", errors, changes, v => supplier.BranchNumber = v);
-        ApplyBankField(request.AccountNumber, supplier.AccountNumber, "account_number", errors, changes, v => supplier.AccountNumber = v);
+        var hasBankRequest = request.BankNumber is not null
+            || request.BranchNumber is not null
+            || request.AccountNumber is not null
+            || request.AccountHolderName is not null;
+        if (!hasBankRequest) return;
 
-        if (request.AccountHolderName is not null)
-        {
-            var newHolder = request.AccountHolderName.Trim();
-            if (newHolder.Length == 0)
-                errors.Add(BankFieldValidator.HolderRequiredMessage);
-            else if (newHolder != supplier.AccountHolderName)
-            {
-                changes.Add(("account_holder_name", supplier.AccountHolderName, newHolder,
-                    "bank_account_change", BusinessEventCodes.SupplierUpdate));
-                supplier.AccountHolderName = newHolder;
-            }
-        }
+        var mergedBank = request.BankNumber is not null ? NormalizeBankField(request.BankNumber) : supplier.BankNumber;
+        var mergedBranch = request.BranchNumber is not null ? NormalizeBankField(request.BranchNumber) : supplier.BranchNumber;
+        var mergedAccount = request.AccountNumber is not null ? NormalizeBankField(request.AccountNumber) : supplier.AccountNumber;
+        var mergedHolder = request.AccountHolderName is not null ? NormalizeBankField(request.AccountHolderName) : supplier.AccountHolderName;
+
+        errors.AddRange(BankFieldValidator.ValidateForSave(mergedBank, mergedBranch, mergedAccount, mergedHolder));
+        if (errors.Count > 0) return;
+
+        ApplyBankFieldChange(mergedBank, supplier.BankNumber, "bank_number", changes, v => supplier.BankNumber = v);
+        ApplyBankFieldChange(mergedBranch, supplier.BranchNumber, "branch_number", changes, v => supplier.BranchNumber = v);
+        ApplyBankFieldChange(mergedAccount, supplier.AccountNumber, "account_number", changes, v => supplier.AccountNumber = v);
+        ApplyBankFieldChange(mergedHolder, supplier.AccountHolderName, "account_holder_name", changes, v => supplier.AccountHolderName = v);
     }
 
-    private static void ApplyBankField(
-        string? incoming,
-        string current,
+    private static void ApplyBankFieldChange(
+        string? newValue,
+        string? current,
         string fieldName,
-        List<string> errors,
         List<(string Field, string? Old, string? New, string Action, string EventCode)> changes,
-        Action<string> apply)
+        Action<string?> apply)
     {
-        if (incoming is null) return;
-        var newValue = incoming.Trim();
-        if (!BankFieldValidator.IsDigitsOnly(newValue))
-            errors.Add(BankFieldValidator.DigitsOnlyMessage);
-        else if (newValue != current)
-        {
-            changes.Add((fieldName, current, newValue, "bank_account_change", BusinessEventCodes.SupplierUpdate));
-            apply(newValue);
-        }
+        if (newValue == current) return;
+        changes.Add((fieldName, current, newValue, "bank_account_change", BusinessEventCodes.SupplierUpdate));
+        apply(newValue);
     }
 
     private static string? NormalizeOptional(string? value)
@@ -492,7 +482,6 @@ public sealed class SupplierService(
         BranchNumber = s.BranchNumber,
         AccountNumber = s.AccountNumber,
         AccountHolderName = s.AccountHolderName,
-        BankVerifiedExternally = s.BankVerifiedExternally,
         Status = s.Status,
         Version = s.Version,
         CreatedAt = s.CreatedAt,

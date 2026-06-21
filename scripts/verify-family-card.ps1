@@ -80,7 +80,10 @@ try {
     Write-Result "FC-001" "Suggested accounting code for coordinator" ($suggest.StatusCode -eq 200 -and $suggested -eq 1) "suggested=$suggested"
 
     $noBank = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/families" -Body (@{ familyLastName = "X" } | ConvertTo-Json -Compress) -CookieFile $cookieCoord
-    Write-Result "FC-002" "POST without bank fields -> 400" ($noBank.StatusCode -eq 400) "HTTP $($noBank.StatusCode)"
+    Write-Result "FC-002" "POST without bank fields -> 201" ($noBank.StatusCode -eq 201) "HTTP $($noBank.StatusCode)"
+
+    $partialBank = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/families" -Body (@{ familyLastName = "Partial"; bankNumber = "12" } | ConvertTo-Json -Compress) -CookieFile $cookieCoord
+    Write-Result "FC-020" "Partial bank details -> 400" ($partialBank.StatusCode -eq 400) "HTTP $($partialBank.StatusCode)"
 
     $badBank = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/families" -Body (New-FamilyBody @{ bankNumber = "ABC" }) -CookieFile $cookieCoord
     Write-Result "FC-003" "Non-digit bank number -> 400" ($badBank.StatusCode -eq 400) "HTTP $($badBank.StatusCode)"
@@ -111,8 +114,11 @@ try {
     $noBankTable = docker compose exec -T postgres psql -U fam -d family_assistance -t -c "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='bank_accounts');" 2>&1
     Write-Result "FC-019" "bank_accounts table does not exist" ($noBankTable -match 'f') ""
 
+    $noVerifiedCol = docker compose exec -T postgres psql -U fam -d family_assistance -t -c "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='families' AND column_name='bank_verified_externally');" 2>&1
+    Write-Result "FC-021" "bank_verified_externally column removed" ($noVerifiedCol -match 'f') ""
+
     $noChildrenCol = docker compose exec -T postgres psql -U fam -d family_assistance -t -c "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='families' AND column_name='number_of_children');" 2>&1
-    Write-Result "FC-020" "number_of_children column removed" ($noChildrenCol -match 'f') ""
+    Write-Result "FC-022" "number_of_children column removed" ($noChildrenCol -match 'f') ""
 
 } finally {
     Pop-Location

@@ -149,7 +149,7 @@ try {
 
     $noBank = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/families" `
         -Body (@{ familyLastName = "No Bank" } | ConvertTo-Json -Compress) -CookieFile $cookieCoord
-    Write-Result "4.1-07" "Missing bank fields rejected" ($noBank.StatusCode -eq 400) "HTTP $($noBank.StatusCode)"
+    Write-Result "4.1-07" "Create without bank fields allowed" ($noBank.StatusCode -eq 201) "HTTP $($noBank.StatusCode)"
 
     $noName = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/families" `
         -Body (New-FamilyBody @{ familyLastName = "  " }) -CookieFile $cookieCoord

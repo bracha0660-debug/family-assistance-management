@@ -6,11 +6,10 @@ public sealed class CreateSupplierRequest
     public string? RegistrationNumber { get; set; }
     public string? Phone { get; set; }
     public string? Address { get; set; }
-    public string BankNumber { get; set; } = string.Empty;
-    public string BranchNumber { get; set; } = string.Empty;
-    public string AccountNumber { get; set; } = string.Empty;
-    public string AccountHolderName { get; set; } = string.Empty;
-    public bool BankVerifiedExternally { get; set; }
+    public string? BankNumber { get; set; }
+    public string? BranchNumber { get; set; }
+    public string? AccountNumber { get; set; }
+    public string? AccountHolderName { get; set; }
 }
 
 public sealed class UpdateSupplierRequest
@@ -23,7 +22,6 @@ public sealed class UpdateSupplierRequest
     public string? BranchNumber { get; set; }
     public string? AccountNumber { get; set; }
     public string? AccountHolderName { get; set; }
-    public bool? BankVerifiedExternally { get; set; }
     public string? Reason { get; set; }
 }
 
@@ -45,11 +43,10 @@ public sealed class SupplierDto
     public string? RegistrationNumber { get; init; }
     public string? Phone { get; init; }
     public string? Address { get; init; }
-    public string BankNumber { get; init; } = string.Empty;
-    public string BranchNumber { get; init; } = string.Empty;
-    public string AccountNumber { get; init; } = string.Empty;
-    public string AccountHolderName { get; init; } = string.Empty;
-    public bool BankVerifiedExternally { get; init; }
+    public string? BankNumber { get; init; }
+    public string? BranchNumber { get; init; }
+    public string? AccountNumber { get; init; }
+    public string? AccountHolderName { get; init; }
     public string Status { get; init; } = string.Empty;
     public int Version { get; init; }
     public DateTime CreatedAt { get; init; }

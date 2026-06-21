@@ -18,11 +18,10 @@ export interface FamilyDto {
   motherIsraeliId: string | null;
   phone: string | null;
   address: string | null;
-  bankNumber: string;
-  branchNumber: string;
-  accountNumber: string;
-  accountHolderName: string;
-  bankVerifiedExternally: boolean;
+  bankNumber: string | null;
+  branchNumber: string | null;
+  accountNumber: string | null;
+  accountHolderName: string | null;
   assignedCoordinatorId: string;
   assignedCoordinatorName: string;
   status: string;
@@ -51,11 +50,10 @@ export interface CreateFamilyPayload {
   motherIsraeliId?: string | null;
   phone?: string | null;
   address?: string | null;
-  bankNumber: string;
-  branchNumber: string;
-  accountNumber: string;
-  accountHolderName: string;
-  bankVerifiedExternally?: boolean;
+  bankNumber?: string | null;
+  branchNumber?: string | null;
+  accountNumber?: string | null;
+  accountHolderName?: string | null;
 }
 
 export interface UpdateFamilyPayload {
@@ -67,11 +65,10 @@ export interface UpdateFamilyPayload {
   motherIsraeliId?: string | null;
   phone?: string | null;
   address?: string | null;
-  bankNumber?: string;
-  branchNumber?: string;
-  accountNumber?: string;
-  accountHolderName?: string;
-  bankVerifiedExternally?: boolean;
+  bankNumber?: string | null;
+  branchNumber?: string | null;
+  accountNumber?: string | null;
+  accountHolderName?: string | null;
   assignedCoordinatorId?: string | null;
   reason?: string | null;
 }

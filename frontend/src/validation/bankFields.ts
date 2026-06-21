@@ -6,6 +6,23 @@ export interface BankFieldErrors {
   branchNumber?: string | null;
   accountNumber?: string | null;
   accountHolderName?: string | null;
+  partialBank?: string | null;
+}
+
+export const PARTIAL_BANK_MESSAGE = 'פרטי בנק חייבים להיות מלאים או ריקים';
+
+export function isBankAllEmpty(
+  bankNumber: string,
+  branchNumber: string,
+  accountNumber: string,
+  accountHolderName: string,
+  bankName = '',
+): boolean {
+  return bankNumber.trim().length === 0
+    && branchNumber.trim().length === 0
+    && accountNumber.trim().length === 0
+    && accountHolderName.trim().length === 0
+    && bankName.trim().length === 0;
 }
 
 export function validateBankDigits(value: string, label: string): string | null {
@@ -29,6 +46,27 @@ export function validateBankFieldErrors(
   accountHolderName: string,
   bankName = '',
 ): BankFieldErrors {
+  if (isBankAllEmpty(bankNumber, branchNumber, accountNumber, accountHolderName, bankName)) {
+    return {};
+  }
+
+  const hasAny = bankNumber.trim().length > 0
+    || branchNumber.trim().length > 0
+    || accountNumber.trim().length > 0
+    || accountHolderName.trim().length > 0
+    || bankName.trim().length > 0;
+
+  if (hasAny) {
+    const allCoreFilled = bankNumber.trim().length > 0
+      && branchNumber.trim().length > 0
+      && accountNumber.trim().length > 0
+      && accountHolderName.trim().length > 0;
+
+    if (!allCoreFilled) {
+      return { partialBank: PARTIAL_BANK_MESSAGE };
+    }
+  }
+
   const errors: BankFieldErrors = {};
   const bankNumErr = validateBankNumber(bankNumber);
   if (bankNumErr) errors.bankNumber = bankNumErr;
@@ -36,8 +74,6 @@ export function validateBankFieldErrors(
   const trimmedName = bankName.trim();
   if (trimmedName.length > 0 && !findBankByName(trimmedName)) {
     errors.bankName = 'שם בנק אינו מזוהה';
-  } else if (bankNumber.trim().length === 0 && trimmedName.length === 0) {
-    errors.bankNumber = 'מספר בנק הוא שדה חובה';
   }
 
   const branchErr = validateBankDigits(branchNumber, 'מספר סניף');
@@ -54,7 +90,8 @@ export function validateBankFieldErrors(
 }
 
 export function firstBankFieldError(errors: BankFieldErrors): string | null {
-  return errors.bankNumber
+  return errors.partialBank
+    ?? errors.bankNumber
     ?? errors.bankName
     ?? errors.branchNumber
     ?? errors.accountNumber

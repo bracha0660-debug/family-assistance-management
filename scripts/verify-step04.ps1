@@ -522,7 +522,7 @@ try {
     $bigSize = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/families" `
         -Body (@{ familyLastName = "No Bank" } | ConvertTo-Json -Compress) `
         -CookieFile $cookieCoordA1
-    Write-Result 69 "Missing bank fields rejected" ($bigSize.StatusCode -eq 400) "HTTP $($bigSize.StatusCode)"
+    Write-Result 69 "Create without bank fields allowed" ($bigSize.StatusCode -eq 201) "HTTP $($bigSize.StatusCode)"
 
     # 70: Activity log (OrgAdmin) shows AUD-007..AUD-012 entries
     $act = Invoke-CurlJson -Uri "$baseApi/api/v1/org/activity?limit=200" -CookieFile $cookieOaA

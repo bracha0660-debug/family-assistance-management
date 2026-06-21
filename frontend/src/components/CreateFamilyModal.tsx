@@ -15,7 +15,7 @@ import { usesMyRecordsFamilyScope } from '../hooks/usePermissions';
 import { findBankByNumber } from '../data/israeliBanks';
 import { focusFirstInvalidField } from '../utils/formValidation';
 import type { BankFieldErrors } from '../validation/bankFields';
-import { validateBankFieldErrors } from '../validation/bankFields';
+import { isBankAllEmpty, validateBankFieldErrors } from '../validation/bankFields';
 import {
   EMPTY_STRUCTURED_ADDRESS,
   formatFamilyAddress,
@@ -69,7 +69,6 @@ export function CreateFamilyModal({ user, onClose, onCreated }: CreateFamilyModa
     branchNumber: '',
     accountNumber: '',
     accountHolderName: '',
-    bankVerifiedExternally: false,
   });
   const [lastNameError, setLastNameError] = useState<string | null>(null);
   const [fatherIdError, setFatherIdError] = useState<string | null>(null);
@@ -198,12 +197,19 @@ export function CreateFamilyModal({ user, onClose, onCreated }: CreateFamilyModa
         motherIsraeliId: motherIsraeliId.trim().length > 0 ? motherIsraeliId.trim() : null,
         phone: phone.trim().length > 0 ? phone.trim() : null,
         address: formatFamilyAddress(structuredAddress),
-        bankNumber: bankDetails.bankNumber.trim(),
-        branchNumber: bankDetails.branchNumber.trim(),
-        accountNumber: bankDetails.accountNumber.trim(),
-        accountHolderName: bankDetails.accountHolderName.trim(),
-        bankVerifiedExternally: bankDetails.bankVerifiedExternally,
       };
+      if (!isBankAllEmpty(
+        bankDetails.bankNumber,
+        bankDetails.branchNumber,
+        bankDetails.accountNumber,
+        bankDetails.accountHolderName,
+        resolveBankName(),
+      )) {
+        payload.bankNumber = bankDetails.bankNumber.trim();
+        payload.branchNumber = bankDetails.branchNumber.trim();
+        payload.accountNumber = bankDetails.accountNumber.trim();
+        payload.accountHolderName = bankDetails.accountHolderName.trim();
+      }
       const created = await createFamily(payload);
       onCreated(created);
     } catch (err) {
@@ -385,7 +391,6 @@ export function CreateFamilyModal({ user, onClose, onCreated }: CreateFamilyModa
         fieldErrors={bankErrors}
         onChange={handleBankChange}
         onBlurField={(field) => {
-          if (field === 'bankVerifiedExternally') return;
           validateBank(false, field === 'bankName' ? 'bankName' : field);
         }}
       />

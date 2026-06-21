@@ -8,7 +8,6 @@ export interface BankDetailsValues {
   branchNumber: string;
   accountNumber: string;
   accountHolderName: string;
-  bankVerifiedExternally: boolean;
 }
 
 interface BankDetailsFieldsProps {
@@ -105,13 +104,17 @@ export function BankDetailsFields({
 
   return (
     <fieldset className="bank-fieldset">
-      <legend>פרטי בנק <span className="field-required">*</span></legend>
+      <legend>פרטי בנק</legend>
+
+      {fieldErrors.partialBank && (
+        <div className="error" role="alert" id={`${idPrefix}-partial-bank-error`}>
+          {fieldErrors.partialBank}
+        </div>
+      )}
 
       <div className="bank-sync-row">
         <div className="bank-sync-field">
-          <label htmlFor={bankNumberId}>
-            מספר בנק <span className="field-required">*</span>
-          </label>
+          <label htmlFor={bankNumberId}>מספר בנק</label>
           <ValidatedControl error={fieldErrors.bankNumber} errorId={`${bankNumberId}-error`}>
             <input
               id={bankNumberId}
@@ -134,9 +137,7 @@ export function BankDetailsFields({
         <span className="bank-sync-icon" aria-hidden="true">↔</span>
 
         <div className="bank-sync-field">
-          <label htmlFor={bankNameId}>
-            שם הבנק <span className="field-required">*</span>
-          </label>
+          <label htmlFor={bankNameId}>שם הבנק</label>
           <ValidatedControl error={fieldErrors.bankName} errorId={`${bankNameId}-error`}>
             <input
               id={bankNameId}
@@ -162,9 +163,7 @@ export function BankDetailsFields({
         </div>
       </div>
 
-      <label htmlFor={branchId}>
-        מספר סניף <span className="field-required">*</span>
-      </label>
+      <label htmlFor={branchId}>מספר סניף</label>
       <ValidatedControl error={fieldErrors.branchNumber} errorId={`${branchId}-error`}>
         <input
           id={branchId}
@@ -180,9 +179,7 @@ export function BankDetailsFields({
         />
       </ValidatedControl>
 
-      <label htmlFor={accountId}>
-        מספר חשבון <span className="field-required">*</span>
-      </label>
+      <label htmlFor={accountId}>מספר חשבון</label>
       <ValidatedControl error={fieldErrors.accountNumber} errorId={`${accountId}-error`}>
         <input
           id={accountId}
@@ -198,9 +195,7 @@ export function BankDetailsFields({
         />
       </ValidatedControl>
 
-      <label htmlFor={holderId}>
-        שם בעל החשבון <span className="field-required">*</span>
-      </label>
+      <label htmlFor={holderId}>שם בעל החשבון</label>
       <ValidatedControl error={fieldErrors.accountHolderName} errorId={`${holderId}-error`}>
         <input
           id={holderId}
@@ -217,16 +212,6 @@ export function BankDetailsFields({
       {!fieldErrors.accountHolderName && (
         <p className="bank-field-hint">{accountHolderHint}</p>
       )}
-
-      <label className="checkbox-label">
-        <input
-          type="checkbox"
-          checked={values.bankVerifiedExternally}
-          onChange={(e) => onChange({ bankVerifiedExternally: e.target.checked })}
-          disabled={disabled}
-        />
-        אומת חיצונית
-      </label>
     </fieldset>
   );
 }

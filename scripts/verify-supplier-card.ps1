@@ -92,8 +92,11 @@ try {
     Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/auth/login" -Body (@{ username = "sup.fin.$ts"; password = $userPwd } | ConvertTo-Json -Compress) -CookieFile $cookieFin | Out-Null
     Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/auth/login" -Body (@{ username = "sup.coord.$ts"; password = $userPwd } | ConvertTo-Json -Compress) -CookieFile $cookieCoord | Out-Null
 
-    $noBank = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/suppliers" -Body (@{ name = "X" } | ConvertTo-Json -Compress) -CookieFile $cookieOa
-    Write-Result "SUP-001" "POST without bank fields -> 400" ($noBank.StatusCode -eq 400) "HTTP $($noBank.StatusCode)"
+    $noBank = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/suppliers" -Body (@{ name = "No Bank Supplier"; registrationNumber = "123456782" } | ConvertTo-Json -Compress) -CookieFile $cookieOa
+    Write-Result "SUP-001" "POST without bank fields -> 201" ($noBank.StatusCode -eq 201) "HTTP $($noBank.StatusCode)"
+
+    $partialBank = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/suppliers" -Body (@{ name = "Partial"; registrationNumber = "123456782"; bankNumber = "12" } | ConvertTo-Json -Compress) -CookieFile $cookieOa
+    Write-Result "SUP-001b" "Partial bank details -> 400" ($partialBank.StatusCode -eq 400) "HTTP $($partialBank.StatusCode)"
 
     $badBank = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/suppliers" -Body (New-SupplierBody @{ bankNumber = "XY" }) -CookieFile $cookieOa
     Write-Result "SUP-002" "Non-digit bank number -> 400" ($badBank.StatusCode -eq 400) "HTTP $($badBank.StatusCode)"

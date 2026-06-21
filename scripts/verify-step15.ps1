@@ -120,9 +120,37 @@ try {
         $payId = $payItems[0].id
         $payVer = $payItems[0].version
         $exec = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/payments/$payId/execute" -Body (@{ reason = "Execute test payment" } | ConvertTo-Json -Compress) -CookieFile $cookieFinance -Headers @{ "If-Match" = "$payVer" }
-        Write-Result "S15-09" "Finance executes payment" ($exec.StatusCode -eq 200) "HTTP $($exec.StatusCode)"
+        Write-Result "S15-09" "Finance executes payment with complete bank" ($exec.StatusCode -eq 200) "HTTP $($exec.StatusCode)"
     } else {
-        Write-Result "S15-09" "Finance executes payment" $false "no payment items"
+        Write-Result "S15-09" "Finance executes payment with complete bank" $false "no payment items"
+    }
+
+    # Family without bank — payment execute blocked
+    $noBankFam = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/families" -Body (@{ familyLastName = "No Bank Fam" } | ConvertTo-Json -Compress) -CookieFile $cookieCoord
+    $noBankFamId = Get-JsonField $noBankFam.Content "family.id"
+    $nbDecision = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/committee-decisions" -Body (@{
+        familyId = $noBankFamId; meetingDate = "2026-07-02"; isUrgent = $false
+    } | ConvertTo-Json -Compress) -CookieFile $cookieCoord
+    $nbDecisionId = Get-JsonField $nbDecision.Content "decision.id"
+    $nbVer = Get-JsonField $nbDecision.Content "decision.version"
+    $nbItem = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/committee-decisions/$nbDecisionId/items" -Body (@{
+        assistanceTypeId = $typeId; amount = 200; paymentTarget = "family"; paymentMethod = "bank_transfer"
+    } | ConvertTo-Json -Compress) -CookieFile $cookieCoord -Headers @{ "If-Match" = "$nbVer" }
+    $nbVer = Get-JsonField $nbItem.Content "decisionVersion"
+    if ($null -eq $nbVer) { $nbVer = Get-JsonField $nbItem.Content "decision.version" }
+    $nbSubmit = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/committee-decisions/$nbDecisionId/submit" -Body "{}" -CookieFile $cookieCoord -Headers @{ "If-Match" = "$nbVer" }
+    $nbVer = Get-JsonField $nbSubmit.Content "decision.version"
+    $nbApprove = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/committee-decisions/$nbDecisionId/approve" -Body (@{ reason = "Approve no-bank test" } | ConvertTo-Json -Compress) -CookieFile $cookieManager -Headers @{ "If-Match" = "$nbVer" }
+    $nbPayments = Invoke-CurlJson -Uri "$baseApi/api/v1/org/payments" -CookieFile $cookieFinance
+    $nbPayItems = @(Get-JsonField $nbPayments.Content "payments") | Where-Object { $_.familyId -eq $noBankFamId }
+    if ($nbPayItems.Count -ge 1) {
+        $nbPayId = $nbPayItems[0].id
+        $nbPayVer = $nbPayItems[0].version
+        $nbExec = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/payments/$nbPayId/execute" -Body (@{ reason = "Should fail" } | ConvertTo-Json -Compress) -CookieFile $cookieFinance -Headers @{ "If-Match" = "$nbPayVer" }
+        $nbCode = Get-JsonField $nbExec.Content "code"
+        Write-Result "S15-13" "Execute bank_transfer without family bank -> 400" ($nbExec.StatusCode -eq 400 -and $nbCode -eq "INCOMPLETE_BANK_DETAILS") "HTTP $($nbExec.StatusCode) code=$nbCode"
+    } else {
+        Write-Result "S15-13" "Execute bank_transfer without family bank -> 400" $false "no payment for no-bank family"
     }
 
     $coordPay = Invoke-CurlJson -Uri "$baseApi/api/v1/org/payments" -CookieFile $cookieCoord

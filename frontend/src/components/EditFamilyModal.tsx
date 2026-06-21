@@ -11,7 +11,7 @@ import { FormField, ModalShell } from './ModalShell';
 import { findBankByNumber } from '../data/israeliBanks';
 import { focusFirstInvalidField } from '../utils/formValidation';
 import type { BankFieldErrors } from '../validation/bankFields';
-import { validateBankFieldErrors } from '../validation/bankFields';
+import { isBankAllEmpty, validateBankFieldErrors } from '../validation/bankFields';
 import {
   formatFamilyAddress,
   parseFamilyAddress,
@@ -41,10 +41,10 @@ function isMaterialChange(
   if (payload.accountingCode !== undefined && payload.accountingCode !== family.accountingCode) return true;
   if (payload.fatherIsraeliId !== undefined && payload.fatherIsraeliId !== (family.fatherIsraeliId ?? null)) return true;
   if (payload.motherIsraeliId !== undefined && payload.motherIsraeliId !== (family.motherIsraeliId ?? null)) return true;
-  if (payload.bankNumber !== undefined && payload.bankNumber !== family.bankNumber) return true;
-  if (payload.branchNumber !== undefined && payload.branchNumber !== family.branchNumber) return true;
-  if (payload.accountNumber !== undefined && payload.accountNumber !== family.accountNumber) return true;
-  if (payload.accountHolderName !== undefined && payload.accountHolderName !== family.accountHolderName) return true;
+  if (payload.bankNumber !== undefined && payload.bankNumber !== (family.bankNumber ?? null)) return true;
+  if (payload.branchNumber !== undefined && payload.branchNumber !== (family.branchNumber ?? null)) return true;
+  if (payload.accountNumber !== undefined && payload.accountNumber !== (family.accountNumber ?? null)) return true;
+  if (payload.accountHolderName !== undefined && payload.accountHolderName !== (family.accountHolderName ?? null)) return true;
   if (payload.assignedCoordinatorId !== undefined && payload.assignedCoordinatorId !== family.assignedCoordinatorId) return true;
   return false;
 }
@@ -74,11 +74,10 @@ export function EditFamilyModal({ family, onClose, onUpdated }: EditFamilyModalP
   const [phone, setPhone] = useState(family.phone ?? '');
   const [structuredAddress, setStructuredAddress] = useState<StructuredAddress>(() => parseFamilyAddress(family.address));
   const [bankDetails, setBankDetails] = useState<BankDetailsValues>({
-    bankNumber: family.bankNumber,
-    branchNumber: family.branchNumber,
-    accountNumber: family.accountNumber,
-    accountHolderName: family.accountHolderName,
-    bankVerifiedExternally: family.bankVerifiedExternally,
+    bankNumber: family.bankNumber ?? '',
+    branchNumber: family.branchNumber ?? '',
+    accountNumber: family.accountNumber ?? '',
+    accountHolderName: family.accountHolderName ?? '',
   });
   const [reason, setReason] = useState('');
   const [lastNameError, setLastNameError] = useState<string | null>(null);
@@ -126,10 +125,10 @@ export function EditFamilyModal({ family, onClose, onUpdated }: EditFamilyModalP
     accountingCode.trim() !== String(family.accountingCode)
     || fatherIsraeliId.trim() !== (family.fatherIsraeliId ?? '')
     || motherIsraeliId.trim() !== (family.motherIsraeliId ?? '')
-    || bankDetails.bankNumber.trim() !== family.bankNumber
-    || bankDetails.branchNumber.trim() !== family.branchNumber
-    || bankDetails.accountNumber.trim() !== family.accountNumber
-    || bankDetails.accountHolderName.trim() !== family.accountHolderName;
+    || bankDetails.bankNumber.trim() !== (family.bankNumber ?? '')
+    || bankDetails.branchNumber.trim() !== (family.branchNumber ?? '')
+    || bankDetails.accountNumber.trim() !== (family.accountNumber ?? '')
+    || bankDetails.accountHolderName.trim() !== (family.accountHolderName ?? '');
 
   function validateAll(): boolean {
     setFormError('');
@@ -200,14 +199,38 @@ export function EditFamilyModal({ family, onClose, onUpdated }: EditFamilyModalP
     if (newPhone !== (family.phone ?? null)) payload.phone = newPhone;
     const newAddress = formatFamilyAddress(structuredAddress);
     if (newAddress !== (family.address ?? null)) payload.address = newAddress;
-    if (bankDetails.bankNumber.trim() !== family.bankNumber) payload.bankNumber = bankDetails.bankNumber.trim();
-    if (bankDetails.branchNumber.trim() !== family.branchNumber) payload.branchNumber = bankDetails.branchNumber.trim();
-    if (bankDetails.accountNumber.trim() !== family.accountNumber) payload.accountNumber = bankDetails.accountNumber.trim();
-    if (bankDetails.accountHolderName.trim() !== family.accountHolderName) {
-      payload.accountHolderName = bankDetails.accountHolderName.trim();
-    }
-    if (bankDetails.bankVerifiedExternally !== family.bankVerifiedExternally) {
-      payload.bankVerifiedExternally = bankDetails.bankVerifiedExternally;
+    const bankEmpty = isBankAllEmpty(
+      bankDetails.bankNumber,
+      bankDetails.branchNumber,
+      bankDetails.accountNumber,
+      bankDetails.accountHolderName,
+      resolveBankName(),
+    );
+    const hadBank = !isBankAllEmpty(
+      family.bankNumber ?? '',
+      family.branchNumber ?? '',
+      family.accountNumber ?? '',
+      family.accountHolderName ?? '',
+    );
+    const bankChanged = bankEmpty
+      ? hadBank
+      : bankDetails.bankNumber.trim() !== (family.bankNumber ?? '')
+        || bankDetails.branchNumber.trim() !== (family.branchNumber ?? '')
+        || bankDetails.accountNumber.trim() !== (family.accountNumber ?? '')
+        || bankDetails.accountHolderName.trim() !== (family.accountHolderName ?? '');
+
+    if (bankChanged) {
+      if (bankEmpty) {
+        payload.bankNumber = null;
+        payload.branchNumber = null;
+        payload.accountNumber = null;
+        payload.accountHolderName = null;
+      } else {
+        payload.bankNumber = bankDetails.bankNumber.trim();
+        payload.branchNumber = bankDetails.branchNumber.trim();
+        payload.accountNumber = bankDetails.accountNumber.trim();
+        payload.accountHolderName = bankDetails.accountHolderName.trim();
+      }
     }
 
     if (Object.keys(payload).length === 0) {
@@ -385,7 +408,6 @@ export function EditFamilyModal({ family, onClose, onUpdated }: EditFamilyModalP
         fieldErrors={bankErrors}
         onChange={handleBankChange}
         onBlurField={(field) => {
-          if (field === 'bankVerifiedExternally') return;
           validateBank(false, field === 'bankName' ? 'bankName' : field);
         }}
       />

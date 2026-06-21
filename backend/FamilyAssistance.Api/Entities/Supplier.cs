@@ -9,11 +9,10 @@ public class Supplier
     public string? RegistrationNumber { get; set; }
     public string? Phone { get; set; }
     public string? Address { get; set; }
-    public string BankNumber { get; set; } = string.Empty;
-    public string BranchNumber { get; set; } = string.Empty;
-    public string AccountNumber { get; set; } = string.Empty;
-    public string AccountHolderName { get; set; } = string.Empty;
-    public bool BankVerifiedExternally { get; set; }
+    public string? BankNumber { get; set; }
+    public string? BranchNumber { get; set; }
+    public string? AccountNumber { get; set; }
+    public string? AccountHolderName { get; set; }
     public string Status { get; set; } = "active";
     public int Version { get; set; } = 1;
     public DateTime CreatedAt { get; set; }

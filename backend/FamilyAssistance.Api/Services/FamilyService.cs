@@ -108,7 +108,7 @@ public sealed class FamilyService(
     {
         var normalized = NormalizeCreateRequest(request);
         var errors = ValidateCreateRequest(normalized);
-        errors.AddRange(BankFieldValidator.ValidateCreate(
+        errors.AddRange(BankFieldValidator.ValidateForSave(
             normalized.BankNumber, normalized.BranchNumber, normalized.AccountNumber, normalized.AccountHolderName));
         if (errors.Count > 0)
             return ServiceResult<FamilyDto>.Fail(400, "VALIDATION_ERROR", errors[0], errors);
@@ -163,11 +163,10 @@ public sealed class FamilyService(
                 MotherIsraeliId = normalized.MotherIsraeliId,
                 Phone = normalized.Phone,
                 Address = normalized.Address,
-                BankNumber = normalized.BankNumber!.Trim(),
-                BranchNumber = normalized.BranchNumber!.Trim(),
-                AccountNumber = normalized.AccountNumber!.Trim(),
-                AccountHolderName = normalized.AccountHolderName!.Trim(),
-                BankVerifiedExternally = normalized.BankVerifiedExternally,
+                BankNumber = NormalizeBankField(normalized.BankNumber),
+                BranchNumber = NormalizeBankField(normalized.BranchNumber),
+                AccountNumber = NormalizeBankField(normalized.AccountNumber),
+                AccountHolderName = NormalizeBankField(normalized.AccountHolderName),
                 AssignedCoordinatorId = assignedCoordinatorId,
                 Status = "active",
                 Version = 1,
@@ -342,16 +341,6 @@ public sealed class FamilyService(
         }
 
         ApplyBankChanges(request, family, errors, changes);
-
-        if (request.BankVerifiedExternally is not null
-            && request.BankVerifiedExternally != family.BankVerifiedExternally)
-        {
-            changes.Add(("bank_verified_externally",
-                family.BankVerifiedExternally.ToString(),
-                request.BankVerifiedExternally.Value.ToString(),
-                "update"));
-            family.BankVerifiedExternally = request.BankVerifiedExternally.Value;
-        }
 
         if (errors.Count > 0)
         {
@@ -652,9 +641,15 @@ public sealed class FamilyService(
             BankNumber = request.BankNumber?.Trim(),
             BranchNumber = request.BranchNumber?.Trim(),
             AccountNumber = request.AccountNumber?.Trim(),
-            AccountHolderName = request.AccountHolderName?.Trim(),
-            BankVerifiedExternally = request.BankVerifiedExternally
+            AccountHolderName = request.AccountHolderName?.Trim()
         };
+    }
+
+    private static string? NormalizeBankField(string? value)
+    {
+        if (value is null) return null;
+        var trimmed = value.Trim();
+        return trimmed.Length == 0 ? null : trimmed;
     }
 
     private static List<string> ValidateCreateRequest(CreateFamilyRequest request)
@@ -738,40 +733,36 @@ public sealed class FamilyService(
         List<string> errors,
         List<(string Field, string? Old, string? New, string Action)> changes)
     {
-        ApplyBankField(request.BankNumber, family.BankNumber, "bank_number", errors, changes, v => family.BankNumber = v);
-        ApplyBankField(request.BranchNumber, family.BranchNumber, "branch_number", errors, changes, v => family.BranchNumber = v);
-        ApplyBankField(request.AccountNumber, family.AccountNumber, "account_number", errors, changes, v => family.AccountNumber = v);
+        var hasBankRequest = request.BankNumber is not null
+            || request.BranchNumber is not null
+            || request.AccountNumber is not null
+            || request.AccountHolderName is not null;
+        if (!hasBankRequest) return;
 
-        if (request.AccountHolderName is not null)
-        {
-            var newHolder = request.AccountHolderName.Trim();
-            if (newHolder.Length == 0)
-                errors.Add(BankFieldValidator.HolderRequiredMessage);
-            else if (newHolder != family.AccountHolderName)
-            {
-                changes.Add(("account_holder_name", family.AccountHolderName, newHolder, "bank_account_change"));
-                family.AccountHolderName = newHolder;
-            }
-        }
+        var mergedBank = request.BankNumber is not null ? NormalizeBankField(request.BankNumber) : family.BankNumber;
+        var mergedBranch = request.BranchNumber is not null ? NormalizeBankField(request.BranchNumber) : family.BranchNumber;
+        var mergedAccount = request.AccountNumber is not null ? NormalizeBankField(request.AccountNumber) : family.AccountNumber;
+        var mergedHolder = request.AccountHolderName is not null ? NormalizeBankField(request.AccountHolderName) : family.AccountHolderName;
+
+        errors.AddRange(BankFieldValidator.ValidateForSave(mergedBank, mergedBranch, mergedAccount, mergedHolder));
+        if (errors.Count > 0) return;
+
+        ApplyBankFieldChange(mergedBank, family.BankNumber, "bank_number", changes, v => family.BankNumber = v);
+        ApplyBankFieldChange(mergedBranch, family.BranchNumber, "branch_number", changes, v => family.BranchNumber = v);
+        ApplyBankFieldChange(mergedAccount, family.AccountNumber, "account_number", changes, v => family.AccountNumber = v);
+        ApplyBankFieldChange(mergedHolder, family.AccountHolderName, "account_holder_name", changes, v => family.AccountHolderName = v);
     }
 
-    private static void ApplyBankField(
-        string? incoming,
-        string current,
+    private static void ApplyBankFieldChange(
+        string? newValue,
+        string? current,
         string fieldName,
-        List<string> errors,
         List<(string Field, string? Old, string? New, string Action)> changes,
-        Action<string> apply)
+        Action<string?> apply)
     {
-        if (incoming is null) return;
-        var newValue = incoming.Trim();
-        if (!BankFieldValidator.IsDigitsOnly(newValue))
-            errors.Add(BankFieldValidator.DigitsOnlyMessage);
-        else if (newValue != current)
-        {
-            changes.Add((fieldName, current, newValue, "bank_account_change"));
-            apply(newValue);
-        }
+        if (newValue == current) return;
+        changes.Add((fieldName, current, newValue, "bank_account_change"));
+        apply(newValue);
     }
 
     private static string? NormalizeOptional(string? value)
@@ -798,7 +789,6 @@ public sealed class FamilyService(
         BranchNumber = f.BranchNumber,
         AccountNumber = f.AccountNumber,
         AccountHolderName = f.AccountHolderName,
-        BankVerifiedExternally = f.BankVerifiedExternally,
         AssignedCoordinatorId = f.AssignedCoordinatorId,
         AssignedCoordinatorName = coordinatorName,
         Status = f.Status,

@@ -3,6 +3,7 @@ using FamilyAssistance.Api.Constants;
 using FamilyAssistance.Api.Data;
 using FamilyAssistance.Api.Entities;
 using FamilyAssistance.Api.Models;
+using FamilyAssistance.Api.Validation;
 using Microsoft.EntityFrameworkCore;
 
 namespace FamilyAssistance.Api.Services;
@@ -84,6 +85,41 @@ public sealed class PaymentService(
         if (payment.Version != expectedVersion)
             return ServiceResult<PaymentQueueItemDto>.Fail(409, "VERSION_CONFLICT",
                 "הרשומה עודכנה על ידי משתמש אחר. יש לטעון מחדש.");
+
+        var item = payment.AssistanceItem!;
+        if (item.PaymentMethod == PaymentMethods.BankTransfer
+            && item.PaymentTarget is PaymentTargets.Family or PaymentTargets.Supplier)
+        {
+            string? bankNumber;
+            string? branchNumber;
+            string? accountNumber;
+            string? accountHolderName;
+
+            if (item.PaymentTarget == PaymentTargets.Family)
+            {
+                var family = payment.CommitteeDecision!.Family!;
+                bankNumber = family.BankNumber;
+                branchNumber = family.BranchNumber;
+                accountNumber = family.AccountNumber;
+                accountHolderName = family.AccountHolderName;
+            }
+            else
+            {
+                if (item.Supplier is null)
+                    return ServiceResult<PaymentQueueItemDto>.Fail(400, "INCOMPLETE_BANK_DETAILS",
+                        BankFieldValidator.IncompleteBankForPaymentMessage);
+
+                bankNumber = item.Supplier.BankNumber;
+                branchNumber = item.Supplier.BranchNumber;
+                accountNumber = item.Supplier.AccountNumber;
+                accountHolderName = item.Supplier.AccountHolderName;
+            }
+
+            var bankErrors = BankFieldValidator.ValidateCompleteForPayment(
+                bankNumber, branchNumber, accountNumber, accountHolderName);
+            if (bankErrors.Count > 0)
+                return ServiceResult<PaymentQueueItemDto>.Fail(400, "INCOMPLETE_BANK_DETAILS", bankErrors[0], bankErrors);
+        }
 
         var now = DateTime.UtcNow;
         var reference = NormalizeOptional(request.ExecutionReference);

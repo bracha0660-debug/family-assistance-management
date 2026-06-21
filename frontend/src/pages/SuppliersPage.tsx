@@ -12,6 +12,7 @@ import {
   type CreateSupplierPayload,
   type SupplierDto,
   type SupplierListResponse,
+  type UpdateSupplierPayload,
 } from '../api/suppliers';
 import { BankDetailsFields, type BankDetailsValues } from '../components/BankDetailsFields';
 import { ModalShell, FormField } from '../components/ModalShell';
@@ -19,7 +20,7 @@ import { hasPermission } from '../hooks/usePermissions';
 import { findBankByNumber } from '../data/israeliBanks';
 import { focusFirstInvalidField } from '../utils/formValidation';
 import type { BankFieldErrors } from '../validation/bankFields';
-import { validateBankFieldErrors } from '../validation/bankFields';
+import { isBankAllEmpty, validateBankFieldErrors } from '../validation/bankFields';
 import { validateSupplierRegistrationNumber } from '../validation/supplierRegistrationNumber';
 import { translateStatus } from '../components/roleLabel';
 
@@ -47,7 +48,6 @@ function SupplierFormModal({
     branchNumber: supplier?.branchNumber ?? '',
     accountNumber: supplier?.accountNumber ?? '',
     accountHolderName: supplier?.accountHolderName ?? '',
-    bankVerifiedExternally: supplier?.bankVerifiedExternally ?? false,
   });
   const [error, setError] = useState('');
   const [nameError, setNameError] = useState<string | null>(null);
@@ -132,30 +132,59 @@ function SupplierFormModal({
     setLoading(true);
     try {
       const trimmedReg = registrationNumber.trim();
+      const bankEmpty = isBankAllEmpty(
+        bankDetails.bankNumber,
+        bankDetails.branchNumber,
+        bankDetails.accountNumber,
+        bankDetails.accountHolderName,
+        resolveBankName(),
+      );
       if (isEdit && supplier) {
-        await updateSupplier(supplier.id, supplier.version, {
+        const updatePayload: UpdateSupplierPayload = {
           name: name.trim(),
           registrationNumber: trimmedReg,
           phone: phone.trim() || null,
           address: address.trim() || null,
-          bankNumber: bankDetails.bankNumber.trim(),
-          branchNumber: bankDetails.branchNumber.trim(),
-          accountNumber: bankDetails.accountNumber.trim(),
-          accountHolderName: bankDetails.accountHolderName.trim(),
-          bankVerifiedExternally: bankDetails.bankVerifiedExternally,
-        });
+        };
+        const hadBank = !isBankAllEmpty(
+          supplier.bankNumber ?? '',
+          supplier.branchNumber ?? '',
+          supplier.accountNumber ?? '',
+          supplier.accountHolderName ?? '',
+        );
+        const bankChanged = bankEmpty
+          ? hadBank
+          : bankDetails.bankNumber.trim() !== (supplier.bankNumber ?? '')
+            || bankDetails.branchNumber.trim() !== (supplier.branchNumber ?? '')
+            || bankDetails.accountNumber.trim() !== (supplier.accountNumber ?? '')
+            || bankDetails.accountHolderName.trim() !== (supplier.accountHolderName ?? '');
+        if (bankChanged) {
+          if (bankEmpty) {
+            updatePayload.bankNumber = null;
+            updatePayload.branchNumber = null;
+            updatePayload.accountNumber = null;
+            updatePayload.accountHolderName = null;
+          } else {
+            updatePayload.bankNumber = bankDetails.bankNumber.trim();
+            updatePayload.branchNumber = bankDetails.branchNumber.trim();
+            updatePayload.accountNumber = bankDetails.accountNumber.trim();
+            updatePayload.accountHolderName = bankDetails.accountHolderName.trim();
+          }
+        }
+        await updateSupplier(supplier.id, supplier.version, updatePayload);
       } else {
         const payload: CreateSupplierPayload = {
           name: name.trim(),
           registrationNumber: trimmedReg,
           phone: phone.trim() || null,
           address: address.trim() || null,
-          bankNumber: bankDetails.bankNumber.trim(),
-          branchNumber: bankDetails.branchNumber.trim(),
-          accountNumber: bankDetails.accountNumber.trim(),
-          accountHolderName: bankDetails.accountHolderName.trim(),
-          bankVerifiedExternally: bankDetails.bankVerifiedExternally,
         };
+        if (!bankEmpty) {
+          payload.bankNumber = bankDetails.bankNumber.trim();
+          payload.branchNumber = bankDetails.branchNumber.trim();
+          payload.accountNumber = bankDetails.accountNumber.trim();
+          payload.accountHolderName = bankDetails.accountHolderName.trim();
+        }
         await createSupplier(payload);
       }
       onSaved();
@@ -233,7 +262,6 @@ function SupplierFormModal({
         fieldErrors={bankErrors}
         onChange={handleBankChange}
         onBlurField={(field) => {
-          if (field === 'bankVerifiedExternally') return;
           validateBank(false, field === 'bankName' ? 'bankName' : field);
         }}
       />
