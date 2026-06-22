@@ -43,6 +43,7 @@ public sealed class OrgUserDto
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
     public bool IsSelf { get; init; }
+    public int OverrideCount { get; init; }
 }
 
 public sealed class OrgUserSummaryDto

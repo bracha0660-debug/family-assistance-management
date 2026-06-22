@@ -18,6 +18,7 @@ export interface OrgUserDto {
   createdAt: string;
   updatedAt: string;
   isSelf: boolean;
+  overrideCount?: number;
 }
 
 export interface OrgUserListResponse {

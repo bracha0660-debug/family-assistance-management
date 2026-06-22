@@ -49,6 +49,30 @@ public sealed class UserDtoBuilder(AppDbContext db, PermissionService permission
             .Select(g => new UserGrantDto { PermissionKey = g.PermissionKey, Scope = g.Scope })
             .ToList();
 
+        IReadOnlyList<UserGrantDto> roleGrants = [];
+        IReadOnlyList<UserPermissionOverrideDto> overrides = [];
+
+        if (user.Role == Roles.OrganizationUser)
+        {
+            var roleGrantMap = await permissionService.GetRoleGrantMapAsync(
+                user.OrganizationRoleId, cancellationToken);
+            roleGrants = roleGrantMap
+                .OrderBy(kv => kv.Key)
+                .Select(kv => new UserGrantDto { PermissionKey = kv.Key, Scope = kv.Value })
+                .ToList();
+
+            overrides = await db.UserPermissionOverrides
+                .Where(o => o.UserId == user.Id)
+                .OrderBy(o => o.PermissionKey)
+                .Select(o => new UserPermissionOverrideDto
+                {
+                    PermissionKey = o.PermissionKey,
+                    Effect = o.Effect,
+                    Scope = o.Scope,
+                })
+                .ToListAsync(cancellationToken);
+        }
+
         return new UserDto
         {
             Id = user.Id,
@@ -62,6 +86,8 @@ public sealed class UserDtoBuilder(AppDbContext db, PermissionService permission
             OrganizationStatus = organizationStatus,
             FullAccess = auth.FullOrgAccess,
             Grants = grants,
+            RoleGrants = roleGrants,
+            Overrides = overrides,
             Permissions = grants.Select(g => g.PermissionKey).ToList(),
         };
     }

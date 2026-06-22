@@ -26,6 +26,8 @@ public sealed class UserDto
     public string? OrganizationStatus { get; init; }
     public bool FullAccess { get; init; }
     public IReadOnlyList<UserGrantDto> Grants { get; init; } = [];
+    public IReadOnlyList<UserGrantDto> RoleGrants { get; init; } = [];
+    public IReadOnlyList<UserPermissionOverrideDto> Overrides { get; init; } = [];
     public IReadOnlyList<string> Permissions { get; init; } = [];
 }
 

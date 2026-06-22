@@ -31,6 +31,7 @@ builder.Services.AddScoped<OrganizationRoleService>();
 builder.Services.AddScoped<OrganizationAdminService>();
 builder.Services.AddScoped<UserDtoBuilder>();
 builder.Services.AddScoped<OrganizationUserService>();
+builder.Services.AddScoped<UserPermissionOverrideService>();
 builder.Services.AddScoped<OrganizationActivityService>();
 builder.Services.AddScoped<FamilyService>();
 builder.Services.AddScoped<SupplierService>();

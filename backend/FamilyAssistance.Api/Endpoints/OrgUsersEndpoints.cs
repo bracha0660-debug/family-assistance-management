@@ -18,6 +18,9 @@ public static class OrgUsersEndpoints
         group.MapPatch("/users/{id:guid}/disable", DisableUser).RequireOrgAdmin();
         group.MapPatch("/users/{id:guid}/restore", RestoreUser).RequireOrgAdmin();
         group.MapPost("/users/{id:guid}/reset-password", ResetPassword).RequireOrgAdmin();
+        group.MapGet("/users/{id:guid}/permission-overrides", GetPermissionOverrides).RequireOrgAdmin();
+        group.MapPut("/users/{id:guid}/permission-overrides", PutPermissionOverrides).RequireOrgAdmin();
+        group.MapDelete("/users/{id:guid}/permission-overrides/{permissionKey}", DeletePermissionOverride).RequireOrgAdmin();
     }
 
     private static async Task<IResult> ListUsers(
@@ -111,6 +114,50 @@ public static class OrgUsersEndpoints
             return ToError(result);
 
         return Results.Ok(new OrgUserResponse { User = result.Value! });
+    }
+
+    private static async Task<IResult> GetPermissionOverrides(
+        Guid id,
+        HttpContext httpContext,
+        UserPermissionOverrideService service,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = httpContext.GetCurrentUser()!;
+        var result = await service.GetAsync(
+            currentUser.GetEffectiveOrganizationId()!.Value, id, cancellationToken);
+        if (!result.IsSuccess)
+            return ToError(result);
+        return Results.Ok(result.Value);
+    }
+
+    private static async Task<IResult> PutPermissionOverrides(
+        Guid id,
+        UpdateUserPermissionOverridesRequest request,
+        HttpContext httpContext,
+        UserPermissionOverrideService service,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = httpContext.GetCurrentUser()!;
+        var result = await service.ReplaceAsync(
+            currentUser.GetEffectiveOrganizationId()!.Value, id, request, currentUser.UserId, cancellationToken);
+        if (!result.IsSuccess)
+            return ToError(result);
+        return Results.Ok(result.Value);
+    }
+
+    private static async Task<IResult> DeletePermissionOverride(
+        Guid id,
+        string permissionKey,
+        HttpContext httpContext,
+        UserPermissionOverrideService service,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = httpContext.GetCurrentUser()!;
+        var result = await service.DeleteOneAsync(
+            currentUser.GetEffectiveOrganizationId()!.Value, id, permissionKey, currentUser.UserId, cancellationToken);
+        if (!result.IsSuccess)
+            return ToError(result);
+        return Results.Ok(result.Value);
     }
 
     private static int? ReadIfMatch(HttpContext httpContext)

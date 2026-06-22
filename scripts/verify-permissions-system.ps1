@@ -221,7 +221,33 @@ function GrantsToInput($grants) {
     return @($grants | ForEach-Object { @{ permissionKey = $_.permissionKey; scope = $_.scope } })
 }
 
-Write-Host "=== Permissions System Verification (PERM-001..093) ===" -ForegroundColor Cyan
+function Set-UserOverrides($cookieFile, $userId, $overrideList) {
+    $body = (@{ overrides = $overrideList } | ConvertTo-Json -Compress -Depth 5)
+    return Invoke-CurlJson -Method PUT -Uri "$baseApi/api/v1/org/users/$userId/permission-overrides" -Body $body -CookieFile $cookieFile
+}
+
+function New-SupplierBody([hashtable]$Extra = @{}) {
+    $body = @{
+        name = "Supplier Perm Test"
+        registrationNumber = "123456782"
+        bankNumber = "12"
+        branchNumber = "345"
+        accountNumber = "1234567"
+        accountHolderName = "Supplier Holder"
+    }
+    foreach ($k in $Extra.Keys) { $body[$k] = $Extra[$k] }
+    return ($body | ConvertTo-Json -Compress)
+}
+
+function Has-GrantInMe($cookieFile, $permissionKey) {
+    $me = Invoke-CurlJson -Uri "$baseApi/api/v1/auth/me" -CookieFile $cookieFile
+    if ($me.StatusCode -ne 200) { return $false }
+    $grants = ($me.Content | ConvertFrom-Json).user.grants
+    if ($null -eq $grants) { return $false }
+    return @($grants | Where-Object { $_.permissionKey -eq $permissionKey }).Count -gt 0
+}
+
+Write-Host "=== Permissions System Verification (PERM-001..093, UPO-094..099) ===" -ForegroundColor Cyan
 Write-Host "NOTE: Creates isolated test orgs PERM-* only. Does not touch existing organizations." -ForegroundColor Yellow
 
 Push-Location (Split-Path $PSScriptRoot -Parent)
@@ -1079,6 +1105,92 @@ try {
 
     Write-Result "PERM-093" "preset_finance has 15 grants after payment migration" `
         ((Get-RoleGrants $cookieOa $roleFinanceId).Count -eq 15) "count=$((Get-RoleGrants $cookieOa $roleFinanceId).Count)"
+
+    # === N. User permission overrides (UPO-094..099) ===
+
+    $grantSupCreate = Set-UserOverrides $cookieOa $coord1Id @(
+        @{ permissionKey = "suppliers.create"; effect = "grant"; scope = "organization" }
+    )
+    Login $cookieCoord1 $coord1User $userPwd | Out-Null
+    Login $cookieCoord2 $coord2User $userPwd | Out-Null
+    $c1CreateSup = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/suppliers" `
+        -Body (New-SupplierBody @{ name = "Coord1 Supplier $ts" }) -CookieFile $cookieCoord1
+    $c2CreateSup = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/suppliers" `
+        -Body (New-SupplierBody @{ name = "Coord2 Supplier $ts" }) -CookieFile $cookieCoord2
+    Write-Result "UPO-094" "Grant suppliers.create to coord1 only: A=201 B=403" `
+        ($grantSupCreate.StatusCode -eq 200 -and $c1CreateSup.StatusCode -eq 201 -and $c2CreateSup.StatusCode -eq 403) `
+        "put=$($grantSupCreate.StatusCode) c1post=$($c1CreateSup.StatusCode) c2post=$($c2CreateSup.StatusCode)"
+
+    # UPO-095: isolated deny fixture — dedicated role + fresh users (no PERM-092 / preset_finance state)
+    $upoFinRole = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/roles" `
+        -Body (@{ name = "UPO Finance $ts"; description = "Isolated fixture for UPO-095 deny test" } | ConvertTo-Json -Compress) `
+        -CookieFile $cookieOa
+    $upoFinRoleId = Get-JsonField $upoFinRole.Content "role.id"
+    $upoRoleGrantPut = Set-RoleGrants $cookieOa $upoFinRoleId @(
+        @{ permissionKey = "payments.view"; scope = "organization" }
+        @{ permissionKey = "payments.execute"; scope = "organization" }
+    ) "UPO-095 isolated finance role grants"
+
+    $upoFinAUser = "perm.upofin.a.$ts"
+    $upoFinBUser = "perm.upofin.b.$ts"
+    $cookieUpoFinA = Join-Path $env:TEMP "fam-perm-upofin-a-$ts.txt"
+    $cookieUpoFinB = Join-Path $env:TEMP "fam-perm-upofin-b-$ts.txt"
+    $cookies += $cookieUpoFinA, $cookieUpoFinB
+
+    $cfUpoA = Create-OrgUserWithRoleId $cookieOa $upoFinAUser "UPO Finance A" $upoFinRoleId
+    $upoFinAId = Get-JsonField $cfUpoA.Content "user.id"
+    $cfUpoB = Create-OrgUserWithRoleId $cookieOa $upoFinBUser "UPO Finance B" $upoFinRoleId
+    $upoFinBId = Get-JsonField $cfUpoB.Content "user.id"
+
+    $denyExec = Set-UserOverrides $cookieOa $upoFinBId @(
+        @{ permissionKey = "payments.execute"; effect = "deny" }
+    )
+    Login $cookieUpoFinA $upoFinAUser $userPwd | Out-Null
+    Login $cookieUpoFinB $upoFinBUser $userPwd | Out-Null
+
+    $upoARoleGrants = @($(Get-RoleDetail $cookieOa $upoFinRoleId).Content | ConvertFrom-Json).role.grants
+    $upoRoleHasExec = @($upoARoleGrants | Where-Object { $_.permissionKey -eq "payments.execute" }).Count -gt 0
+    $upoAMe = Invoke-CurlJson -Uri "$baseApi/api/v1/auth/me" -CookieFile $cookieUpoFinA
+    $upoBMe = Invoke-CurlJson -Uri "$baseApi/api/v1/auth/me" -CookieFile $cookieUpoFinB
+    $upoAGrants = @(($upoAMe.Content | ConvertFrom-Json).user.grants)
+    $upoBGrants = @(($upoBMe.Content | ConvertFrom-Json).user.grants)
+    $upoAHasExecEffective = @($upoAGrants | Where-Object { $_.permissionKey -eq "payments.execute" }).Count -gt 0
+    $upoBNoExecEffective = @($upoBGrants | Where-Object { $_.permissionKey -eq "payments.execute" }).Count -eq 0
+    $upoBExecDenied = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/payments/00000000-0000-0000-0000-000000000001/execute" `
+        -Body (@{ reason = "test" } | ConvertTo-Json -Compress) -CookieFile $cookieUpoFinB
+    $upoAExecAllowed = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/payments/00000000-0000-0000-0000-000000000001/execute" `
+        -Body (@{ reason = "test" } | ConvertTo-Json -Compress) -CookieFile $cookieUpoFinA
+    $upoAAuthOk = $upoAExecAllowed.StatusCode -ne 403
+    Write-Result "UPO-095" "Deny payments.execute on finance B only; A keeps template grant" `
+        ($upoFinRole.StatusCode -eq 201 -and $upoRoleGrantPut.StatusCode -eq 200 -and $cfUpoA.StatusCode -eq 201 `
+            -and $cfUpoB.StatusCode -eq 201 -and $denyExec.StatusCode -eq 200 -and $upoRoleHasExec `
+            -and $upoAHasExecEffective -and $upoBNoExecEffective `
+            -and $upoBExecDenied.StatusCode -eq 403 -and $upoAAuthOk) `
+        "role=$($upoFinRole.StatusCode) grants=$($upoRoleGrantPut.StatusCode) roleExec=$upoRoleHasExec aMe=$upoAHasExecEffective bMe=$upoBNoExecEffective bHttp=$($upoBExecDenied.StatusCode) aHttp=$($upoAExecAllowed.StatusCode)"
+
+    $aud039 = Test-AuditExists "AUD-039" $upoFinBId
+    Write-Result "UPO-096" "Override PUT writes AUD-039 without reason" `
+        ($aud039) "AUD-039 present=$aud039"
+
+    $oaRec = Get-UserRecord $cookieOa (Get-JsonField (Invoke-CurlJson -Uri "$baseApi/api/v1/auth/me" -CookieFile $cookieOa).Content "user.id")
+    $oaOverrideAttempt = Set-UserOverrides $cookieOa $oaRec.id @(
+        @{ permissionKey = "families.view"; effect = "deny" }
+    )
+    $oaOverrideCode = Get-JsonField $oaOverrideAttempt.Content "code"
+    Write-Result "UPO-097" "PUT overrides on OrgAdmin returns 400" `
+        ($oaOverrideAttempt.StatusCode -eq 400 -and $oaOverrideCode -eq "VALIDATION_ERROR") "HTTP $($oaOverrideAttempt.StatusCode) code=$oaOverrideCode"
+
+    $saAdminOrgs = Invoke-CurlJson -Uri "$baseApi/api/v1/admin/organizations" -CookieFile $cookieSa
+    Write-Result "UPO-098" "SuperAdmin GET /admin/organizations unaffected" `
+        ($saAdminOrgs.StatusCode -eq 200) "HTTP $($saAdminOrgs.StatusCode)"
+
+    $c1MeUpo = Invoke-CurlJson -Uri "$baseApi/api/v1/auth/me" -CookieFile $cookieCoord1
+    $c2MeUpo = Invoke-CurlJson -Uri "$baseApi/api/v1/auth/me" -CookieFile $cookieCoord2
+    $c1KeysUpo = ($c1MeUpo.Content | ConvertFrom-Json).user.grants | ForEach-Object { $_.permissionKey } | Sort-Object
+    $c2KeysUpo = ($c2MeUpo.Content | ConvertFrom-Json).user.grants | ForEach-Object { $_.permissionKey } | Sort-Object
+    $diffEffective = ($c1KeysUpo -join ",") -ne ($c2KeysUpo -join ",")
+    Write-Result "UPO-099" "Same coordinator role, different effective grants after override" `
+        ($diffEffective) "c1=$($c1KeysUpo.Count) c2=$($c2KeysUpo.Count)"
 
 } finally {
     Pop-Location

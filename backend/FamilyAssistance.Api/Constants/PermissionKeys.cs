@@ -71,4 +71,8 @@ public static class PermissionKeys
         CommitteeDecisionsCreate,
         AssistanceItemsCreate,
     ];
+
+    public static bool IsUserOverrideAssignable(string permissionKey) =>
+        !permissionKey.StartsWith("users.", StringComparison.Ordinal)
+        && permissionKey != "activity_log.view";
 }

@@ -41,4 +41,5 @@ public static class BusinessEventCodes
     public const string SuperAdminEnterOrg = "AUD-025";
     public const string SuperAdminExitOrg = "AUD-026";
     public const string RoleGrantsUpdate = "AUD-016";
+    public const string UserPermissionOverrideChange = "AUD-039";
 }

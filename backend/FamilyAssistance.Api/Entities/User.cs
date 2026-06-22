@@ -17,4 +17,5 @@ public class User
     public Organization? Organization { get; set; }
     public OrganizationRole? OrganizationRole { get; set; }
     public ICollection<UserSession> Sessions { get; set; } = [];
+    public ICollection<UserPermissionOverride> PermissionOverrides { get; set; } = [];
 }

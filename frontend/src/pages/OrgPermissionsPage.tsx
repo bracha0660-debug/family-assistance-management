@@ -197,7 +197,8 @@ export function OrgPermissionsPage({ onPermissionsChanged }: OrgPermissionsPageP
   return (
     <div className="permissions-page">
       <p className="hint-text">
-        הגדרת הרשאות לפי תפקיד. שינוי הרשאות דורש ציון סיבה ונרשם ביומן הפעילות.
+        הגדרת הרשאות לפי תפקיד. שינוי תבנית אינו משנה התאמות אישיות קיימות. הרשאות סופיות = תבנית + התאמות משתמש.
+        שינוי הרשאות דורש ציון סיבה ונרשם ביומן הפעילות.
       </p>
 
       {error && <div className="error-banner">{error}</div>}

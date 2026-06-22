@@ -873,3 +873,54 @@ body {
   position: static;
   margin-top: 0;
 }
+
+.override-matrix-table .permission-key-hint {
+  display: block;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.override-inherited-cell {
+  color: #4b5563;
+}
+
+.override-effective-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.override-source-tag {
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.override-personal-cell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.override-effect-none {
+  color: #6b7280;
+}
+
+.override-effect-grant {
+  color: #166534;
+  border-color: #86efac;
+}
+
+.override-effect-deny {
+  color: #b91c1c;
+  border-color: #fca5a5;
+}
+
+.override-filter {
+  margin-bottom: 1rem;
+}
+
+.override-hint {
+  display: block;
+  margin-top: 0.25rem;
+}

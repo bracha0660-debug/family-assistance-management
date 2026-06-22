@@ -34,16 +34,17 @@ public sealed class PermissionService(AppDbContext db)
             };
         }
 
-        var grants = current.OrganizationRoleId is null
-            ? []
+        var roleGrants = current.OrganizationRoleId is null
+            ? new Dictionary<string, string>(StringComparer.Ordinal)
             : await db.OrganizationRoleGrants
                 .Where(g => g.OrganizationRoleId == current.OrganizationRoleId)
-                .Select(g => new GrantContext
-                {
-                    PermissionKey = g.PermissionKey,
-                    Scope = g.Scope,
-                })
-                .ToListAsync(cancellationToken);
+                .ToDictionaryAsync(g => g.PermissionKey, g => g.Scope, cancellationToken);
+
+        var overrides = await db.UserPermissionOverrides
+            .Where(o => o.UserId == current.UserId)
+            .ToListAsync(cancellationToken);
+
+        var effective = ComputeEffectiveGrants(roleGrants, overrides);
 
         return new AuthorizationContext
         {
@@ -51,9 +52,56 @@ public sealed class PermissionService(AppDbContext db)
             SystemRole = current.Role,
             OrganizationId = current.OrganizationId,
             OrganizationRoleId = current.OrganizationRoleId,
-            Grants = grants,
+            Grants = effective
+                .Select(kv => new GrantContext { PermissionKey = kv.Key, Scope = kv.Value })
+                .ToList(),
         };
     }
+
+    public static Dictionary<string, string> ComputeEffectiveGrants(
+        IReadOnlyDictionary<string, string> roleGrants,
+        IReadOnlyList<UserPermissionOverride> overrides)
+    {
+        var effective = new Dictionary<string, string>(roleGrants, StringComparer.Ordinal);
+
+        foreach (var o in overrides)
+        {
+            if (o.Effect == PermissionOverrideEffects.Grant)
+                effective[o.PermissionKey] = o.Scope ?? PermissionScopes.Organization;
+            else if (o.Effect == PermissionOverrideEffects.Deny)
+                effective.Remove(o.PermissionKey);
+        }
+
+        return effective;
+    }
+
+    public static string ComputeSourceTag(
+        string permissionKey,
+        IReadOnlyDictionary<string, string> roleGrants,
+        UserPermissionOverride? userOverride)
+    {
+        if (userOverride?.Effect == PermissionOverrideEffects.Deny)
+            return "deny";
+
+        var hasRole = roleGrants.ContainsKey(permissionKey);
+        if (userOverride?.Effect == PermissionOverrideEffects.Grant)
+        {
+            if (hasRole && roleGrants[permissionKey] != userOverride.Scope)
+                return "grant_override";
+            return "grant";
+        }
+
+        return hasRole ? "role" : "none";
+    }
+
+    public static string EncodeOverrideState(UserPermissionOverride? o) =>
+        o switch
+        {
+            null => "none",
+            { Effect: PermissionOverrideEffects.Deny } => "deny",
+            { Effect: PermissionOverrideEffects.Grant } g => $"grant:{g.Scope}",
+            _ => "none",
+        };
 
     public async Task<bool> HasGrantAsync(
         AuthorizationContext auth,
@@ -161,6 +209,18 @@ public sealed class PermissionService(AppDbContext db)
                 && g.OrganizationRole.OrganizationId == organizationId)
             .Select(g => new GrantContext { PermissionKey = g.PermissionKey, Scope = g.Scope })
             .ToListAsync(cancellationToken);
+    }
+
+    public async Task<Dictionary<string, string>> GetRoleGrantMapAsync(
+        Guid? organizationRoleId,
+        CancellationToken cancellationToken = default)
+    {
+        if (organizationRoleId is null)
+            return new Dictionary<string, string>(StringComparer.Ordinal);
+
+        return await db.OrganizationRoleGrants
+            .Where(g => g.OrganizationRoleId == organizationRoleId)
+            .ToDictionaryAsync(g => g.PermissionKey, g => g.Scope, cancellationToken);
     }
 
     public static bool ValidateGrantScope(PermissionCatalog catalog, string scope)

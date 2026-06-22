@@ -36,6 +36,7 @@ public sealed class OrganizationUserService(
                 CreatedAt = u.CreatedAt,
                 UpdatedAt = u.UpdatedAt,
                 IsSelf = u.Id == currentUserId,
+                OverrideCount = u.PermissionOverrides.Count,
             })
             .ToListAsync(cancellationToken);
 

@@ -21,6 +21,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<OrganizationRole> OrganizationRoles => Set<OrganizationRole>();
     public DbSet<OrganizationRoleGrant> OrganizationRoleGrants => Set<OrganizationRoleGrant>();
     public DbSet<OrganizationRolePermission> OrganizationRolePermissions => Set<OrganizationRolePermission>();
+    public DbSet<UserPermissionOverride> UserPermissionOverrides => Set<UserPermissionOverride>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -293,6 +294,28 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasIndex(x => new { x.OrganizationRoleId, x.PermissionKey }).IsUnique()
                 .HasDatabaseName("ux_org_role_grants_role_key");
             e.HasOne(x => x.OrganizationRole).WithMany(x => x.Grants).HasForeignKey(x => x.OrganizationRoleId);
+            e.HasOne(x => x.Permission).WithMany().HasForeignKey(x => x.PermissionKey);
+            e.HasOne(x => x.GrantedByUser).WithMany().HasForeignKey(x => x.GrantedByUserId);
+        });
+
+        modelBuilder.Entity<UserPermissionOverride>(e =>
+        {
+            e.ToTable("user_permission_overrides");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
+            e.Property(x => x.PermissionKey).HasMaxLength(80);
+            e.Property(x => x.Effect).HasMaxLength(10);
+            e.Property(x => x.Scope).HasMaxLength(20);
+            e.HasIndex(x => new { x.UserId, x.PermissionKey }).IsUnique()
+                .HasDatabaseName("ux_user_perm_overrides_user_key");
+            e.HasIndex(x => x.OrganizationId).HasDatabaseName("ix_user_perm_overrides_org_id");
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("ck_user_perm_overrides_effect", "effect IN ('grant', 'deny')");
+                t.HasCheckConstraint("ck_user_perm_overrides_scope", "effect = 'deny' OR scope IS NOT NULL");
+            });
+            e.HasOne(x => x.Organization).WithMany().HasForeignKey(x => x.OrganizationId);
+            e.HasOne(x => x.User).WithMany(x => x.PermissionOverrides).HasForeignKey(x => x.UserId);
             e.HasOne(x => x.Permission).WithMany().HasForeignKey(x => x.PermissionKey);
             e.HasOne(x => x.GrantedByUser).WithMany().HasForeignKey(x => x.GrantedByUserId);
         });
