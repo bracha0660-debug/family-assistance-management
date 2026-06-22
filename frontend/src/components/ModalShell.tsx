@@ -5,6 +5,8 @@ interface ModalShellProps {
   title: string;
   hint?: string;
   wide?: boolean;
+  extraWide?: boolean;
+  bodyClassName?: string;
   loading?: boolean;
   onClose: (e?: MouseEvent) => void;
   onSubmit?: (e: FormEvent) => void;
@@ -18,6 +20,8 @@ export function ModalShell({
   title,
   hint,
   wide = false,
+  extraWide = false,
+  bodyClassName,
   loading = false,
   onClose,
   onSubmit,
@@ -36,7 +40,12 @@ export function ModalShell({
     e.stopPropagation();
   }
 
-  const cardClass = ['modal-card', 'modal-scrollable', wide ? 'modal-wide' : ''].filter(Boolean).join(' ');
+  const cardClass = [
+    'modal-card',
+    'modal-scrollable',
+    extraWide ? 'modal-extra-wide' : wide ? 'modal-wide' : '',
+  ].filter(Boolean).join(' ');
+  const bodyClass = ['modal-body', bodyClassName].filter(Boolean).join(' ');
 
   const inner = (
     <>
@@ -44,7 +53,7 @@ export function ModalShell({
         <h2 id="modal-title">{title}</h2>
         {hint && <p className="hint-text">{hint}</p>}
       </div>
-      <div className="modal-body">
+      <div className={bodyClass}>
         {children}
         {formError && <div className="error" role="alert">{formError}</div>}
       </div>

@@ -19,6 +19,7 @@ export interface AssistanceItemDto {
   supplierName: string | null;
   payeeName: string | null;
   voucherType: string | null;
+  isUrgent: boolean;
   executionStatus: string;
   version: number;
   createdAt: string;
@@ -32,7 +33,6 @@ export interface CommitteeDecisionDto {
   familyCode: string;
   familyLastName: string;
   meetingDate: string;
-  isUrgent: boolean;
   summary: string | null;
   status: string;
   createdByUserId: string;
@@ -68,13 +68,11 @@ export interface CommitteeDecisionListResponse {
 export interface CreateCommitteeDecisionPayload {
   familyId: string;
   meetingDate: string;
-  isUrgent?: boolean;
   summary?: string | null;
 }
 
 export interface UpdateCommitteeDecisionPayload {
   meetingDate?: string;
-  isUrgent?: boolean;
   summary?: string | null;
 }
 
@@ -87,6 +85,7 @@ export interface CreateAssistanceItemPayload {
   supplierId?: string | null;
   payeeName?: string | null;
   voucherType?: string | null;
+  isUrgent?: boolean;
 }
 
 export interface UpdateAssistanceItemPayload {
@@ -99,6 +98,7 @@ export interface UpdateAssistanceItemPayload {
   clearSupplierId?: boolean;
   payeeName?: string | null;
   voucherType?: string | null;
+  isUrgent?: boolean;
 }
 
 export async function listCommitteeDecisions(): Promise<CommitteeDecisionListResponse> {
@@ -140,7 +140,6 @@ export async function updateCommitteeDecision(
 export async function submitCommitteeDecision(
   id: string,
   version: number,
-  reason: string,
 ): Promise<CommitteeDecisionDto> {
   const data = await apiJson<{ decision: CommitteeDecisionDto }>(
     `/api/v1/org/committee-decisions/${id}/submit`,
@@ -150,7 +149,7 @@ export async function submitCommitteeDecision(
         'Content-Type': 'application/json',
         'If-Match': String(version),
       },
-      body: JSON.stringify({ reason }),
+      body: JSON.stringify({}),
     },
   );
   return data.decision;
@@ -236,13 +235,17 @@ export async function addAssistanceItem(
 export async function updateAssistanceItem(
   decisionId: string,
   itemId: string,
+  version: number,
   payload: UpdateAssistanceItemPayload,
 ): Promise<AssistanceItemDto> {
   const data = await apiJson<{ item: AssistanceItemDto }>(
     `/api/v1/org/committee-decisions/${decisionId}/items/${itemId}`,
     {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'If-Match': String(version),
+      },
       body: JSON.stringify(payload),
     },
   );

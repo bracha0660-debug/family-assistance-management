@@ -7,7 +7,6 @@ public class CommitteeDecision
     public string DecisionCode { get; set; } = string.Empty;
     public Guid FamilyId { get; set; }
     public DateOnly MeetingDate { get; set; }
-    public bool IsUrgent { get; set; }
     public string? Summary { get; set; }
     public string Status { get; set; } = "draft";
     public Guid CreatedByUserId { get; set; }

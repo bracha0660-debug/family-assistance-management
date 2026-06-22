@@ -4,14 +4,12 @@ public sealed class CreateCommitteeDecisionRequest
 {
     public Guid FamilyId { get; set; }
     public DateOnly MeetingDate { get; set; }
-    public bool IsUrgent { get; set; }
     public string? Summary { get; set; }
 }
 
 public sealed class UpdateCommitteeDecisionRequest
 {
     public DateOnly? MeetingDate { get; set; }
-    public bool? IsUrgent { get; set; }
     public string? Summary { get; set; }
 }
 
@@ -36,6 +34,7 @@ public sealed class CreateAssistanceItemRequest
     public Guid? SupplierId { get; set; }
     public string? PayeeName { get; set; }
     public string? VoucherType { get; set; }
+    public bool IsUrgent { get; set; }
 }
 
 public sealed class UpdateAssistanceItemRequest
@@ -49,6 +48,7 @@ public sealed class UpdateAssistanceItemRequest
     public bool ClearSupplierId { get; set; }
     public string? PayeeName { get; set; }
     public string? VoucherType { get; set; }
+    public bool? IsUrgent { get; set; }
 }
 
 public sealed class AssistanceItemDto
@@ -65,6 +65,7 @@ public sealed class AssistanceItemDto
     public string? SupplierName { get; init; }
     public string? PayeeName { get; init; }
     public string? VoucherType { get; init; }
+    public bool IsUrgent { get; init; }
     public string ExecutionStatus { get; init; } = string.Empty;
     public int Version { get; init; }
     public DateTime CreatedAt { get; init; }
@@ -79,7 +80,6 @@ public sealed class CommitteeDecisionDto
     public string FamilyCode { get; init; } = string.Empty;
     public string FamilyLastName { get; init; } = string.Empty;
     public DateOnly MeetingDate { get; init; }
-    public bool IsUrgent { get; init; }
     public string? Summary { get; init; }
     public string Status { get; init; } = string.Empty;
     public Guid CreatedByUserId { get; init; }

@@ -14,6 +14,7 @@ public class AssistanceItem
     public Guid? SupplierId { get; set; }
     public string? PayeeName { get; set; }
     public string? VoucherType { get; set; }
+    public bool IsUrgent { get; set; }
     public string ExecutionStatus { get; set; } = "awaiting_payment";
     public string? ExecutionReference { get; set; }
     public int Version { get; set; } = 1;

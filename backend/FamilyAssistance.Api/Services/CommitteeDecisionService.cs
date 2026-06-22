@@ -5,6 +5,7 @@ using FamilyAssistance.Api.Constants;
 using FamilyAssistance.Api.Data;
 using FamilyAssistance.Api.Entities;
 using FamilyAssistance.Api.Models;
+using FamilyAssistance.Api.Validation;
 using Microsoft.EntityFrameworkCore;
 
 namespace FamilyAssistance.Api.Services;
@@ -103,7 +104,6 @@ public sealed class CommitteeDecisionService(
                 DecisionCode = $"D-{nextCounter[0]:D6}",
                 FamilyId = family.Id,
                 MeetingDate = request.MeetingDate,
-                IsUrgent = request.IsUrgent,
                 Summary = NormalizeOptional(request.Summary),
                 Status = CommitteeDecisionStatuses.Draft,
                 CreatedByUserId = auth.UserId,
@@ -171,12 +171,6 @@ public sealed class CommitteeDecisionService(
         {
             changes.Add(("meeting_date", decision.MeetingDate.ToString(), request.MeetingDate.Value.ToString()));
             decision.MeetingDate = request.MeetingDate.Value;
-        }
-
-        if (request.IsUrgent is not null && request.IsUrgent != decision.IsUrgent)
-        {
-            changes.Add(("is_urgent", decision.IsUrgent.ToString(), request.IsUrgent.Value.ToString()));
-            decision.IsUrgent = request.IsUrgent.Value;
         }
 
         if (request.Summary is not null)
@@ -467,14 +461,23 @@ public sealed class CommitteeDecisionService(
         if (assistanceType is null)
             return ServiceResult<(AssistanceItemDto, int)>.Fail(400, "VALIDATION_ERROR", "סוג סיוע לא חוקי");
 
+        Supplier? supplier = null;
         if (request.SupplierId is not null)
         {
-            var supplier = await db.Suppliers.FirstOrDefaultAsync(
+            supplier = await db.Suppliers.FirstOrDefaultAsync(
                 s => s.Id == request.SupplierId && s.OrganizationId == organizationId && s.Status == "active",
                 cancellationToken);
             if (supplier is null)
                 return ServiceResult<(AssistanceItemDto, int)>.Fail(400, "VALIDATION_ERROR", "ספק לא חוקי");
         }
+
+        var bankErrors = ValidateBankTransferBankDetails(
+            request.PaymentTarget.Trim(),
+            request.PaymentMethod.Trim(),
+            decision.Family!,
+            supplier);
+        if (bankErrors.Count > 0)
+            return ServiceResult<(AssistanceItemDto, int)>.Fail(400, "INCOMPLETE_BANK_DETAILS", bankErrors[0], bankErrors);
 
         var now = DateTime.UtcNow;
         var lineNumber = decision.Items.Count == 0
@@ -495,6 +498,7 @@ public sealed class CommitteeDecisionService(
             SupplierId = request.SupplierId,
             PayeeName = NormalizeOptional(request.PayeeName),
             VoucherType = NormalizeOptional(request.VoucherType),
+            IsUrgent = request.IsUrgent,
             ExecutionStatus = PaymentExecutionStatuses.AwaitingPayment,
             Version = 1,
             CreatedAt = now,
@@ -530,8 +534,8 @@ public sealed class CommitteeDecisionService(
         }
 
         item.AssistanceType = assistanceType;
-        if (request.SupplierId is not null)
-            item.Supplier = await db.Suppliers.FindAsync([request.SupplierId], cancellationToken);
+        if (supplier is not null)
+            item.Supplier = supplier;
 
         return ServiceResult<(AssistanceItemDto Item, int DecisionVersion)>.Ok((MapItem(item), decision.Version));
     }
@@ -587,20 +591,35 @@ public sealed class CommitteeDecisionService(
             item.AssistanceType = assistanceType;
         }
 
+        Supplier? supplierForBank = item.Supplier;
         if (request.SupplierId is not null || request.ClearSupplierId)
         {
             if (request.ClearSupplierId)
+            {
                 item.Supplier = null;
+                supplierForBank = null;
+            }
             else if (request.SupplierId is not null)
             {
-                var supplier = await db.Suppliers.FirstOrDefaultAsync(
+                supplierForBank = await db.Suppliers.FirstOrDefaultAsync(
                     s => s.Id == request.SupplierId && s.OrganizationId == organizationId && s.Status == "active",
                     cancellationToken);
-                if (supplier is null)
+                if (supplierForBank is null)
                     return ServiceResult<AssistanceItemDto>.Fail(400, "VALIDATION_ERROR", "ספק לא חוקי");
-                item.Supplier = supplier;
+                item.Supplier = supplierForBank;
             }
         }
+        else if (item.SupplierId is not null && supplierForBank is null)
+        {
+            supplierForBank = await db.Suppliers.FirstOrDefaultAsync(
+                s => s.Id == item.SupplierId && s.OrganizationId == organizationId,
+                cancellationToken);
+        }
+
+        var bankErrors = ValidateBankTransferBankDetails(
+            item.PaymentTarget, item.PaymentMethod, decision.Family!, supplierForBank);
+        if (bankErrors.Count > 0)
+            return ServiceResult<AssistanceItemDto>.Fail(400, "INCOMPLETE_BANK_DETAILS", bankErrors[0], bankErrors);
 
         decision.TotalAmount = decision.TotalAmount - oldAmount + item.Amount;
         item.Version++;
@@ -800,6 +819,33 @@ public sealed class CommitteeDecisionService(
         return errors;
     }
 
+    private static List<string> ValidateBankTransferBankDetails(
+        string paymentTarget,
+        string paymentMethod,
+        Family family,
+        Supplier? supplier)
+    {
+        if (paymentMethod != PaymentMethods.BankTransfer)
+            return [];
+
+        if (paymentTarget == PaymentTargets.Family)
+        {
+            return BankFieldValidator.ValidateCompleteForPayment(
+                family.BankNumber, family.BranchNumber, family.AccountNumber, family.AccountHolderName);
+        }
+
+        if (paymentTarget == PaymentTargets.Supplier)
+        {
+            if (supplier is null)
+                return [BankFieldValidator.IncompleteBankForPaymentMessage];
+
+            return BankFieldValidator.ValidateCompleteForPayment(
+                supplier.BankNumber, supplier.BranchNumber, supplier.AccountNumber, supplier.AccountHolderName);
+        }
+
+        return [];
+    }
+
     private static List<string> ValidateItemFields(
         string paymentTarget,
         string paymentMethod,
@@ -856,6 +902,9 @@ public sealed class CommitteeDecisionService(
             item.PayeeName = NormalizeOptional(request.PayeeName);
         if (request.VoucherType is not null)
             item.VoucherType = NormalizeOptional(request.VoucherType);
+
+        if (request.IsUrgent is not null)
+            item.IsUrgent = request.IsUrgent.Value;
     }
 
     private static string? NormalizeOptional(string? value)
@@ -873,7 +922,6 @@ public sealed class CommitteeDecisionService(
         FamilyCode = d.Family?.FamilyCode ?? string.Empty,
         FamilyLastName = d.Family?.FamilyLastName ?? string.Empty,
         MeetingDate = d.MeetingDate,
-        IsUrgent = d.IsUrgent,
         Summary = d.Summary,
         Status = d.Status,
         CreatedByUserId = d.CreatedByUserId,
@@ -908,6 +956,7 @@ public sealed class CommitteeDecisionService(
         SupplierName = i.Supplier?.Name,
         PayeeName = i.PayeeName,
         VoucherType = i.VoucherType,
+        IsUrgent = i.IsUrgent,
         ExecutionStatus = i.ExecutionStatus,
         Version = i.Version,
         CreatedAt = i.CreatedAt,
