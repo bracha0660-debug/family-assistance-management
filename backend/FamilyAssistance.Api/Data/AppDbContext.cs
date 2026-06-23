@@ -38,6 +38,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.Status).HasMaxLength(20);
             e.Property(x => x.Name).HasMaxLength(200);
             e.Property(x => x.Code).HasMaxLength(50);
+            e.Property(x => x.LogoUrl).HasMaxLength(2048);
         });
 
         modelBuilder.Entity<User>(e =>

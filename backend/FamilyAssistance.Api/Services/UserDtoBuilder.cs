@@ -17,6 +17,7 @@ public sealed class UserDtoBuilder(AppDbContext db, PermissionService permission
         var actingOrganizationId = session?.ActingOrganizationId;
         var organizationName = user.Organization?.Name;
         var organizationStatus = user.Organization?.Status;
+        var organizationLogoUrl = user.Organization?.LogoUrl;
 
         if (user.Role == Roles.SuperAdmin && actingOrganizationId is not null)
         {
@@ -27,6 +28,7 @@ public sealed class UserDtoBuilder(AppDbContext db, PermissionService permission
             {
                 organizationName = actingOrg.Name;
                 organizationStatus = actingOrg.Status;
+                organizationLogoUrl = actingOrg.LogoUrl;
             }
         }
 
@@ -84,6 +86,7 @@ public sealed class UserDtoBuilder(AppDbContext db, PermissionService permission
             ActingOrganizationId = actingOrganizationId,
             OrganizationName = organizationName,
             OrganizationStatus = organizationStatus,
+            OrganizationLogoUrl = organizationLogoUrl,
             FullAccess = auth.FullOrgAccess,
             Grants = grants,
             RoleGrants = roleGrants,

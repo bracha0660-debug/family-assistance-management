@@ -24,6 +24,7 @@ public sealed class UserDto
     public Guid? ActingOrganizationId { get; init; }
     public string? OrganizationName { get; init; }
     public string? OrganizationStatus { get; init; }
+    public string? OrganizationLogoUrl { get; init; }
     public bool FullAccess { get; init; }
     public IReadOnlyList<UserGrantDto> Grants { get; init; } = [];
     public IReadOnlyList<UserGrantDto> RoleGrants { get; init; } = [];

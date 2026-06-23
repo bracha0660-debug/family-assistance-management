@@ -21,6 +21,7 @@ import { OrgUsersPage } from './OrgUsersPage';
 import { PaymentsQueuePage } from './PaymentsQueuePage';
 import { SuppliersPage } from './SuppliersPage';
 import { AppShell } from '../components/AppShell';
+import { resolveOrganizationBrandLogo } from '../utils/organizationBrand';
 
 interface OrgAdminDashboardProps {
   user: UserDto;
@@ -85,11 +86,13 @@ export function OrgAdminDashboard({ user, onLogout, onUserUpdated }: OrgAdminDas
   const activeLabel = visibleTabs.find((t) => t.id === tab)?.label ?? 'ניהול ארגון';
   const pageTitle = `${activeLabel}${user.organizationName ? ` — ${user.organizationName}` : ''}`;
   const homeTabId: TabId | undefined = hasWorkflow ? 'workflow' : visibleTabs[0]?.id;
+  const { logoSrc, logoAlt } = resolveOrganizationBrandLogo(user);
 
   return (
     <AppShell
       brandTitle="ניהול ארגון"
-      brandLogoSrc="/keren-ahavat-chesed-logo.png"
+      brandLogoSrc={logoSrc}
+      brandLogoAlt={logoAlt}
       homeTabId={homeTabId}
       pageTitle={pageTitle}
       user={user}

@@ -16,6 +16,7 @@ export interface UserDto {
   actingOrganizationId?: string | null;
   organizationName: string | null;
   organizationStatus: string | null;
+  organizationLogoUrl?: string | null;
   fullAccess?: boolean;
   grants?: UserGrantDto[];
   roleGrants?: UserGrantDto[];
