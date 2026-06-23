@@ -1,4 +1,4 @@
-# Home Dashboard Verification (Phase 2 KPI + Phase 3 financial + Phase 4 trend + Phase 5 bottlenecks)
+# Home Dashboard Verification (Phase 2 KPI + Phase 3 financial + Phase 4 trend + Phase 5 bottlenecks + Phase 6 activity)
 # Run from repo root: .\scripts\verify-home-dashboard.ps1
 
 $ErrorActionPreference = "Stop"
@@ -199,6 +199,43 @@ try {
     Write-Result "HD-17" "Bottleneck visibility + minAgeDays filter" (
         $null -ne $stalePay -and $stalePay.navigationTarget.minAgeDays -eq 14 -and $coordNoPay -and $agedCount -eq 0 -and $freshCount -ge 1
     ) "financePay=$($stalePay.alertKey) aged=$agedCount fresh=$freshCount"
+
+    # HD-18: Manager has recent_activity widget with entries after submit
+    $activityWidget = $widgets2 | Where-Object { $_.type -eq "recent_activity" } | Select-Object -First 1
+    $activityEntries = @($activityWidget.data.entries)
+    $submittedEntry = $activityEntries | Where-Object { $_.statusSemantic -eq "pending_approval" } | Select-Object -First 1
+    Write-Result "HD-18" "Manager recent_activity after submit" ($null -ne $activityWidget -and $activityEntries.Count -ge 1 -and $null -ne $submittedEntry) "entries=$($activityEntries.Count)"
+
+    # HD-19: Recent activity entry contract shape
+    $hasActivityShape = ($null -ne $submittedEntry.decisionCode) -and ($null -ne $submittedEntry.familyName) -and ($submittedEntry.statusSemantic -eq "pending_approval") -and ($null -ne $submittedEntry.occurredAt) -and ($submittedEntry.navigationTarget.targetTab -eq "decisions")
+    Write-Result "HD-19" "Recent activity entry contract shape" $hasActivityShape "code=$($submittedEntry.decisionCode) semantic=$($submittedEntry.statusSemantic)"
+
+    # HD-20: Activity scoped — coordinator sees only own family's submit, not another coordinator's
+    $coord2User = "hd.coord2.$ts"
+    Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/users" -Body (@{ username = $coord2User; password = $userPwd; fullName = "Coord2"; organizationRoleId = $coordRole.id } | ConvertTo-Json -Compress) -CookieFile $cookieOa | Out-Null
+    $cookieCoord2 = Join-Path $env:TEMP "hd-coord2-$ts.txt"
+    Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/auth/login" -Body (@{ username = $coord2User; password = $userPwd } | ConvertTo-Json -Compress) -CookieFile $cookieCoord2 | Out-Null
+    $famB = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/families" -Body (@{
+        familyLastName = "HD Family B"; bankNumber = "12"; branchNumber = "345"; accountNumber = "7654321"; accountHolderName = "Holder B"
+    } | ConvertTo-Json -Compress) -CookieFile $cookieCoord2
+    $familyBId = Get-JsonField $famB.Content "family.id"
+    $decB = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/committee-decisions" -Body (@{
+        familyId = $familyBId; meetingDate = "2026-07-02"
+    } | ConvertTo-Json -Compress) -CookieFile $cookieCoord2
+    $decisionBId = Get-JsonField $decB.Content "decision.id"
+    $decBVersion = Get-JsonField $decB.Content "decision.version"
+    $itemB = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/committee-decisions/$decisionBId/items" -Body (@{
+        assistanceTypeId = $typeId; amount = 200; paymentTarget = "family"; paymentMethod = "check"
+    } | ConvertTo-Json -Compress) -CookieFile $cookieCoord2 -Headers @{ "If-Match" = "$decBVersion" }
+    $decBVersion = Get-JsonField $itemB.Content "decisionVersion"
+    if ($null -eq $decBVersion) { $decBVersion = Get-JsonField $itemB.Content "decision.version" }
+    Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/committee-decisions/$decisionBId/submit" -Body "{}" -CookieFile $cookieCoord2 -Headers @{ "If-Match" = "$decBVersion" } | Out-Null
+    $dashCoord3 = Invoke-CurlJson -Uri "$baseApi/api/v1/org/workflow/dashboard" -CookieFile $cookieCoord
+    $coordActivity = ($dashCoord3.Content | ConvertFrom-Json).home.widgets | Where-Object { $_.type -eq "recent_activity" } | Select-Object -First 1
+    $coordEntries = @($coordActivity.data.entries)
+    $hasOwnFamily = ($coordEntries | Where-Object { $_.familyName -eq "HD Family" }).Count -ge 1
+    $leaksOtherFamily = ($coordEntries | Where-Object { $_.familyName -eq "HD Family B" }).Count -gt 0
+    Write-Result "HD-20" "Recent activity scoped to coordinator records" ($hasOwnFamily -and -not $leaksOtherFamily) "own=$hasOwnFamily leak=$leaksOtherFamily entries=$($coordEntries.Count)"
 
     $failed = @($results | Where-Object { -not $_.Passed })
     Write-Host ""

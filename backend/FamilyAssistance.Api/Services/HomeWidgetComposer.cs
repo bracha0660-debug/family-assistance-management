@@ -19,11 +19,14 @@ public sealed class HomeWidgetComposer
     private const int StaleSubmittedDays = 7;
     private const int StaleSuspendedDays = 30;
     private const int StaleAwaitingPaymentDays = 14;
+    public const int RecentActivityQueryLimit = 40;
+    private const int RecentActivityLimit = 8;
 
     public HomeDashboardDto Compose(
         AuthorizationContext auth,
         IReadOnlyList<CommitteeDecision> scopedDecisions,
-        IReadOnlyList<PaymentExecution> scopedPayments)
+        IReadOnlyList<PaymentExecution> scopedPayments,
+        IReadOnlyList<AuditLog> scopedActivityLogs)
     {
         var widgets = new List<HomeWidgetDto>();
 
@@ -81,6 +84,18 @@ public sealed class HomeWidgetComposer
                 Type = HomeWidgetTypes.MonthlyTrend,
                 Title = "מגמה חודשית",
                 Data = SerializeData(monthlyTrend)
+            });
+        }
+
+        var recentActivity = BuildRecentActivity(auth, scopedDecisions, scopedPayments, scopedActivityLogs);
+        if (recentActivity is not null)
+        {
+            widgets.Add(new HomeWidgetDto
+            {
+                Id = "recent_activity",
+                Type = HomeWidgetTypes.RecentActivity,
+                Title = "פעילות אחרונה",
+                Data = SerializeData(recentActivity)
             });
         }
 
@@ -342,6 +357,115 @@ public sealed class HomeWidgetComposer
 
         return alerts.Count == 0 ? null : new HomeBottlenecksDataDto { Alerts = alerts };
     }
+
+    private static HomeRecentActivityDataDto? BuildRecentActivity(
+        AuthorizationContext auth,
+        IReadOnlyList<CommitteeDecision> scopedDecisions,
+        IReadOnlyList<PaymentExecution> scopedPayments,
+        IReadOnlyList<AuditLog> scopedActivityLogs)
+    {
+        if (!CanShowRecentActivity(auth) || scopedActivityLogs.Count == 0)
+            return null;
+
+        var decisionsById = scopedDecisions.ToDictionary(d => d.Id);
+        var paymentsById = scopedPayments.ToDictionary(p => p.Id);
+        var mineScope = UsesMyRecordsCommitteeScope(auth);
+        var hasApprove = auth.FullOrgAccess || auth.HasGrant(PermissionKeys.CommitteeDecisionsApprove);
+        var entries = new List<HomeRecentActivityEntryDto>(RecentActivityLimit);
+
+        foreach (var log in scopedActivityLogs.OrderByDescending(l => l.CreatedAt))
+        {
+            if (!HomeActivityPresentation.IsDisplayableActivity(log))
+                continue;
+
+            var (statusLabel, statusSemantic, workflowStatus) = HomeActivityPresentation.Resolve(log);
+            string decisionCode;
+            string familyName;
+            HomeNavigationTargetDto? navigationTarget;
+
+            if (log.EntityType == "committee_decision")
+            {
+                if (!decisionsById.TryGetValue(log.EntityId, out var decision))
+                    continue;
+
+                decisionCode = decision.DecisionCode;
+                familyName = decision.Family?.FamilyLastName ?? string.Empty;
+                navigationTarget = workflowStatus is not null
+                    ? ResolveDecisionActivityNavigation(mineScope, hasApprove, workflowStatus)
+                    : null;
+            }
+            else if (log.EntityType == "payment_execution")
+            {
+                if (!paymentsById.TryGetValue(log.EntityId, out var payment))
+                    continue;
+
+                decisionCode = payment.CommitteeDecision?.DecisionCode ?? string.Empty;
+                familyName = payment.CommitteeDecision?.Family?.FamilyLastName ?? string.Empty;
+                navigationTarget = workflowStatus is not null
+                    ? ResolvePaymentActivityNavigation(workflowStatus)
+                    : null;
+            }
+            else
+            {
+                continue;
+            }
+
+            entries.Add(new HomeRecentActivityEntryDto
+            {
+                EntryKey = log.Id.ToString(),
+                DecisionCode = decisionCode,
+                FamilyName = familyName,
+                StatusLabel = statusLabel,
+                StatusSemantic = statusSemantic,
+                OccurredAt = log.CreatedAt,
+                ActorName = log.ActorUser?.FullName,
+                NavigationTarget = navigationTarget
+            });
+
+            if (entries.Count >= RecentActivityLimit)
+                break;
+        }
+
+        return entries.Count == 0 ? null : new HomeRecentActivityDataDto { Entries = entries };
+    }
+
+    private static HomeNavigationTargetDto? ResolveDecisionActivityNavigation(
+        bool mineScope,
+        bool hasApprove,
+        string status) =>
+        status switch
+        {
+            CommitteeDecisionStatuses.Draft => mineScope
+                ? DecisionNav("my_drafts")
+                : DecisionNav(status: CommitteeDecisionStatuses.Draft),
+            CommitteeDecisionStatuses.Submitted => ResolveSubmittedNavigation(mineScope, hasApprove),
+            CommitteeDecisionStatuses.ReturnedForRevision => ResolveReturnedNavigation(mineScope, hasApprove),
+            CommitteeDecisionStatuses.Suspended => ResolveSuspendedNavigation(mineScope, hasApprove),
+            CommitteeDecisionStatuses.Approved or CommitteeDecisionStatuses.PartiallyPaid
+                or CommitteeDecisionStatuses.FullyPaid => mineScope
+                    ? DecisionNav("my_in_finance_execution")
+                    : DecisionNav("approved"),
+            CommitteeDecisionStatuses.Rejected => DecisionNav(status: CommitteeDecisionStatuses.Rejected),
+            CommitteeDecisionStatuses.Cancelled => DecisionNav(status: CommitteeDecisionStatuses.Cancelled),
+            _ => DecisionNav(status: status)
+        };
+
+    private static HomeNavigationTargetDto? ResolvePaymentActivityNavigation(string status) =>
+        status switch
+        {
+            PaymentExecutionStatuses.AwaitingPayment => PaymentNav("finance_awaiting_execution"),
+            PaymentExecutionStatuses.Executing => PaymentNav("finance_executing"),
+            PaymentExecutionStatuses.ProofUploaded => PaymentNav("finance_proof_uploaded"),
+            PaymentExecutionStatuses.Paid => PaymentNav("finance_paid"),
+            PaymentExecutionStatuses.ReturnedToCoordinator => PaymentNav("finance_returned"),
+            PaymentExecutionStatuses.OnHold => PaymentNav("finance_on_hold"),
+            _ => null
+        };
+
+    private static bool CanShowRecentActivity(AuthorizationContext auth) =>
+        HasCommitteeView(auth)
+        || auth.FullOrgAccess
+        || auth.HasGrant(PermissionKeys.PaymentsView);
 
     private static HomeNavigationTargetDto WithMinAge(HomeNavigationTargetDto nav, int days) =>
         new()

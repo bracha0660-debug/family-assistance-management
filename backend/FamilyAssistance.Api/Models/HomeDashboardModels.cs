@@ -92,3 +92,20 @@ public sealed class HomeBottleneckAlertDto
     public string StatusSemantic { get; init; } = string.Empty;
     public required HomeNavigationTargetDto NavigationTarget { get; init; }
 }
+
+public sealed class HomeRecentActivityDataDto
+{
+    public required IReadOnlyList<HomeRecentActivityEntryDto> Entries { get; init; }
+}
+
+public sealed class HomeRecentActivityEntryDto
+{
+    public string EntryKey { get; init; } = string.Empty;
+    public string DecisionCode { get; init; } = string.Empty;
+    public string FamilyName { get; init; } = string.Empty;
+    public string StatusLabel { get; init; } = string.Empty;
+    public string StatusSemantic { get; init; } = string.Empty;
+    public DateTime OccurredAt { get; init; }
+    public string? ActorName { get; init; }
+    public HomeNavigationTargetDto? NavigationTarget { get; init; }
+}

@@ -5,6 +5,7 @@ import {
   parseFinancialSummaryWidget,
   parseKpiCardsWidget,
   parseMonthlyTrendWidget,
+  parseRecentActivityWidget,
   type HomeNavigationTarget,
   type HomeWidget,
 } from '../../api/workflow';
@@ -12,6 +13,7 @@ import { BottlenecksWidget } from './widgets/BottlenecksWidget';
 import { FinancialSummaryWidget } from './widgets/FinancialSummaryWidget';
 import { KpiCardsWidget } from './widgets/KpiCardsWidget';
 import { MonthlyTrendWidget } from './widgets/MonthlyTrendWidget';
+import { RecentActivityWidget } from './widgets/RecentActivityWidget';
 
 interface HomeDashboardPageProps {
   onNavigate: (target: HomeNavigationTarget) => void;
@@ -41,6 +43,17 @@ function renderBottomWidget(
         title={widget.title}
         subtitle={trend.subtitle}
         points={trend.points}
+      />
+    );
+  }
+  if (widget.type === 'recent_activity') {
+    const entries = parseRecentActivityWidget(widget);
+    return (
+      <RecentActivityWidget
+        key={widget.id}
+        title={widget.title}
+        entries={entries}
+        onNavigate={onNavigate}
       />
     );
   }

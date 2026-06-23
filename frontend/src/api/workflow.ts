@@ -88,6 +88,21 @@ export interface HomeBottlenecksData {
   alerts: HomeBottleneckAlert[];
 }
 
+export interface HomeRecentActivityEntry {
+  entryKey: string;
+  decisionCode: string;
+  familyName: string;
+  statusLabel: string;
+  statusSemantic: string;
+  occurredAt: string;
+  actorName?: string | null;
+  navigationTarget?: HomeNavigationTarget;
+}
+
+export interface HomeRecentActivityData {
+  entries: HomeRecentActivityEntry[];
+}
+
 export interface HomeWidget {
   id: string;
   type: HomeWidgetType;
@@ -130,6 +145,14 @@ export function parseBottlenecksWidget(widget: HomeWidget): HomeBottleneckAlert[
   }
   const data = widget.data as HomeBottlenecksData;
   return Array.isArray(data.alerts) ? data.alerts : [];
+}
+
+export function parseRecentActivityWidget(widget: HomeWidget): HomeRecentActivityEntry[] {
+  if (widget.type !== 'recent_activity' || !widget.data || typeof widget.data !== 'object') {
+    return [];
+  }
+  const data = widget.data as HomeRecentActivityData;
+  return Array.isArray(data.entries) ? data.entries : [];
 }
 
 export interface HomeDashboard {

@@ -92,6 +92,12 @@ public sealed class WorkflowDashboardService(
         }
 
         var scopedPayments = FilterPaymentsToScope(allPayments, scopedDecisions);
+        var scopedActivityLogs = await LoadScopedActivityLogsAsync(
+            organizationId,
+            auth,
+            scopedDecisions,
+            scopedPayments,
+            cancellationToken);
 
         return new WorkflowDashboardResponse
         {
@@ -101,7 +107,7 @@ public sealed class WorkflowDashboardService(
                 BySection = awaitingSections
             },
             Sections = sections,
-            Home = homeWidgetComposer.Compose(auth, scopedDecisions, scopedPayments)
+            Home = homeWidgetComposer.Compose(auth, scopedDecisions, scopedPayments, scopedActivityLogs)
         };
     }
 
@@ -143,5 +149,36 @@ public sealed class WorkflowDashboardService(
         return payments
             .Where(p => scopedDecisionIds.Contains(p.CommitteeDecisionId))
             .ToList();
+    }
+
+    private async Task<List<AuditLog>> LoadScopedActivityLogsAsync(
+        Guid organizationId,
+        AuthorizationContext auth,
+        IReadOnlyList<CommitteeDecision> scopedDecisions,
+        IReadOnlyList<PaymentExecution> scopedPayments,
+        CancellationToken cancellationToken)
+    {
+        var hasCommitteeView = auth.FullOrgAccess || auth.HasGrant(PermissionKeys.CommitteeDecisionsView);
+        var hasPaymentsView = auth.FullOrgAccess || auth.HasGrant(PermissionKeys.PaymentsView);
+        if (!hasCommitteeView && !hasPaymentsView)
+            return [];
+
+        var decisionIds = scopedDecisions.Select(d => d.Id).ToHashSet();
+        var paymentIds = scopedPayments.Select(p => p.Id).ToHashSet();
+        if ((!hasCommitteeView || decisionIds.Count == 0) && (!hasPaymentsView || paymentIds.Count == 0))
+            return [];
+
+        return await db.AuditLogs
+            .Include(a => a.ActorUser)
+            .Where(a => a.OrganizationId == organizationId
+                && ((hasCommitteeView
+                        && a.EntityType == "committee_decision"
+                        && decisionIds.Contains(a.EntityId))
+                    || (hasPaymentsView
+                        && a.EntityType == "payment_execution"
+                        && paymentIds.Contains(a.EntityId))))
+            .OrderByDescending(a => a.CreatedAt)
+            .Take(HomeWidgetComposer.RecentActivityQueryLimit)
+            .ToListAsync(cancellationToken);
     }
 }

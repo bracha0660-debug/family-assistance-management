@@ -2401,3 +2401,144 @@ body {
   color: var(--status-pending-execution);
 }
 
+/* Recent activity widget (Phase 6) — compact 3-column cell */
+.home-activity-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  height: 100%;
+}
+
+.home-activity-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.home-activity-item {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #f1f5f9;
+  position: relative;
+}
+
+.home-activity-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.home-activity-icon-wrap {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.625rem;
+  height: 1.625rem;
+  border-radius: 0.375rem;
+  margin-top: 0.125rem;
+}
+
+.home-activity-item.home-status--pending-approval .home-activity-icon-wrap {
+  color: var(--status-pending-approval);
+  background: color-mix(in srgb, var(--status-pending-approval) 10%, #fff);
+}
+
+.home-activity-item.home-status--returned .home-activity-icon-wrap,
+.home-activity-item.home-status--returned_for_treatment .home-activity-icon-wrap {
+  color: var(--status-returned);
+  background: color-mix(in srgb, var(--status-returned) 10%, #fff);
+}
+
+.home-activity-item.home-status--on-hold .home-activity-icon-wrap {
+  color: var(--status-on-hold);
+  background: color-mix(in srgb, var(--status-on-hold) 10%, #fff);
+}
+
+.home-activity-item.home-status--pending-execution .home-activity-icon-wrap {
+  color: var(--status-pending-execution);
+  background: color-mix(in srgb, var(--status-pending-execution) 10%, #fff);
+}
+
+.home-activity-item.home-status--paid .home-activity-icon-wrap {
+  color: var(--status-paid);
+  background: color-mix(in srgb, var(--status-paid) 10%, #fff);
+}
+
+.home-activity-item.home-status--draft .home-activity-icon-wrap {
+  color: var(--status-draft);
+  background: color-mix(in srgb, var(--status-draft) 10%, #fff);
+}
+
+.home-activity-item.home-status--rejected .home-activity-icon-wrap {
+  color: var(--status-rejected);
+  background: color-mix(in srgb, var(--status-rejected) 10%, #fff);
+}
+
+.home-activity-body,
+.home-activity-body-btn {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  text-align: right;
+}
+
+.home-activity-body-btn {
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 0.375rem;
+}
+
+.home-activity-body-btn:hover {
+  background: #f8fafc;
+}
+
+.home-activity-status-label {
+  font-size: 0.625rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.home-activity-primary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  align-items: baseline;
+}
+
+.home-activity-decision-code {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.home-activity-family-name {
+  font-size: 0.6875rem;
+  color: #64748b;
+}
+
+.home-activity-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  font-size: 0.625rem;
+  color: #94a3b8;
+}
+
+.home-activity-actor {
+  font-weight: 600;
+  color: #64748b;
+}
+
+.home-activity-time {
+  font-weight: 500;
+}
+
