@@ -1179,6 +1179,16 @@ public sealed class CommitteeDecisionService(
                 || d.Family.FamilyLastName.ToLower().Contains(term));
         }
 
+        if (listQuery.MinAgeDays is > 0)
+        {
+            var cutoff = DateTime.UtcNow.AddDays(-listQuery.MinAgeDays.Value);
+            query = query.Where(d =>
+                (d.Status != CommitteeDecisionStatuses.Submitted
+                    || (d.SubmittedAt != null && d.SubmittedAt < cutoff))
+                && (d.Status != CommitteeDecisionStatuses.Suspended
+                    || (d.SuspendedAt != null && d.SuspendedAt < cutoff)));
+        }
+
         return query;
     }
 

@@ -65,8 +65,10 @@ export function PaymentsQueuePage({ user, initialFilter }: PaymentsQueuePageProp
   const load = useCallback(async (filter?: HomeNavigationTarget | null) => {
     setError('');
     try {
-      const section = filter?.targetTab === 'payments' ? filter.section : undefined;
-      setData(await listPayments(section));
+      const listOptions = filter?.targetTab === 'payments'
+        ? { section: filter.section, minAgeDays: filter.minAgeDays }
+        : undefined;
+      setData(await listPayments(listOptions));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'שגיאת מערכת');
     } finally {

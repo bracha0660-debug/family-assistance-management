@@ -16,6 +16,9 @@ public sealed class HomeWidgetComposer
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private static readonly CultureInfo HebrewCulture = CultureInfo.GetCultureInfo("he-IL");
     private const int MonthlyTrendMonths = 6;
+    private const int StaleSubmittedDays = 7;
+    private const int StaleSuspendedDays = 30;
+    private const int StaleAwaitingPaymentDays = 14;
 
     public HomeDashboardDto Compose(
         AuthorizationContext auth,
@@ -54,6 +57,18 @@ public sealed class HomeWidgetComposer
                 Type = HomeWidgetTypes.FinancialSummary,
                 Title = "תמונת מצב כספית",
                 Data = SerializeData(new HomeFinancialSummaryDataDto { Metrics = financialMetrics })
+            });
+        }
+
+        var bottlenecks = BuildBottlenecks(auth, scopedDecisions, scopedPayments);
+        if (bottlenecks is not null)
+        {
+            widgets.Add(new HomeWidgetDto
+            {
+                Id = "bottlenecks",
+                Type = HomeWidgetTypes.Bottlenecks,
+                Title = "צווארי בקבוק",
+                Data = SerializeData(bottlenecks)
             });
         }
 
@@ -265,6 +280,79 @@ public sealed class HomeWidgetComposer
         };
     }
 
+    private static HomeBottlenecksDataDto? BuildBottlenecks(
+        AuthorizationContext auth,
+        IReadOnlyList<CommitteeDecision> scopedDecisions,
+        IReadOnlyList<PaymentExecution> scopedPayments)
+    {
+        var alerts = new List<HomeBottleneckAlertDto>();
+        var now = DateTime.UtcNow;
+        var mineScope = UsesMyRecordsCommitteeScope(auth);
+        var hasApprove = auth.FullOrgAccess || auth.HasGrant(PermissionKeys.CommitteeDecisionsApprove);
+
+        if (HasCommitteeView(auth))
+        {
+            var submittedCutoff = now.AddDays(-StaleSubmittedDays);
+            alerts.Add(new HomeBottleneckAlertDto
+            {
+                AlertKey = "stale_submitted",
+                Title = "החלטות ממתינות מעל 7 ימים",
+                Description = "החלטות שהוגשו וממתינות לאישור מעל 7 ימים",
+                Count = scopedDecisions.Count(d =>
+                    d.Status == CommitteeDecisionStatuses.Submitted
+                    && d.SubmittedAt is not null
+                    && d.SubmittedAt < submittedCutoff),
+                ThresholdDays = StaleSubmittedDays,
+                StatusSemantic = HomeWorkflowStatus.PendingApproval,
+                NavigationTarget = WithMinAge(ResolveSubmittedNavigation(mineScope, hasApprove), StaleSubmittedDays)
+            });
+
+            var suspendedCutoff = now.AddDays(-StaleSuspendedDays);
+            alerts.Add(new HomeBottleneckAlertDto
+            {
+                AlertKey = "stale_suspended",
+                Title = "החלטות בהשהיה מעל 30 יום",
+                Description = "החלטות בהשהיה מעל 30 יום",
+                Count = scopedDecisions.Count(d =>
+                    d.Status == CommitteeDecisionStatuses.Suspended
+                    && d.SuspendedAt is not null
+                    && d.SuspendedAt < suspendedCutoff),
+                ThresholdDays = StaleSuspendedDays,
+                StatusSemantic = HomeWorkflowStatus.OnHold,
+                NavigationTarget = WithMinAge(ResolveSuspendedNavigation(mineScope, hasApprove), StaleSuspendedDays)
+            });
+        }
+
+        if (auth.FullOrgAccess || auth.HasGrant(PermissionKeys.PaymentsView))
+        {
+            var paymentCutoff = now.AddDays(-StaleAwaitingPaymentDays);
+            alerts.Add(new HomeBottleneckAlertDto
+            {
+                AlertKey = "stale_awaiting_payment",
+                Title = "תשלומים ממתינים לביצוע מעל 14 יום",
+                Description = "תשלומים ממתינים לביצוע מעל 14 יום",
+                Count = scopedPayments.Count(p =>
+                    WorkflowSectionRegistry.MatchesPaymentSection(p, "finance_awaiting_execution")
+                    && p.CreatedAt < paymentCutoff),
+                ThresholdDays = StaleAwaitingPaymentDays,
+                StatusSemantic = HomeWorkflowStatus.PendingExecution,
+                NavigationTarget = PaymentNav("finance_awaiting_execution", StaleAwaitingPaymentDays)
+            });
+        }
+
+        return alerts.Count == 0 ? null : new HomeBottlenecksDataDto { Alerts = alerts };
+    }
+
+    private static HomeNavigationTargetDto WithMinAge(HomeNavigationTargetDto nav, int days) =>
+        new()
+        {
+            TargetTab = nav.TargetTab,
+            Section = nav.Section,
+            Status = nav.Status,
+            Ownership = nav.Ownership,
+            MinAgeDays = days
+        };
+
     private static string FormatHebrewMonthLabel(DateTime monthStart)
     {
         var monthName = HebrewCulture.DateTimeFormat.GetAbbreviatedMonthName(monthStart.Month);
@@ -320,19 +408,21 @@ public sealed class HomeWidgetComposer
                 ? DecisionNav("manager_suspended")
                 : DecisionNav(status: CommitteeDecisionStatuses.Suspended);
 
-    private static HomeNavigationTargetDto DecisionNav(string? section = null, string? status = null) =>
+    private static HomeNavigationTargetDto DecisionNav(string? section = null, string? status = null, int? minAgeDays = null) =>
         new()
         {
             TargetTab = "decisions",
             Section = section,
-            Status = status
+            Status = status,
+            MinAgeDays = minAgeDays
         };
 
-    private static HomeNavigationTargetDto PaymentNav(string section) =>
+    private static HomeNavigationTargetDto PaymentNav(string section, int? minAgeDays = null) =>
         new()
         {
             TargetTab = "payments",
-            Section = section
+            Section = section,
+            MinAgeDays = minAgeDays
         };
 
     private static bool CanShowDraftsKpi(AuthorizationContext auth) =>

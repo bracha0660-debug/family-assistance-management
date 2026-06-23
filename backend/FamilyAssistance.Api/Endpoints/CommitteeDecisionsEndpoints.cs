@@ -42,6 +42,7 @@ public static class CommitteeDecisionsEndpoints
         [Microsoft.AspNetCore.Mvc.FromQuery] string? section,
         [Microsoft.AspNetCore.Mvc.FromQuery] string? q,
         [Microsoft.AspNetCore.Mvc.FromQuery] Guid? familyId,
+        [Microsoft.AspNetCore.Mvc.FromQuery] int? minAgeDays,
         [Microsoft.AspNetCore.Mvc.FromQuery] int limit = 50,
         [Microsoft.AspNetCore.Mvc.FromQuery] int offset = 0,
         CancellationToken cancellationToken = default)
@@ -54,6 +55,7 @@ public static class CommitteeDecisionsEndpoints
             Section = section,
             Q = q,
             FamilyId = familyId,
+            MinAgeDays = minAgeDays,
             Limit = limit,
             Offset = offset
         };

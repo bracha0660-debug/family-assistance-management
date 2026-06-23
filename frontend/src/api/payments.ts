@@ -41,11 +41,24 @@ export interface PaymentQueueListResponse {
   payments: PaymentQueueItemDto[];
 }
 
-export async function listPayments(section?: string): Promise<PaymentQueueListResponse> {
-  const url = section
-    ? `/api/v1/org/payments?section=${encodeURIComponent(section)}`
-    : '/api/v1/org/payments';
-  return apiJson<PaymentQueueListResponse>(url);
+export interface PaymentListOptions {
+  section?: string;
+  minAgeDays?: number;
+}
+
+export async function listPayments(
+  options?: string | PaymentListOptions,
+): Promise<PaymentQueueListResponse> {
+  const params = new URLSearchParams();
+  if (typeof options === 'string') {
+    if (options) params.set('section', options);
+  } else if (options) {
+    if (options.section) params.set('section', options.section);
+    if (options.minAgeDays) params.set('minAgeDays', String(options.minAgeDays));
+  }
+  const qs = params.toString();
+  const path = qs ? `/api/v1/org/payments?${qs}` : '/api/v1/org/payments';
+  return apiJson<PaymentQueueListResponse>(path);
 }
 
 export async function executePayment(

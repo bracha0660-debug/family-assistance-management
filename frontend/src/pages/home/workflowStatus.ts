@@ -53,13 +53,32 @@ export function statusSemanticCardClass(semantic: string): string {
   return STATUS_CARD_CLASS[key] ?? 'home-status--draft';
 }
 
+const STATUS_SEMANTIC_LABELS: Record<WorkflowStatusSemantic, string> = {
+  draft: 'טיוטה',
+  pending_approval: 'ממתין לאישור',
+  returned_for_treatment: 'הוחזר לטיפול',
+  on_hold: 'בהשהיה',
+  pending_execution: 'ממתין לביצוע',
+  paid: 'שולם',
+  rejected: 'נדחה',
+};
+
+export function statusSemanticLabel(semantic: string): string {
+  const key = semantic as WorkflowStatusSemantic;
+  return STATUS_SEMANTIC_LABELS[key] ?? semantic;
+}
+
 export function workflowFilterLabel(filter: HomeNavigationTarget | null | undefined): string | null {
   if (!filter) return null;
+  let base: string | null = null;
   if (filter.section) {
-    return SECTION_FILTER_LABELS[filter.section] ?? filter.section;
+    base = SECTION_FILTER_LABELS[filter.section] ?? filter.section;
+  } else if (filter.status) {
+    base = STATUS_FILTER_LABELS[filter.status] ?? filter.status;
   }
-  if (filter.status) {
-    return STATUS_FILTER_LABELS[filter.status] ?? filter.status;
+  if (!base) return null;
+  if (filter.minAgeDays && filter.minAgeDays > 0) {
+    return `${base} · מעל ${filter.minAgeDays} ימים`;
   }
-  return null;
+  return base;
 }

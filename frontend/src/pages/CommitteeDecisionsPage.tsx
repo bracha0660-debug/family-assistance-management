@@ -43,6 +43,7 @@ function listFilterToOptions(filter: HomeNavigationTarget | null | undefined) {
     section: filter.section,
     status: filter.status,
     ownership: filter.ownership,
+    minAgeDays: filter.minAgeDays,
   };
 }
 

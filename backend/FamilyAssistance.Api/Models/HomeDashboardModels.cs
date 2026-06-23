@@ -76,3 +76,19 @@ public sealed class HomeMonthlyTrendPointDto
     public string LabelHe { get; init; } = string.Empty;
     public decimal Amount { get; init; }
 }
+
+public sealed class HomeBottlenecksDataDto
+{
+    public required IReadOnlyList<HomeBottleneckAlertDto> Alerts { get; init; }
+}
+
+public sealed class HomeBottleneckAlertDto
+{
+    public string AlertKey { get; init; } = string.Empty;
+    public string Title { get; init; } = string.Empty;
+    public string Description { get; init; } = string.Empty;
+    public int Count { get; init; }
+    public int ThresholdDays { get; init; }
+    public string StatusSemantic { get; init; } = string.Empty;
+    public required HomeNavigationTargetDto NavigationTarget { get; init; }
+}

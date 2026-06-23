@@ -1,4 +1,4 @@
-# Home Dashboard Verification (Phase 2 KPI + Phase 3 financial + Phase 4 trend)
+# Home Dashboard Verification (Phase 2 KPI + Phase 3 financial + Phase 4 trend + Phase 5 bottlenecks)
 # Run from repo root: .\scripts\verify-home-dashboard.ps1
 
 $ErrorActionPreference = "Stop"
@@ -172,6 +172,33 @@ try {
     $coordTrend = $coordWidgets | Where-Object { $_.type -eq "monthly_trend" } | Select-Object -First 1
     $coordTrendPoints = @($coordTrend.data.points)
     Write-Result "HD-14" "Coordinator monthly_trend present" ($null -ne $coordTrend -and $coordTrendPoints.Count -eq 6) "points=$($coordTrendPoints.Count)"
+
+    # HD-15: Manager has bottlenecks widget with stale_submitted alert
+    $bnWidget = $widgets | Where-Object { $_.type -eq "bottlenecks" } | Select-Object -First 1
+    $bnAlerts = @($bnWidget.data.alerts)
+    $staleSubmitted = $bnAlerts | Where-Object { $_.alertKey -eq "stale_submitted" } | Select-Object -First 1
+    Write-Result "HD-15" "Manager bottlenecks with stale_submitted" ($null -ne $bnWidget -and $null -ne $staleSubmitted) "alerts=$($bnAlerts.Count)"
+
+    # HD-16: Bottleneck alert contract shape (alertKey, count, navigationTarget.minAgeDays)
+    $hasBnNav = $staleSubmitted.navigationTarget.targetTab -eq "decisions" -and $staleSubmitted.navigationTarget.minAgeDays -eq 7
+    $hasSemantic = $staleSubmitted.statusSemantic -eq "pending_approval"
+    Write-Result "HD-16" "Bottleneck alert contract shape" ($hasBnNav -and $hasSemantic -and $null -ne $staleSubmitted.count) "minAgeDays=$($staleSubmitted.navigationTarget.minAgeDays)"
+
+    # HD-17: Finance has stale_awaiting_payment alert; fresh submitted excluded by minAgeDays=7
+    $finBn = $finWidgets | Where-Object { $_.type -eq "bottlenecks" } | Select-Object -First 1
+    $finBnAlerts = @($finBn.data.alerts)
+    $stalePay = $finBnAlerts | Where-Object { $_.alertKey -eq "stale_awaiting_payment" } | Select-Object -First 1
+    $coordBn = $coordWidgets | Where-Object { $_.type -eq "bottlenecks" } | Select-Object -First 1
+    $coordBnAlerts = @($coordBn.data.alerts)
+    $coordNoPay = ($null -eq ($coordBnAlerts | Where-Object { $_.alertKey -eq "stale_awaiting_payment" } | Select-Object -First 1))
+    $navSection = $staleSubmitted.navigationTarget.section
+    $agedList = Invoke-CurlJson -Uri "$baseApi/api/v1/org/committee-decisions?section=$navSection&minAgeDays=7" -CookieFile $cookieManager
+    $agedCount = @(Get-JsonField $agedList.Content "decisions").Count
+    $freshList = Invoke-CurlJson -Uri "$baseApi/api/v1/org/committee-decisions?section=$navSection" -CookieFile $cookieManager
+    $freshCount = @(Get-JsonField $freshList.Content "decisions").Count
+    Write-Result "HD-17" "Bottleneck visibility + minAgeDays filter" (
+        $null -ne $stalePay -and $stalePay.navigationTarget.minAgeDays -eq 14 -and $coordNoPay -and $agedCount -eq 0 -and $freshCount -ge 1
+    ) "financePay=$($stalePay.alertKey) aged=$agedCount fresh=$freshCount"
 
     $failed = @($results | Where-Object { -not $_.Passed })
     Write-Host ""

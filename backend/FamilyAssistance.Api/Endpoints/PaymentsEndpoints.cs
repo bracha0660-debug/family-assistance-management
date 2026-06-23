@@ -32,6 +32,7 @@ public static class PaymentsEndpoints
         [Microsoft.AspNetCore.Mvc.FromQuery] string? status,
         [Microsoft.AspNetCore.Mvc.FromQuery] string? section,
         [Microsoft.AspNetCore.Mvc.FromQuery] bool urgentOnly = false,
+        [Microsoft.AspNetCore.Mvc.FromQuery] int? minAgeDays = null,
         [Microsoft.AspNetCore.Mvc.FromQuery] int limit = 50,
         [Microsoft.AspNetCore.Mvc.FromQuery] int offset = 0,
         CancellationToken cancellationToken = default)
@@ -41,6 +42,7 @@ public static class PaymentsEndpoints
             Status = status,
             Section = section,
             UrgentOnly = urgentOnly,
+            MinAgeDays = minAgeDays,
             Limit = limit,
             Offset = offset
         };

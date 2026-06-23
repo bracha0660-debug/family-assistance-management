@@ -40,3 +40,10 @@ Strengthen visual meaning through approved status colors:
 - Perform a complete visual review after Phases 4–6 are complete.
 - Evaluate KPI, Financial Summary, Trends, Bottlenecks, and Recent Activity as one unified dashboard.
 - Avoid making major layout decisions before all widgets exist.
+
+## 7. Ongoing polish (recorded after Phase 4 approval)
+
+- Increase visual importance of financial metrics.
+- Improve financial summary hierarchy.
+- Slightly increase chart readability and chart drawing area.
+- Perform a final dashboard-wide UI review after all widgets are implemented.

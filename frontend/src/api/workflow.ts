@@ -74,6 +74,20 @@ export interface HomeMonthlyTrendData {
   points: HomeMonthlyTrendPoint[];
 }
 
+export interface HomeBottleneckAlert {
+  alertKey: string;
+  title: string;
+  description: string;
+  count: number;
+  thresholdDays: number;
+  statusSemantic: string;
+  navigationTarget: HomeNavigationTarget;
+}
+
+export interface HomeBottlenecksData {
+  alerts: HomeBottleneckAlert[];
+}
+
 export interface HomeWidget {
   id: string;
   type: HomeWidgetType;
@@ -108,6 +122,14 @@ export function parseMonthlyTrendWidget(widget: HomeWidget): HomeMonthlyTrendDat
     subtitle: typeof data.subtitle === 'string' ? data.subtitle : '',
     points: data.points,
   };
+}
+
+export function parseBottlenecksWidget(widget: HomeWidget): HomeBottleneckAlert[] {
+  if (widget.type !== 'bottlenecks' || !widget.data || typeof widget.data !== 'object') {
+    return [];
+  }
+  const data = widget.data as HomeBottlenecksData;
+  return Array.isArray(data.alerts) ? data.alerts : [];
 }
 
 export interface HomeDashboard {

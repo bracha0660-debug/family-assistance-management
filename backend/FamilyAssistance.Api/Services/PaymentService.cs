@@ -418,6 +418,12 @@ public sealed class PaymentService(
         if (listQuery.UrgentOnly)
             query = query.Where(p => p.AssistanceItem!.IsUrgent);
 
+        if (listQuery.MinAgeDays is > 0)
+        {
+            var cutoff = DateTime.UtcNow.AddDays(-listQuery.MinAgeDays.Value);
+            query = query.Where(p => p.CreatedAt < cutoff);
+        }
+
         return query.Where(p => QueueStatuses.Contains(p.Status));
     }
 

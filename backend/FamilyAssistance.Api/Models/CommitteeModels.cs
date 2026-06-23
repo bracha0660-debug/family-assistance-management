@@ -36,6 +36,7 @@ public sealed class CommitteeDecisionListQuery
     public string? Section { get; set; }
     public string? Q { get; set; }
     public Guid? FamilyId { get; set; }
+    public int? MinAgeDays { get; set; }
     public int Limit { get; set; } = 50;
     public int Offset { get; set; }
 }

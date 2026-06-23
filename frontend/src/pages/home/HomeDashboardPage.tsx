@@ -1,18 +1,50 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   getWorkflowDashboard,
+  parseBottlenecksWidget,
   parseFinancialSummaryWidget,
   parseKpiCardsWidget,
   parseMonthlyTrendWidget,
   type HomeNavigationTarget,
   type HomeWidget,
 } from '../../api/workflow';
+import { BottlenecksWidget } from './widgets/BottlenecksWidget';
 import { FinancialSummaryWidget } from './widgets/FinancialSummaryWidget';
 import { KpiCardsWidget } from './widgets/KpiCardsWidget';
 import { MonthlyTrendWidget } from './widgets/MonthlyTrendWidget';
 
 interface HomeDashboardPageProps {
   onNavigate: (target: HomeNavigationTarget) => void;
+}
+
+function renderBottomWidget(
+  widget: HomeWidget,
+  onNavigate: (target: HomeNavigationTarget) => void,
+) {
+  if (widget.type === 'bottlenecks') {
+    const alerts = parseBottlenecksWidget(widget);
+    return (
+      <BottlenecksWidget
+        key={widget.id}
+        title={widget.title}
+        alerts={alerts}
+        onNavigate={onNavigate}
+      />
+    );
+  }
+  if (widget.type === 'monthly_trend') {
+    const trend = parseMonthlyTrendWidget(widget);
+    if (!trend) return null;
+    return (
+      <MonthlyTrendWidget
+        key={widget.id}
+        title={widget.title}
+        subtitle={trend.subtitle}
+        points={trend.points}
+      />
+    );
+  }
+  return null;
 }
 
 export function HomeDashboardPage({ onNavigate }: HomeDashboardPageProps) {
@@ -46,6 +78,12 @@ export function HomeDashboardPage({ onNavigate }: HomeDashboardPageProps) {
     return <p className="error" role="alert">{error}</p>;
   }
 
+  const kpiWidgets = widgets.filter((w) => w.type === 'kpi_cards');
+  const financialWidgets = widgets.filter((w) => w.type === 'financial_summary');
+  const bottomWidgets = widgets.filter((w) =>
+    w.type === 'monthly_trend' || w.type === 'bottlenecks' || w.type === 'recent_activity',
+  );
+
   return (
     <div className="home-dashboard-page">
       <header className="home-dashboard-header">
@@ -53,43 +91,47 @@ export function HomeDashboardPage({ onNavigate }: HomeDashboardPageProps) {
         <p className="home-dashboard-subtitle">תמונת מצב עדכנית של הפעילות בארגון</p>
       </header>
 
-      {widgets.map((widget) => {
-        if (widget.type === 'kpi_cards') {
-          const cards = parseKpiCardsWidget(widget);
-          return (
-            <KpiCardsWidget
-              key={widget.id}
-              cards={cards}
-              onNavigate={onNavigate}
-            />
-          );
-        }
-        if (widget.type === 'financial_summary') {
-          const metrics = parseFinancialSummaryWidget(widget);
-          return (
-            <FinancialSummaryWidget
-              key={widget.id}
-              title={widget.title}
-              metrics={metrics}
-              generatedAt={generatedAt}
-              onNavigate={onNavigate}
-            />
-          );
-        }
-        if (widget.type === 'monthly_trend') {
-          const trend = parseMonthlyTrendWidget(widget);
-          if (!trend) return null;
-          return (
-            <MonthlyTrendWidget
-              key={widget.id}
-              title={widget.title}
-              subtitle={trend.subtitle}
-              points={trend.points}
-            />
-          );
-        }
-        return null;
-      })}
+      {kpiWidgets.length > 0 && (
+        <div className="home-dashboard-row home-dashboard-row-kpi">
+          {kpiWidgets.map((widget) => {
+            const cards = parseKpiCardsWidget(widget);
+            return (
+              <KpiCardsWidget
+                key={widget.id}
+                cards={cards}
+                onNavigate={onNavigate}
+              />
+            );
+          })}
+        </div>
+      )}
+
+      {financialWidgets.length > 0 && (
+        <div className="home-dashboard-row home-dashboard-row-financial">
+          {financialWidgets.map((widget) => {
+            const metrics = parseFinancialSummaryWidget(widget);
+            return (
+              <FinancialSummaryWidget
+                key={widget.id}
+                title={widget.title}
+                metrics={metrics}
+                generatedAt={generatedAt}
+                onNavigate={onNavigate}
+              />
+            );
+          })}
+        </div>
+      )}
+
+      {bottomWidgets.length > 0 && (
+        <div className="home-dashboard-row home-dashboard-bottom-grid">
+          {bottomWidgets.map((widget) => (
+            <div key={widget.id} className={`home-dashboard-bottom-cell home-dashboard-bottom-cell-${widget.type}`}>
+              {renderBottomWidget(widget, onNavigate)}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

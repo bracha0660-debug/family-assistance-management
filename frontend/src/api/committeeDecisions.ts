@@ -119,6 +119,7 @@ export interface CommitteeDecisionListOptions {
   section?: string;
   status?: string;
   ownership?: 'mine';
+  minAgeDays?: number;
 }
 
 export async function listCommitteeDecisions(
@@ -128,6 +129,7 @@ export async function listCommitteeDecisions(
   if (options?.section) params.set('section', options.section);
   if (options?.status) params.set('status', options.status);
   if (options?.ownership) params.set('ownership', options.ownership);
+  if (options?.minAgeDays) params.set('minAgeDays', String(options.minAgeDays));
   const qs = params.toString();
   const path = qs ? `/api/v1/org/committee-decisions?${qs}` : '/api/v1/org/committee-decisions';
   return apiJson<CommitteeDecisionListResponse>(path);

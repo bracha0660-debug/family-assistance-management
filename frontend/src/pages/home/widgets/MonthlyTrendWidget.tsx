@@ -7,11 +7,11 @@ interface MonthlyTrendWidgetProps {
   points: HomeMonthlyTrendPoint[];
 }
 
-const CHART_WIDTH = 360;
-const CHART_HEIGHT = 160;
-const PADDING_X = 28;
-const PADDING_TOP = 24;
-const PADDING_BOTTOM = 36;
+const CHART_WIDTH = 320;
+const CHART_HEIGHT = 96;
+const PADDING_X = 22;
+const PADDING_TOP = 14;
+const PADDING_BOTTOM = 26;
 
 function formatTrendLabel(amount: number): string {
   if (amount >= 1_000_000) {
@@ -43,8 +43,10 @@ export function MonthlyTrendWidget({ title, subtitle, points }: MonthlyTrendWidg
   return (
     <section className="home-widget home-trend-widget" aria-label="מגמה חודשית">
       <div className="home-panel home-trend-panel">
-        {title && <h2 className="home-widget-title">{title}</h2>}
-        {subtitle && <p className="home-trend-subtitle">{subtitle}</p>}
+        <div className="home-trend-header">
+          {title && <h2 className="home-widget-title">{title}</h2>}
+          {subtitle && <p className="home-trend-subtitle">{subtitle}</p>}
+        </div>
         <div className="home-trend-chart-wrap">
           <svg
             className="home-trend-chart"
@@ -68,16 +70,16 @@ export function MonthlyTrendWidget({ title, subtitle, points }: MonthlyTrendWidg
               <g key={point.monthKey}>
                 <text
                   x={x}
-                  y={y - 10}
+                  y={y - 8}
                   className="home-trend-value-label"
                   textAnchor="middle"
                 >
                   {formatTrendLabel(point.amount)}
                 </text>
-                <circle cx={x} cy={y} r="4.5" className="home-trend-point" />
+                <circle cx={x} cy={y} r="3.5" className="home-trend-point" />
                 <text
                   x={x}
-                  y={CHART_HEIGHT - 10}
+                  y={CHART_HEIGHT - 8}
                   className="home-trend-month-label"
                   textAnchor="middle"
                 >

@@ -21,7 +21,13 @@ export function FinancialSummaryWidget({
   return (
     <section className="home-widget home-financial-widget" aria-label="תמונת מצב כספית">
       <div className="home-panel home-financial-panel">
-        {title && <h2 className="home-widget-title">{title}</h2>}
+        <div className="home-financial-header">
+          {title && <h2 className="home-widget-title">{title}</h2>}
+          <p className="home-financial-footer">
+            <span className="home-financial-footer-label">הנתונים נכונים ל-</span>
+            <time dateTime={generatedAt}>{formatGeneratedAt(generatedAt)}</time>
+          </p>
+        </div>
         <div className="home-financial-metrics">
           {metrics.map((metric) => {
             const statusClass = statusSemanticCardClass(metric.statusSemantic);
@@ -44,6 +50,7 @@ export function FinancialSummaryWidget({
                 <button
                   key={metric.metricKey}
                   type="button"
+                  data-metric={metric.metricKey}
                   className={`home-financial-metric home-financial-metric-btn ${statusClass}`}
                   onClick={() => onNavigate(metric.navigationTarget!)}
                 >
@@ -53,15 +60,12 @@ export function FinancialSummaryWidget({
             }
 
             return (
-              <div key={metric.metricKey} className={`home-financial-metric ${statusClass}`}>
+              <div key={metric.metricKey} data-metric={metric.metricKey} className={`home-financial-metric ${statusClass}`}>
                 {content}
               </div>
             );
           })}
         </div>
-        <p className="home-financial-footer">
-          הנתונים נכונים ל-{formatGeneratedAt(generatedAt)}
-        </p>
       </div>
     </section>
   );
