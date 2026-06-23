@@ -981,15 +981,22 @@ body {
   border-bottom: 1px solid #f8fafc;
 }
 
+.app-shell-brand--logo {
+  padding: 0.625rem 0.5rem;
+  min-height: auto;
+}
+
 .app-shell-brand-logo-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.25rem;
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin-inline: auto;
+  padding: 0;
   border: 2px solid transparent;
-  border-radius: 0.875rem;
+  border-radius: 0.625rem;
   background: transparent;
   cursor: pointer;
+  line-height: 0;
   transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
 }
 
@@ -1005,8 +1012,9 @@ body {
 
 .app-shell-brand-logo {
   display: block;
-  width: 4.5rem;
-  height: 4.5rem;
+  height: 2.5rem;
+  width: auto;
+  max-width: 100%;
   object-fit: contain;
 }
 

@@ -162,7 +162,7 @@ export function AppShell<T extends string>({
       )}
 
       <aside className="app-shell-sidebar">
-        <div className="app-shell-brand">
+        <div className={`app-shell-brand${brandLogoSrc && homeTabId ? ' app-shell-brand--logo' : ''}`}>
           {brandLogoSrc && homeTabId ? (
             <button
               type="button"
