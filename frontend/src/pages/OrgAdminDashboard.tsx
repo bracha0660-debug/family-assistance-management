@@ -7,8 +7,9 @@ import type { UserDto } from '../api/auth';
 import { PERMISSION_KEYS } from '../api/permissions';
 import { hasPermission } from '../hooks/usePermissions';
 
-import { WorkflowDashboardPage } from './workflow/WorkflowDashboardPage';
 import { hasWorkflowViewAccess } from './workflow/workflowSections';
+import type { HomeNavigationTarget } from '../api/workflow';
+import { HomeDashboardPage } from './home/HomeDashboardPage';
 import { CommitteeDecisionsPage } from './CommitteeDecisionsPage';
 import { CoordinatorFamiliesPage } from './CoordinatorFamiliesPage';
 import { FinanceAssistanceTypesPage } from './FinanceAssistanceTypesPage';
@@ -33,6 +34,12 @@ export function OrgAdminDashboard({ user, onLogout, onUserUpdated }: OrgAdminDas
   const isSuperAdminInOrg = user.role === 'SuperAdmin' && !!user.actingOrganizationId;
   const hasWorkflow = hasWorkflowViewAccess(user) || isSuperAdminInOrg;
   const [tab, setTab] = useState<TabId>(hasWorkflow ? 'workflow' : 'users');
+  const [listFilter, setListFilter] = useState<HomeNavigationTarget | null>(null);
+
+  function handleHomeNavigate(target: HomeNavigationTarget) {
+    setListFilter(target);
+    setTab(target.targetTab);
+  }
 
   async function handleLogout() {
     try {
@@ -92,15 +99,17 @@ export function OrgAdminDashboard({ user, onLogout, onUserUpdated }: OrgAdminDas
       onLogout={handleLogout}
       onExitOrg={isSuperAdminInOrg ? handleExitOrg : undefined}
     >
-      {tab === 'workflow' && hasWorkflow && <WorkflowDashboardPage user={user} />}
+      {tab === 'workflow' && hasWorkflow && (
+        <HomeDashboardPage onNavigate={handleHomeNavigate} />
+      )}
       {tab === 'users' && <OrgUsersPage />}
       {tab === 'families' && isSuperAdminInOrg && <CoordinatorFamiliesPage user={user} />}
       {tab === 'families' && !isSuperAdminInOrg && <OrgAdminFamiliesPage user={user} />}
       {tab === 'types' && isSuperAdminInOrg && <FinanceAssistanceTypesPage user={user} />}
       {tab === 'types' && !isSuperAdminInOrg && <OrgAdminAssistanceTypesPage user={user} />}
       {tab === 'suppliers' && <SuppliersPage user={user} />}
-      {tab === 'decisions' && <CommitteeDecisionsPage user={user} />}
-      {tab === 'payments' && <PaymentsQueuePage user={user} />}
+      {tab === 'decisions' && <CommitteeDecisionsPage user={user} initialFilter={listFilter} />}
+      {tab === 'payments' && <PaymentsQueuePage user={user} initialFilter={listFilter} />}
       {tab === 'activity' && <OrgActivityLogPage />}
       {tab === 'permissions' && (
         <OrgPermissionsPage onPermissionsChanged={handlePermissionsChanged} />

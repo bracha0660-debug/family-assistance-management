@@ -25,6 +25,8 @@ import {
 import { listFamilies, type FamilyDto } from '../api/families';
 import { PERMISSION_KEYS } from '../api/permissions';
 import { listSuppliers, type SupplierDto } from '../api/suppliers';
+import type { HomeNavigationTarget } from '../api/workflow';
+import { workflowFilterLabel } from './home/workflowStatus';
 import { hasPermission } from '../hooks/usePermissions';
 import { FieldValidationTooltip } from '../components/FieldValidation';
 import { ModalShell } from '../components/ModalShell';
@@ -32,6 +34,16 @@ import { focusFirstInvalidField } from '../utils/formValidation';
 
 interface CommitteeDecisionsPageProps {
   user: UserDto;
+  initialFilter?: HomeNavigationTarget | null;
+}
+
+function listFilterToOptions(filter: HomeNavigationTarget | null | undefined) {
+  if (!filter || filter.targetTab !== 'decisions') return undefined;
+  return {
+    section: filter.section,
+    status: filter.status,
+    ownership: filter.ownership,
+  };
 }
 
 function translateDecisionStatus(status: string): string {
@@ -664,7 +676,7 @@ function DecisionDetailPanel({
   );
 }
 
-export function CommitteeDecisionsPage({ user }: CommitteeDecisionsPageProps) {
+export function CommitteeDecisionsPage({ user, initialFilter }: CommitteeDecisionsPageProps) {
   const [data, setData] = useState<CommitteeDecisionListResponse | null>(null);
   const [families, setFamilies] = useState<FamilyDto[]>([]);
   const [types, setTypes] = useState<AssistanceTypeDto[]>([]);
@@ -673,12 +685,14 @@ export function CommitteeDecisionsPage({ user }: CommitteeDecisionsPageProps) {
   const [error, setError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [detailTarget, setDetailTarget] = useState<CommitteeDecisionDto | null>(null);
+  const [activeFilter, setActiveFilter] = useState<HomeNavigationTarget | null | undefined>(initialFilter);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (filter?: HomeNavigationTarget | null) => {
     setError('');
     try {
+      const listOptions = listFilterToOptions(filter);
       const [decisions, familiesRes, typesRes, suppliersRes] = await Promise.all([
-        listCommitteeDecisions(),
+        listCommitteeDecisions(listOptions),
         listFamilies(),
         listAssistanceTypes(),
         listSuppliers(),
@@ -695,14 +709,29 @@ export function CommitteeDecisionsPage({ user }: CommitteeDecisionsPageProps) {
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load();
-  }, [load]);
+    setActiveFilter(initialFilter);
+    setLoading(true);
+    load(initialFilter);
+  }, [initialFilter, load]);
 
   const canCreate = hasPermission(user, PERMISSION_KEYS.committeeDecisionsCreate);
 
+  const filterLabel = workflowFilterLabel(activeFilter);
+
   return (
     <div>
+      {filterLabel && (
+        <div className="toolbar">
+          <span className="filter-chip">סינון: {filterLabel}</span>
+          <button type="button" className="btn-secondary" onClick={() => {
+            setActiveFilter(null);
+            setLoading(true);
+            void load(null);
+          }}>
+            נקה סינון
+          </button>
+        </div>
+      )}
       {data && (
         <div className="summary-cards">
           <div className="summary-card">
@@ -728,7 +757,7 @@ export function CommitteeDecisionsPage({ user }: CommitteeDecisionsPageProps) {
         {canCreate && (
           <button type="button" onClick={() => setShowCreate(true)}>החלטה חדשה</button>
         )}
-        <button type="button" className="btn-secondary" onClick={load}>רענן</button>
+        <button type="button" className="btn-secondary" onClick={() => load(activeFilter)}>רענן</button>
       </div>
 
       {error && <div className="error" role="alert">{error}</div>}
@@ -777,7 +806,7 @@ export function CommitteeDecisionsPage({ user }: CommitteeDecisionsPageProps) {
         <CreateDecisionModal
           families={families}
           onClose={() => setShowCreate(false)}
-          onCreated={(d) => { load(); setDetailTarget(d); }}
+          onCreated={(d) => { load(activeFilter); setDetailTarget(d); }}
         />
       )}
       {detailTarget && (
@@ -787,7 +816,7 @@ export function CommitteeDecisionsPage({ user }: CommitteeDecisionsPageProps) {
           types={types}
           suppliers={suppliers}
           onClose={() => setDetailTarget(null)}
-          onUpdated={load}
+          onUpdated={() => load(activeFilter)}
         />
       )}
     </div>

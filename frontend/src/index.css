@@ -1620,3 +1620,240 @@ body {
   margin-bottom: 0.35rem;
 }
 
+/* ── Home Dashboard (Phase 2.5 — design tokens + widgets) ─────────── */
+
+.home-dashboard-page {
+  --status-draft: #3b82f6;
+  --status-pending-approval: #f59e0b;
+  --status-returned: #0ea5a4;
+  --status-on-hold: #8b5cf6;
+  --status-pending-execution: #6366f1;
+  --status-paid: #22c55e;
+  --status-rejected: #ef4444;
+
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+.home-dashboard-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.home-dashboard-title {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.home-dashboard-subtitle {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #64748b;
+}
+
+.home-dashboard-loading {
+  color: #64748b;
+}
+
+/* Shared widget primitives (Phases 3–6) */
+.home-widget {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.home-widget-title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.home-panel {
+  background: #fff;
+  border-radius: 1rem;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08), 0 4px 12px rgba(15, 23, 42, 0.04);
+}
+
+.home-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.home-metric-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.home-metric-label {
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.home-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.25rem;
+}
+
+@media (max-width: 1024px) {
+  .home-grid-3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Semantic status → visual (border + icon color) */
+.home-status-card {
+  border-inline-start: 4px solid var(--status-draft);
+}
+
+.home-status--draft {
+  border-inline-start-color: var(--status-draft);
+}
+
+.home-status--draft .home-kpi-card-icon-wrap {
+  color: var(--status-draft);
+}
+
+.home-status--pending-approval {
+  border-inline-start-color: var(--status-pending-approval);
+}
+
+.home-status--pending-approval .home-kpi-card-icon-wrap {
+  color: var(--status-pending-approval);
+}
+
+.home-status--returned {
+  border-inline-start-color: var(--status-returned);
+}
+
+.home-status--returned .home-kpi-card-icon-wrap {
+  color: var(--status-returned);
+}
+
+.home-status--on-hold {
+  border-inline-start-color: var(--status-on-hold);
+}
+
+.home-status--on-hold .home-kpi-card-icon-wrap {
+  color: var(--status-on-hold);
+}
+
+.home-status--pending-execution {
+  border-inline-start-color: var(--status-pending-execution);
+}
+
+.home-status--pending-execution .home-kpi-card-icon-wrap {
+  color: var(--status-pending-execution);
+}
+
+.home-status--paid {
+  border-inline-start-color: var(--status-paid);
+}
+
+.home-status--paid .home-kpi-card-icon-wrap {
+  color: var(--status-paid);
+}
+
+.home-status--rejected {
+  border-inline-start-color: var(--status-rejected);
+}
+
+.home-status--rejected .home-kpi-card-icon-wrap {
+  color: var(--status-rejected);
+}
+
+/* KPI cards */
+.home-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: 1.25rem;
+}
+
+.home-kpi-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 10rem;
+  padding: 1.25rem;
+  border-radius: 1rem;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08), 0 4px 12px rgba(15, 23, 42, 0.04);
+  position: relative;
+}
+
+.home-kpi-card-icon-wrap {
+  position: absolute;
+  top: 1rem;
+  inset-inline-end: 1rem;
+  width: 2.25rem;
+  height: 2.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.625rem;
+  background: #f8fafc;
+}
+
+.home-kpi-card-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.home-kpi-card-count {
+  margin: 0 0 0.25rem;
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1;
+}
+
+.home-kpi-card-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.home-kpi-card-subtitle {
+  margin: 0.25rem 0 0;
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+
+.home-kpi-card-link {
+  align-self: flex-start;
+  margin-top: 1rem;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #4f46e5;
+  cursor: pointer;
+}
+
+.home-kpi-card-link:hover {
+  color: #4338ca;
+  text-decoration: underline;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+

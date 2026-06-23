@@ -4,8 +4,9 @@ import type { UserDto } from '../api/auth';
 import { exitOrganization } from '../api/admin';
 import { PERMISSION_KEYS } from '../api/permissions';
 import { canWriteFamilies, hasPermission } from '../hooks/usePermissions';
-import { WorkflowDashboardPage } from './workflow/WorkflowDashboardPage';
+import { HomeDashboardPage } from './home/HomeDashboardPage';
 import { hasWorkflowViewAccess } from './workflow/workflowSections';
+import type { HomeNavigationTarget } from '../api/workflow';
 import { CommitteeDecisionsPage } from './CommitteeDecisionsPage';
 import { CoordinatorFamiliesPage } from './CoordinatorFamiliesPage';
 import { FinanceAssistanceTypesPage } from './FinanceAssistanceTypesPage';
@@ -36,7 +37,13 @@ export function OrgUserDashboard({ user, onLogout, onUserUpdated }: OrgUserDashb
   const visibleTabs = tabs.filter((t) => t.visible);
   const defaultTab: TabId = hasWorkflow ? 'workflow' : (visibleTabs[0]?.id ?? 'families');
   const [tab, setTab] = useState<TabId>(defaultTab);
+  const [listFilter, setListFilter] = useState<HomeNavigationTarget | null>(null);
   const activeTab = visibleTabs.some((t) => t.id === tab) ? tab : defaultTab;
+
+  function handleHomeNavigate(target: HomeNavigationTarget) {
+    setListFilter(target);
+    setTab(target.targetTab);
+  }
 
   useEffect(() => {
     if (!onUserUpdated) return;
@@ -93,7 +100,7 @@ export function OrgUserDashboard({ user, onLogout, onUserUpdated }: OrgUserDashb
         <p className="empty-row">אין הרשאות מוגדרות. פנה/י למנהל/ת הארגון.</p>
       )}
       {activeTab === 'workflow' && hasWorkflow && (
-        <WorkflowDashboardPage user={user} />
+        <HomeDashboardPage onNavigate={handleHomeNavigate} />
       )}
       {activeTab === 'families' && showWritableFamilies && (
         <CoordinatorFamiliesPage user={user} />
@@ -112,10 +119,10 @@ export function OrgUserDashboard({ user, onLogout, onUserUpdated }: OrgUserDashb
         <SuppliersPage user={user} />
       )}
       {activeTab === 'decisions' && hasPermission(user, PERMISSION_KEYS.committeeDecisionsView) && (
-        <CommitteeDecisionsPage user={user} />
+        <CommitteeDecisionsPage user={user} initialFilter={listFilter} />
       )}
       {activeTab === 'payments' && hasPermission(user, PERMISSION_KEYS.paymentsView) && (
-        <PaymentsQueuePage user={user} />
+        <PaymentsQueuePage user={user} initialFilter={listFilter} />
       )}
     </AppShell>
   );

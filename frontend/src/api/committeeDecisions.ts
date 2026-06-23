@@ -115,8 +115,22 @@ export interface UpdateAssistanceItemPayload {
   isUrgent?: boolean;
 }
 
-export async function listCommitteeDecisions(): Promise<CommitteeDecisionListResponse> {
-  return apiJson<CommitteeDecisionListResponse>('/api/v1/org/committee-decisions');
+export interface CommitteeDecisionListOptions {
+  section?: string;
+  status?: string;
+  ownership?: 'mine';
+}
+
+export async function listCommitteeDecisions(
+  options?: CommitteeDecisionListOptions,
+): Promise<CommitteeDecisionListResponse> {
+  const params = new URLSearchParams();
+  if (options?.section) params.set('section', options.section);
+  if (options?.status) params.set('status', options.status);
+  if (options?.ownership) params.set('ownership', options.ownership);
+  const qs = params.toString();
+  const path = qs ? `/api/v1/org/committee-decisions?${qs}` : '/api/v1/org/committee-decisions';
+  return apiJson<CommitteeDecisionListResponse>(path);
 }
 
 export async function getCommitteeDecision(id: string): Promise<CommitteeDecisionDto> {

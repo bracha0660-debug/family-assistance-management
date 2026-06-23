@@ -10,10 +10,13 @@ import {
   type PaymentQueueListResponse,
 } from '../api/payments';
 import { PERMISSION_KEYS } from '../api/permissions';
+import type { HomeNavigationTarget } from '../api/workflow';
+import { workflowFilterLabel } from './home/workflowStatus';
 import { hasPermission } from '../hooks/usePermissions';
 
 interface PaymentsQueuePageProps {
   user: UserDto;
+  initialFilter?: HomeNavigationTarget | null;
 }
 
 function translatePaymentStatus(status: string): string {
@@ -45,23 +48,25 @@ function translatePaymentMethod(m: string): string {
   }
 }
 
-export function PaymentsQueuePage({ user }: PaymentsQueuePageProps) {
+export function PaymentsQueuePage({ user, initialFilter }: PaymentsQueuePageProps) {
   const [data, setData] = useState<PaymentQueueListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadTarget, setUploadTarget] = useState<PaymentQueueItemDto | null>(null);
+  const [activeFilter, setActiveFilter] = useState<HomeNavigationTarget | null | undefined>(initialFilter);
 
   const canExecute = hasPermission(user, PERMISSION_KEYS.paymentsExecute);
   const canUploadProof = hasPermission(user, PERMISSION_KEYS.paymentsUploadProof);
   const canMarkPaid = hasPermission(user, PERMISSION_KEYS.paymentsMarkPaid);
   const canReturn = hasPermission(user, PERMISSION_KEYS.paymentsReturnToCoordinator);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (filter?: HomeNavigationTarget | null) => {
     setError('');
     try {
-      setData(await listPayments());
+      const section = filter?.targetTab === 'payments' ? filter.section : undefined;
+      setData(await listPayments(section));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'שגיאת מערכת');
     } finally {
@@ -70,22 +75,25 @@ export function PaymentsQueuePage({ user }: PaymentsQueuePageProps) {
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load();
-  }, [load]);
+    setActiveFilter(initialFilter);
+    setLoading(true);
+    load(initialFilter);
+  }, [initialFilter, load]);
 
   async function runAction(id: string, fn: () => Promise<void>) {
     setActionLoading(id);
     setError('');
     try {
       await fn();
-      await load();
+      await load(activeFilter);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'שגיאת מערכת');
     } finally {
       setActionLoading(null);
     }
   }
+
+  const filterLabel = workflowFilterLabel(activeFilter);
 
   function handleUploadClick(payment: PaymentQueueItemDto) {
     setUploadTarget(payment);
@@ -104,6 +112,18 @@ export function PaymentsQueuePage({ user }: PaymentsQueuePageProps) {
 
   return (
     <div>
+      {filterLabel && (
+        <div className="toolbar">
+          <span className="filter-chip">סינון: {filterLabel}</span>
+          <button type="button" className="btn-secondary" onClick={() => {
+            setActiveFilter(null);
+            setLoading(true);
+            void load(null);
+          }}>
+            נקה סינון
+          </button>
+        </div>
+      )}
       {data && (
         <div className="summary-cards">
           <div className="summary-card">
@@ -126,7 +146,7 @@ export function PaymentsQueuePage({ user }: PaymentsQueuePageProps) {
       )}
 
       <div className="toolbar">
-        <button type="button" className="btn-secondary" onClick={load}>רענן</button>
+        <button type="button" className="btn-secondary" onClick={() => load(activeFilter)}>רענן</button>
       </div>
 
       <input

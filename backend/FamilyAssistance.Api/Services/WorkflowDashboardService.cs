@@ -10,7 +10,8 @@ namespace FamilyAssistance.Api.Services;
 public sealed class WorkflowDashboardService(
     AppDbContext db,
     CommitteeDecisionService committeeDecisionService,
-    PaymentService paymentService)
+    PaymentService paymentService,
+    HomeWidgetComposer homeWidgetComposer)
 {
     private const int PreviewLimit = 5;
 
@@ -90,6 +91,8 @@ public sealed class WorkflowDashboardService(
             });
         }
 
+        var scopedPayments = FilterPaymentsToScope(allPayments, scopedDecisions);
+
         return new WorkflowDashboardResponse
         {
             AwaitingMyAction = new AwaitingMyActionSummaryDto
@@ -97,7 +100,8 @@ public sealed class WorkflowDashboardService(
                 TotalAwaitingMyAction = totalAwaiting,
                 BySection = awaitingSections
             },
-            Sections = sections
+            Sections = sections,
+            Home = homeWidgetComposer.Compose(auth, scopedDecisions, scopedPayments)
         };
     }
 
@@ -130,4 +134,14 @@ public sealed class WorkflowDashboardService(
                 .ThenInclude(d => d!.Family)
             .Where(p => p.OrganizationId == organizationId)
             .ToListAsync(cancellationToken);
+
+    private static List<PaymentExecution> FilterPaymentsToScope(
+        IReadOnlyList<PaymentExecution> payments,
+        IReadOnlyList<CommitteeDecision> scopedDecisions)
+    {
+        var scopedDecisionIds = scopedDecisions.Select(d => d.Id).ToHashSet();
+        return payments
+            .Where(p => scopedDecisionIds.Contains(p.CommitteeDecisionId))
+            .ToList();
+    }
 }

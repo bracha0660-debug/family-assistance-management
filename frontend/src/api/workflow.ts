@@ -23,9 +23,59 @@ export interface WorkflowSectionSummary {
   paymentPreview?: PaymentQueueItemDto[];
 }
 
+export type HomeWidgetType =
+  | 'kpi_cards'
+  | 'financial_summary'
+  | 'bottlenecks'
+  | 'monthly_trend'
+  | 'recent_activity';
+
+export interface HomeNavigationTarget {
+  targetTab: 'decisions' | 'payments';
+  section?: string;
+  status?: string;
+  ownership?: 'mine';
+  minAgeDays?: number;
+}
+
+export interface HomeKpiCard {
+  kpiKey: string;
+  title: string;
+  subtitle: string;
+  count: number;
+  statusSemantic: string;
+  navigationTarget: HomeNavigationTarget;
+}
+
+export interface HomeKpiCardsData {
+  cards: HomeKpiCard[];
+}
+
+export interface HomeWidget {
+  id: string;
+  type: HomeWidgetType;
+  title: string;
+  data?: unknown;
+  navigationTarget?: HomeNavigationTarget;
+}
+
+export function parseKpiCardsWidget(widget: HomeWidget): HomeKpiCard[] {
+  if (widget.type !== 'kpi_cards' || !widget.data || typeof widget.data !== 'object') {
+    return [];
+  }
+  const data = widget.data as HomeKpiCardsData;
+  return Array.isArray(data.cards) ? data.cards : [];
+}
+
+export interface HomeDashboard {
+  generatedAt: string;
+  widgets: HomeWidget[];
+}
+
 export interface WorkflowDashboardResponse {
   awaitingMyAction: AwaitingMyActionSummary;
   sections: WorkflowSectionSummary[];
+  home: HomeDashboard;
 }
 
 export async function getWorkflowDashboard(): Promise<WorkflowDashboardResponse> {
