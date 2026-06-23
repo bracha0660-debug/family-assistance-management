@@ -1,4 +1,4 @@
-# Home Dashboard Verification (Phase 2 — KPI cards)
+# Home Dashboard Verification (Phase 2 KPI + Phase 3 financial summary)
 # Run from repo root: .\scripts\verify-home-dashboard.ps1
 
 $ErrorActionPreference = "Stop"
@@ -135,6 +135,26 @@ try {
     $execSemantic = $finExec.statusSemantic
     $noAccent = ($null -eq $draftsCard.accent) -and ($null -eq $finExec.accent)
     Write-Result "HD-07" "KPI uses statusSemantic not accent" ($draftsSemantic -eq "draft" -and $execSemantic -eq "pending_execution" -and $noAccent) "draft=$draftsSemantic exec=$execSemantic"
+
+    # HD-08: financial_summary widget present for manager with 4 metrics
+    $finWidget = $widgets | Where-Object { $_.type -eq "financial_summary" } | Select-Object -First 1
+    $finMetrics = @($finWidget.data.metrics)
+    Write-Result "HD-08" "Manager financial_summary with 4 metrics" ($null -ne $finWidget -and $finMetrics.Count -eq 4) "metrics=$($finMetrics.Count)"
+
+    # HD-09: financial metric contract shape
+    $approvedMetric = $finMetrics | Where-Object { $_.metricKey -eq "approved_this_month" } | Select-Object -First 1
+    $hasAmount = $null -ne $approvedMetric.amount -and $null -ne $approvedMetric.statusSemantic
+    $hasNav = $approvedMetric.navigationTarget.targetTab -eq "decisions"
+    Write-Result "HD-09" "Financial metric contract shape" ($hasAmount -and $hasNav) "key=$($approvedMetric.metricKey) semantic=$($approvedMetric.statusSemantic)"
+
+    # HD-10: Coordinator has financial_summary (mine-scoped visibility gate)
+    $coordFin = $coordWidgets | Where-Object { $_.type -eq "financial_summary" } | Select-Object -First 1
+    $coordFinMetrics = @($coordFin.data.metrics)
+    Write-Result "HD-10" "Coordinator financial_summary present" ($null -ne $coordFin -and $coordFinMetrics.Count -eq 4) "metrics=$($coordFinMetrics.Count)"
+
+    # HD-11: home.generatedAt present for footer
+    $genAt = Get-JsonField $dashMgr2.Content "home.generatedAt"
+    Write-Result "HD-11" "home.generatedAt timestamp present" ($null -ne $genAt -and $genAt.Length -gt 10) "generatedAt=$genAt"
 
     $failed = @($results | Where-Object { -not $_.Passed })
     Write-Host ""

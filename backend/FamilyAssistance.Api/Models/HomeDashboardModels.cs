@@ -49,3 +49,17 @@ public sealed class HomeKpiCardDto
     public string StatusSemantic { get; init; } = string.Empty;
     public required HomeNavigationTargetDto NavigationTarget { get; init; }
 }
+
+public sealed class HomeFinancialSummaryDataDto
+{
+    public required IReadOnlyList<HomeFinancialMetricDto> Metrics { get; init; }
+}
+
+public sealed class HomeFinancialMetricDto
+{
+    public string MetricKey { get; init; } = string.Empty;
+    public string Title { get; init; } = string.Empty;
+    public decimal Amount { get; init; }
+    public string StatusSemantic { get; init; } = string.Empty;
+    public HomeNavigationTargetDto? NavigationTarget { get; init; }
+}

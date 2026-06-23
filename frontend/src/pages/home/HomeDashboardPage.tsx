@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   getWorkflowDashboard,
+  parseFinancialSummaryWidget,
   parseKpiCardsWidget,
   type HomeNavigationTarget,
   type HomeWidget,
 } from '../../api/workflow';
+import { FinancialSummaryWidget } from './widgets/FinancialSummaryWidget';
 import { KpiCardsWidget } from './widgets/KpiCardsWidget';
 
 interface HomeDashboardPageProps {
@@ -13,6 +15,7 @@ interface HomeDashboardPageProps {
 
 export function HomeDashboardPage({ onNavigate }: HomeDashboardPageProps) {
   const [widgets, setWidgets] = useState<HomeWidget[]>([]);
+  const [generatedAt, setGeneratedAt] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -21,6 +24,7 @@ export function HomeDashboardPage({ onNavigate }: HomeDashboardPageProps) {
     try {
       const data = await getWorkflowDashboard();
       setWidgets(data.home.widgets);
+      setGeneratedAt(data.home.generatedAt);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'שגיאת מערכת');
     } finally {
@@ -54,6 +58,18 @@ export function HomeDashboardPage({ onNavigate }: HomeDashboardPageProps) {
             <KpiCardsWidget
               key={widget.id}
               cards={cards}
+              onNavigate={onNavigate}
+            />
+          );
+        }
+        if (widget.type === 'financial_summary') {
+          const metrics = parseFinancialSummaryWidget(widget);
+          return (
+            <FinancialSummaryWidget
+              key={widget.id}
+              title={widget.title}
+              metrics={metrics}
+              generatedAt={generatedAt}
               onNavigate={onNavigate}
             />
           );

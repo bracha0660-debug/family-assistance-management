@@ -51,6 +51,18 @@ export interface HomeKpiCardsData {
   cards: HomeKpiCard[];
 }
 
+export interface HomeFinancialMetric {
+  metricKey: string;
+  title: string;
+  amount: number;
+  statusSemantic: string;
+  navigationTarget?: HomeNavigationTarget;
+}
+
+export interface HomeFinancialSummaryData {
+  metrics: HomeFinancialMetric[];
+}
+
 export interface HomeWidget {
   id: string;
   type: HomeWidgetType;
@@ -65,6 +77,14 @@ export function parseKpiCardsWidget(widget: HomeWidget): HomeKpiCard[] {
   }
   const data = widget.data as HomeKpiCardsData;
   return Array.isArray(data.cards) ? data.cards : [];
+}
+
+export function parseFinancialSummaryWidget(widget: HomeWidget): HomeFinancialMetric[] {
+  if (widget.type !== 'financial_summary' || !widget.data || typeof widget.data !== 'object') {
+    return [];
+  }
+  const data = widget.data as HomeFinancialSummaryData;
+  return Array.isArray(data.metrics) ? data.metrics : [];
 }
 
 export interface HomeDashboard {

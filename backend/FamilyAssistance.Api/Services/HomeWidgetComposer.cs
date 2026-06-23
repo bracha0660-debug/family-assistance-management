@@ -42,6 +42,18 @@ public sealed class HomeWidgetComposer
             });
         }
 
+        var financialMetrics = BuildFinancialSummary(auth, scopedDecisions, scopedPayments);
+        if (financialMetrics.Count > 0)
+        {
+            widgets.Add(new HomeWidgetDto
+            {
+                Id = "financial_summary",
+                Type = HomeWidgetTypes.FinancialSummary,
+                Title = "תמונת מצב כספית",
+                Data = SerializeData(new HomeFinancialSummaryDataDto { Metrics = financialMetrics })
+            });
+        }
+
         return new HomeDashboardDto
         {
             GeneratedAt = DateTime.UtcNow,
@@ -123,6 +135,111 @@ public sealed class HomeWidgetComposer
         }
 
         return cards;
+    }
+
+    private static List<HomeFinancialMetricDto> BuildFinancialSummary(
+        AuthorizationContext auth,
+        IReadOnlyList<CommitteeDecision> scopedDecisions,
+        IReadOnlyList<PaymentExecution> scopedPayments)
+    {
+        if (!CanShowFinancialSummary(auth))
+            return [];
+
+        var mineScope = UsesMyRecordsFinancialScope(auth);
+        var now = DateTime.UtcNow;
+        var monthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var monthEnd = monthStart.AddMonths(1);
+
+        var approvedThisMonth = scopedDecisions
+            .Where(d => d.ApprovedAt is not null
+                && d.ApprovedAt.Value >= monthStart
+                && d.ApprovedAt.Value < monthEnd)
+            .Sum(d => d.TotalAmount);
+
+        var paidThisMonth = scopedPayments
+            .Where(p => p.PaidAt is not null
+                && p.PaidAt.Value >= monthStart
+                && p.PaidAt.Value < monthEnd)
+            .Sum(p => p.AssistanceItem?.Amount ?? 0m);
+
+        var awaitingExecution = scopedPayments
+            .Where(p => WorkflowSectionRegistry.MatchesPaymentSection(p, "finance_awaiting_execution"))
+            .Sum(p => p.AssistanceItem?.Amount ?? 0m);
+
+        var suspendedDecisions = scopedDecisions
+            .Where(d => d.Status == CommitteeDecisionStatuses.Suspended)
+            .Sum(d => d.TotalAmount);
+
+        var onHoldPayments = scopedPayments
+            .Where(p => p.Status == PaymentExecutionStatuses.OnHold
+                && p.CommitteeDecision?.Status != CommitteeDecisionStatuses.Suspended)
+            .Sum(p => p.AssistanceItem?.Amount ?? 0m);
+
+        var onHoldTotal = suspendedDecisions + onHoldPayments;
+
+        return
+        [
+            new HomeFinancialMetricDto
+            {
+                MetricKey = "approved_this_month",
+                Title = "אושר החודש",
+                Amount = approvedThisMonth,
+                StatusSemantic = HomeWorkflowStatus.Paid,
+                NavigationTarget = ResolveApprovedThisMonthNavigation(mineScope)
+            },
+            new HomeFinancialMetricDto
+            {
+                MetricKey = "paid_this_month",
+                Title = "שולם החודש",
+                Amount = paidThisMonth,
+                StatusSemantic = HomeWorkflowStatus.Paid,
+                NavigationTarget = PaymentNav("finance_paid")
+            },
+            new HomeFinancialMetricDto
+            {
+                MetricKey = "awaiting_execution",
+                Title = "ממתין לביצוע",
+                Amount = awaitingExecution,
+                StatusSemantic = HomeWorkflowStatus.PendingExecution,
+                NavigationTarget = PaymentNav("finance_awaiting_execution")
+            },
+            new HomeFinancialMetricDto
+            {
+                MetricKey = "suspended",
+                Title = "בהשהיה",
+                Amount = onHoldTotal,
+                StatusSemantic = HomeWorkflowStatus.OnHold,
+                NavigationTarget = ResolveOnHoldNavigation(mineScope)
+            }
+        ];
+    }
+
+    private static HomeNavigationTargetDto ResolveApprovedThisMonthNavigation(bool mineScope) =>
+        mineScope
+            ? DecisionNav("my_in_finance_execution")
+            : DecisionNav("approved");
+
+    private static HomeNavigationTargetDto ResolveOnHoldNavigation(bool mineScope) =>
+        mineScope
+            ? DecisionNav("my_suspended")
+            : PaymentNav("finance_on_hold");
+
+    private static bool CanShowFinancialSummary(AuthorizationContext auth) =>
+        auth.FullOrgAccess
+        || auth.HasGrant(PermissionKeys.PaymentsView)
+        || auth.HasGrant(PermissionKeys.CommitteeDecisionsView);
+
+    private static bool UsesMyRecordsFinancialScope(AuthorizationContext auth)
+    {
+        if (auth.FullOrgAccess)
+            return false;
+
+        var committeeGrant = auth.GetGrant(PermissionKeys.CommitteeDecisionsView);
+        if (committeeGrant?.Scope == PermissionScopes.MyRecords)
+            return true;
+
+        var paymentsGrant = auth.GetGrant(PermissionKeys.PaymentsView);
+        return paymentsGrant?.Scope == PermissionScopes.MyRecords;
     }
 
     private static HomeNavigationTargetDto ResolveSubmittedNavigation(bool mineScope, bool hasApprove) =>

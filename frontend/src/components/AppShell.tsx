@@ -24,21 +24,6 @@ interface AppShellProps<T extends string> {
   children: ReactNode;
 }
 
-type TabAccent = 'indigo' | 'emerald' | 'amber' | 'purple' | 'rose' | 'sky' | 'teal';
-
-const TAB_META: Record<string, { accent: TabAccent }> = {
-  workflow: { accent: 'indigo' },
-  organizations: { accent: 'indigo' },
-  users: { accent: 'indigo' },
-  families: { accent: 'emerald' },
-  types: { accent: 'amber' },
-  suppliers: { accent: 'amber' },
-  decisions: { accent: 'purple' },
-  payments: { accent: 'rose' },
-  activity: { accent: 'sky' },
-  permissions: { accent: 'teal' },
-};
-
 function userInitials(fullName: string): string {
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return '?';
@@ -46,14 +31,18 @@ function userInitials(fullName: string): string {
   return parts[0].charAt(0) + parts[1].charAt(0);
 }
 
+function HomeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" />
+    </svg>
+  );
+}
+
 function TabIcon({ tabId }: { tabId: string }) {
   switch (tabId) {
     case 'workflow':
-      return (
-        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" />
-        </svg>
-      );
+      return <HomeIcon />;
     case 'organizations':
       return (
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -186,9 +175,22 @@ export function AppShell<T extends string>({
         </div>
 
         <nav className="app-shell-nav" aria-label="ניווט במערכת">
+          {homeTabId && (
+            <button
+              type="button"
+              className={`app-shell-nav-item app-shell-nav-item-home${isHomeActive ? ' app-shell-nav-item-active' : ''}`}
+              onClick={() => handleTabChange(homeTabId)}
+            >
+              <span className="app-shell-nav-content">
+                <span className={`app-shell-nav-icon${isHomeActive ? ' app-shell-nav-icon-active' : ''}`}>
+                  <HomeIcon />
+                </span>
+                <span className="app-shell-nav-label">מסך הבית</span>
+              </span>
+            </button>
+          )}
           {navTabs.map((t) => {
             const isActive = t.id === activeTab;
-            const meta = TAB_META[t.id] ?? { accent: 'indigo' as TabAccent };
             return (
               <button
                 key={t.id}
@@ -197,16 +199,29 @@ export function AppShell<T extends string>({
                 onClick={() => handleTabChange(t.id)}
               >
                 <span className="app-shell-nav-content">
-                  <span className={`app-shell-nav-icon app-shell-nav-icon-${meta.accent}${isActive ? ' app-shell-nav-icon-active' : ''}`}>
+                  <span className={`app-shell-nav-icon${isActive ? ' app-shell-nav-icon-active' : ''}`}>
                     <TabIcon tabId={t.id} />
                   </span>
                   <span className="app-shell-nav-label">{t.label}</span>
                 </span>
-                {isActive && <span className="app-shell-nav-active-dot" aria-hidden="true" />}
               </button>
             );
           })}
         </nav>
+
+        <div className="app-shell-sidebar-footer">
+          {onExitOrg && (
+            <button type="button" className="app-shell-sidebar-footer-btn" onClick={onExitOrg}>
+              יציאה מארגון
+            </button>
+          )}
+          <button type="button" className="app-shell-sidebar-footer-btn app-shell-sidebar-logout" onClick={onLogout}>
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5-5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z" />
+            </svg>
+            יציאה
+          </button>
+        </div>
       </aside>
 
       <div className="app-shell-body">
@@ -233,21 +248,6 @@ export function AppShell<T extends string>({
               </span>
               <span className="app-shell-user-name">{roleLabel}</span>
             </div>
-            {onExitOrg && (
-              <>
-                <span className="app-shell-divider" aria-hidden="true" />
-                <button type="button" className="app-shell-exit-btn" onClick={onExitOrg}>
-                  יציאה מארגון
-                </button>
-              </>
-            )}
-            <span className="app-shell-divider" aria-hidden="true" />
-            <button type="button" className="app-shell-logout-btn" onClick={onLogout}>
-              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5-5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z" />
-              </svg>
-              התנתקות
-            </button>
           </div>
         </header>
 

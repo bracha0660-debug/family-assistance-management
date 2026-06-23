@@ -22,8 +22,8 @@ export function KpiCardsWidget({ cards, onNavigate }: KpiCardsWidgetProps) {
               <KpiStatusIcon semantic={card.statusSemantic} />
             </div>
             <div className="home-kpi-card-body">
-              <p className="home-kpi-card-count">{card.count}</p>
               <h3 className="home-kpi-card-title">{card.title}</h3>
+              <p className="home-kpi-card-count">{card.count}</p>
               <p className="home-kpi-card-subtitle">{card.subtitle}</p>
             </div>
             <button
