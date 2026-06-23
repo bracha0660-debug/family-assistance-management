@@ -22,7 +22,7 @@ export function FinancialSummaryWidget({
     <section className="home-widget home-financial-widget" aria-label="תמונת מצב כספית">
       <div className="home-panel home-financial-panel">
         <div className="home-financial-header">
-          {title && <h2 className="home-widget-title">{title}</h2>}
+          {title && <h2 className="home-widget-section-title">{title}</h2>}
           <p className="home-financial-footer">
             <span className="home-financial-footer-label">הנתונים נכונים ל-</span>
             <time dateTime={generatedAt}>{formatGeneratedAt(generatedAt)}</time>
@@ -37,10 +37,10 @@ export function FinancialSummaryWidget({
                   <FinancialMetricIcon metricKey={metric.metricKey} />
                 </div>
                 <div className="home-financial-metric-body">
-                  <span className="home-financial-metric-label">{metric.title}</span>
                   <span className={`home-financial-metric-value home-status-metric ${statusClass}`}>
                     {formatIls(metric.amount)}
                   </span>
+                  <span className="home-financial-metric-label">{metric.title}</span>
                 </div>
               </>
             );

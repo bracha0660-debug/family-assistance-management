@@ -63,7 +63,7 @@ public static class WorkflowSectionRegistry
         new("finance_on_hold", "מושעים — לא ניתן לביצוע", "org", "payment",
             auth => HasGrant(auth, PermissionKeys.PaymentsView),
             _ => false),
-        new("finance_awaiting_execution", "ממתין לביצוע", "org", "payment",
+        new("finance_awaiting_execution", "ממתין לתשלום", "org", "payment",
             auth => HasGrant(auth, PermissionKeys.PaymentsView),
             auth => PermissionService.HasWorkflowGrant(auth, PermissionKeys.PaymentsExecute)),
         new("finance_executing", "בביצוע", "org", "payment",

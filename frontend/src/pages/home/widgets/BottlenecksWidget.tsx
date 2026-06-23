@@ -14,7 +14,11 @@ export function BottlenecksWidget({ title, alerts, onNavigate }: BottlenecksWidg
   return (
     <section className="home-widget home-bottlenecks-widget" aria-label="צווארי בקבוק">
       <div className="home-panel home-bottlenecks-panel">
-        {title && <h2 className="home-widget-title">{title}</h2>}
+        {title && (
+          <div className="home-widget-section-header">
+            <h2 className="home-widget-section-title">{title}</h2>
+          </div>
+        )}
         <ul className="home-bottlenecks-list">
           {alerts.map((alert) => {
             const statusClass = statusSemanticCardClass(alert.statusSemantic);

@@ -11,7 +11,7 @@ import {
 } from '../api/payments';
 import { PERMISSION_KEYS } from '../api/permissions';
 import type { HomeNavigationTarget } from '../api/workflow';
-import { workflowFilterLabel } from './home/workflowStatus';
+import { isPendingPaymentFilter, workflowFilterLabel } from './home/workflowStatus';
 import { hasPermission } from '../hooks/usePermissions';
 
 interface PaymentsQueuePageProps {
@@ -116,7 +116,7 @@ export function PaymentsQueuePage({ user, initialFilter }: PaymentsQueuePageProp
     <div>
       {filterLabel && (
         <div className="toolbar">
-          <span className="filter-chip">סינון: {filterLabel}</span>
+          <span className={`filter-chip${isPendingPaymentFilter(activeFilter) ? ' filter-chip-pending-payment' : ''}`}>סינון: {filterLabel}</span>
           <button type="button" className="btn-secondary" onClick={() => {
             setActiveFilter(null);
             setLoading(true);
@@ -132,8 +132,8 @@ export function PaymentsQueuePage({ user, initialFilter }: PaymentsQueuePageProp
             <span className="summary-label">סה״כ</span>
             <span className="summary-value">{data.summary.total}</span>
           </div>
-          <div className="summary-card">
-            <span className="summary-label">ממתינים</span>
+          <div className="summary-card summary-awaiting-payment">
+            <span className="summary-label">ממתין לתשלום</span>
             <span className="summary-value">{data.summary.awaitingPayment}</span>
           </div>
           <div className="summary-card summary-active">

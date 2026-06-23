@@ -171,8 +171,8 @@ public sealed class HomeWidgetComposer
             cards.Add(new HomeKpiCardDto
             {
                 KpiKey = "awaiting_execution",
-                Title = "ממתין לביצוע",
-                Subtitle = "תשלומים ממתינים לביצוע",
+                Title = "ממתין לתשלום",
+                Subtitle = "תשלומים ממתינים לתשלום",
                 Count = awaitingCount,
                 StatusSemantic = HomeWorkflowStatus.PendingExecution,
                 NavigationTarget = PaymentNav("finance_awaiting_execution")
@@ -243,7 +243,7 @@ public sealed class HomeWidgetComposer
             new HomeFinancialMetricDto
             {
                 MetricKey = "awaiting_execution",
-                Title = "ממתין לביצוע",
+                Title = "ממתין לתשלום",
                 Amount = awaitingExecution,
                 StatusSemantic = HomeWorkflowStatus.PendingExecution,
                 NavigationTarget = PaymentNav("finance_awaiting_execution")
@@ -344,8 +344,8 @@ public sealed class HomeWidgetComposer
             alerts.Add(new HomeBottleneckAlertDto
             {
                 AlertKey = "stale_awaiting_payment",
-                Title = "תשלומים ממתינים לביצוע מעל 14 יום",
-                Description = "תשלומים ממתינים לביצוע מעל 14 יום",
+                Title = "תשלומים ממתינים לתשלום מעל 14 יום",
+                Description = "תשלומים ממתינים לתשלום מעל 14 יום",
                 Count = scopedPayments.Count(p =>
                     WorkflowSectionRegistry.MatchesPaymentSection(p, "finance_awaiting_execution")
                     && p.CreatedAt < paymentCutoff),

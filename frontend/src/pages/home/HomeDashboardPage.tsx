@@ -137,12 +137,14 @@ export function HomeDashboardPage({ onNavigate }: HomeDashboardPageProps) {
       )}
 
       {bottomWidgets.length > 0 && (
-        <div className="home-dashboard-row home-dashboard-bottom-grid">
-          {bottomWidgets.map((widget) => (
-            <div key={widget.id} className={`home-dashboard-bottom-cell home-dashboard-bottom-cell-${widget.type}`}>
-              {renderBottomWidget(widget, onNavigate)}
-            </div>
-          ))}
+        <div className="home-dashboard-row home-dashboard-row-bottom">
+          <div className="home-dashboard-bottom-grid">
+            {bottomWidgets.map((widget) => (
+              <div key={widget.id} className={`home-dashboard-bottom-cell home-dashboard-bottom-cell-${widget.type}`}>
+                {renderBottomWidget(widget, onNavigate)}
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

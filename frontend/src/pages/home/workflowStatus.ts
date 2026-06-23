@@ -28,7 +28,7 @@ const SECTION_FILTER_LABELS: Record<string, string> = {
   waiting_my_approval: 'ממתין לאישור',
   manager_returned: 'הוחזר לטיפול',
   manager_suspended: 'בהשהיה',
-  finance_awaiting_execution: 'ממתין לביצוע',
+  finance_awaiting_execution: 'ממתין לתשלום',
   finance_on_hold: 'בהשהיה',
   finance_executing: 'בביצוע',
   finance_proof_uploaded: 'הוכחה הועלתה',
@@ -46,6 +46,7 @@ const STATUS_FILTER_LABELS: Record<string, string> = {
   cancelled: 'בוטל',
   partially_paid: 'שולם חלקית',
   fully_paid: 'שולם במלואו',
+  awaiting_payment: 'ממתין לתשלום',
 };
 
 export function statusSemanticCardClass(semantic: string): string {
@@ -58,7 +59,7 @@ const STATUS_SEMANTIC_LABELS: Record<WorkflowStatusSemantic, string> = {
   pending_approval: 'ממתין לאישור',
   returned_for_treatment: 'הוחזר לטיפול',
   on_hold: 'בהשהיה',
-  pending_execution: 'ממתין לביצוע',
+  pending_execution: 'ממתין לתשלום',
   paid: 'שולם',
   rejected: 'נדחה',
 };
@@ -81,4 +82,9 @@ export function workflowFilterLabel(filter: HomeNavigationTarget | null | undefi
     return `${base} · מעל ${filter.minAgeDays} ימים`;
   }
   return base;
+}
+
+export function isPendingPaymentFilter(filter: HomeNavigationTarget | null | undefined): boolean {
+  if (!filter) return false;
+  return filter.section === 'finance_awaiting_execution' || filter.status === 'awaiting_payment';
 }

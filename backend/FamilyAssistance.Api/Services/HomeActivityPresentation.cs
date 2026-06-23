@@ -92,7 +92,7 @@ public static class HomeActivityPresentation
 
     public static string PaymentStatusLabel(string status) => status switch
     {
-        PaymentExecutionStatuses.AwaitingPayment => "ממתין לביצוע",
+        PaymentExecutionStatuses.AwaitingPayment => "ממתין לתשלום",
         PaymentExecutionStatuses.Executing => "בביצוע",
         PaymentExecutionStatuses.ProofUploaded => "הוכחה הועלתה",
         PaymentExecutionStatuses.Paid => "שולם",

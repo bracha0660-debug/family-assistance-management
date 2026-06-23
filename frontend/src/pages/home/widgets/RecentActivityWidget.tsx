@@ -15,7 +15,11 @@ export function RecentActivityWidget({ title, entries, onNavigate }: RecentActiv
   return (
     <section className="home-widget home-activity-widget" aria-label="פעילות אחרונה">
       <div className="home-panel home-activity-panel">
-        {title && <h2 className="home-widget-title">{title}</h2>}
+        {title && (
+          <div className="home-widget-section-header">
+            <h2 className="home-widget-section-title">{title}</h2>
+          </div>
+        )}
         <ol className="home-activity-timeline">
           {entries.map((entry) => {
             const statusClass = statusSemanticCardClass(entry.statusSemantic);

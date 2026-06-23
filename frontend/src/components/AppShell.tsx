@@ -132,6 +132,7 @@ export function AppShell<T extends string>({
   children,
 }: AppShellProps<T>) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   function handleTabChange(id: T) {
     onTabChange(id);
@@ -152,7 +153,9 @@ export function AppShell<T extends string>({
     : user.fullName;
 
   return (
-    <div className={`app-shell${sidebarOpen ? ' app-shell-sidebar-open' : ''}`}>
+    <div
+      className={`app-shell${sidebarOpen ? ' app-shell-sidebar-open' : ''}${sidebarCollapsed ? ' app-shell-sidebar-collapsed' : ''}`}
+    >
       {sidebarOpen && (
         <button
           type="button"
@@ -163,6 +166,18 @@ export function AppShell<T extends string>({
       )}
 
       <aside className="app-shell-sidebar">
+        <button
+          type="button"
+          className="app-shell-sidebar-collapse-btn"
+          onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+          aria-label={sidebarCollapsed ? 'הרחב תפריט' : 'כווץ תפריט'}
+          title={sidebarCollapsed ? 'הרחב תפריט' : 'כווץ תפריט'}
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12l4.58-4.59z" />
+          </svg>
+        </button>
+
         <div className={`app-shell-brand${homeTabId ? ' app-shell-brand--logo' : ''}`}>
           {homeTabId ? (
             <button
@@ -196,6 +211,7 @@ export function AppShell<T extends string>({
               type="button"
               className={`app-shell-nav-item app-shell-nav-item-home${isHomeActive ? ' app-shell-nav-item-active' : ''}`}
               onClick={() => handleTabChange(homeTabId)}
+              title={sidebarCollapsed ? 'מסך הבית' : undefined}
             >
               <span className="app-shell-nav-content">
                 <span className={`app-shell-nav-icon${isHomeActive ? ' app-shell-nav-icon-active' : ''}`}>
@@ -213,6 +229,7 @@ export function AppShell<T extends string>({
                 type="button"
                 className={`app-shell-nav-item${isActive ? ' app-shell-nav-item-active' : ''}`}
                 onClick={() => handleTabChange(t.id)}
+                title={sidebarCollapsed ? t.label : undefined}
               >
                 <span className="app-shell-nav-content">
                   <span className={`app-shell-nav-icon${isActive ? ' app-shell-nav-icon-active' : ''}`}>
@@ -227,15 +244,32 @@ export function AppShell<T extends string>({
 
         <div className="app-shell-sidebar-footer">
           {onExitOrg && (
-            <button type="button" className="app-shell-sidebar-footer-btn" onClick={onExitOrg}>
-              יציאה מארגון
+            <button
+              type="button"
+              className="app-shell-sidebar-footer-btn"
+              onClick={onExitOrg}
+              title={sidebarCollapsed ? 'יציאה מארגון' : undefined}
+            >
+              <span className="app-shell-sidebar-footer-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M10.09 15.59 11.5 17l5-5-5-5-1.41 1.41L12.67 11H3v2h9.67l-1.58 1.59zM19 3H5c-1.1 0-2 .9-2 2v4h2V5h14v14H5v-4H3v4c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z" />
+                </svg>
+              </span>
+              <span className="app-shell-sidebar-footer-label">יציאה מארגון</span>
             </button>
           )}
-          <button type="button" className="app-shell-sidebar-footer-btn app-shell-sidebar-logout" onClick={onLogout}>
-            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5-5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z" />
-            </svg>
-            יציאה
+          <button
+            type="button"
+            className="app-shell-sidebar-footer-btn app-shell-sidebar-logout"
+            onClick={onLogout}
+            title={sidebarCollapsed ? 'יציאה' : undefined}
+          >
+            <span className="app-shell-sidebar-footer-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5-5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z" />
+              </svg>
+            </span>
+            <span className="app-shell-sidebar-footer-label">יציאה</span>
           </button>
         </div>
       </aside>
