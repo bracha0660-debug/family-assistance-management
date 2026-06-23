@@ -3,11 +3,13 @@ import {
   getWorkflowDashboard,
   parseFinancialSummaryWidget,
   parseKpiCardsWidget,
+  parseMonthlyTrendWidget,
   type HomeNavigationTarget,
   type HomeWidget,
 } from '../../api/workflow';
 import { FinancialSummaryWidget } from './widgets/FinancialSummaryWidget';
 import { KpiCardsWidget } from './widgets/KpiCardsWidget';
+import { MonthlyTrendWidget } from './widgets/MonthlyTrendWidget';
 
 interface HomeDashboardPageProps {
   onNavigate: (target: HomeNavigationTarget) => void;
@@ -71,6 +73,18 @@ export function HomeDashboardPage({ onNavigate }: HomeDashboardPageProps) {
               metrics={metrics}
               generatedAt={generatedAt}
               onNavigate={onNavigate}
+            />
+          );
+        }
+        if (widget.type === 'monthly_trend') {
+          const trend = parseMonthlyTrendWidget(widget);
+          if (!trend) return null;
+          return (
+            <MonthlyTrendWidget
+              key={widget.id}
+              title={widget.title}
+              subtitle={trend.subtitle}
+              points={trend.points}
             />
           );
         }

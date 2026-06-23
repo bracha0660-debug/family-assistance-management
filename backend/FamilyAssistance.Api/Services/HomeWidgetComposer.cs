@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using FamilyAssistance.Api.Auth;
 using FamilyAssistance.Api.Constants;
@@ -13,6 +14,8 @@ namespace FamilyAssistance.Api.Services;
 public sealed class HomeWidgetComposer
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly CultureInfo HebrewCulture = CultureInfo.GetCultureInfo("he-IL");
+    private const int MonthlyTrendMonths = 6;
 
     public HomeDashboardDto Compose(
         AuthorizationContext auth,
@@ -51,6 +54,18 @@ public sealed class HomeWidgetComposer
                 Type = HomeWidgetTypes.FinancialSummary,
                 Title = "תמונת מצב כספית",
                 Data = SerializeData(new HomeFinancialSummaryDataDto { Metrics = financialMetrics })
+            });
+        }
+
+        var monthlyTrend = BuildMonthlyTrend(auth, scopedDecisions);
+        if (monthlyTrend is not null)
+        {
+            widgets.Add(new HomeWidgetDto
+            {
+                Id = "monthly_trend",
+                Type = HomeWidgetTypes.MonthlyTrend,
+                Title = "מגמה חודשית",
+                Data = SerializeData(monthlyTrend)
             });
         }
 
@@ -212,6 +227,48 @@ public sealed class HomeWidgetComposer
                 NavigationTarget = ResolveOnHoldNavigation(mineScope)
             }
         ];
+    }
+
+    private static HomeMonthlyTrendDataDto? BuildMonthlyTrend(
+        AuthorizationContext auth,
+        IReadOnlyList<CommitteeDecision> scopedDecisions)
+    {
+        if (!CanShowFinancialSummary(auth))
+            return null;
+
+        var now = DateTime.UtcNow;
+        var currentMonthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var points = new List<HomeMonthlyTrendPointDto>(MonthlyTrendMonths);
+
+        for (var offset = MonthlyTrendMonths - 1; offset >= 0; offset--)
+        {
+            var monthStart = currentMonthStart.AddMonths(-offset);
+            var monthEnd = monthStart.AddMonths(1);
+            var amount = scopedDecisions
+                .Where(d => d.ApprovedAt is not null
+                    && d.ApprovedAt.Value >= monthStart
+                    && d.ApprovedAt.Value < monthEnd)
+                .Sum(d => d.TotalAmount);
+
+            points.Add(new HomeMonthlyTrendPointDto
+            {
+                MonthKey = monthStart.ToString("yyyy-MM"),
+                LabelHe = FormatHebrewMonthLabel(monthStart),
+                Amount = amount
+            });
+        }
+
+        return new HomeMonthlyTrendDataDto
+        {
+            Subtitle = "סכום שאושר (₪)",
+            Points = points
+        };
+    }
+
+    private static string FormatHebrewMonthLabel(DateTime monthStart)
+    {
+        var monthName = HebrewCulture.DateTimeFormat.GetAbbreviatedMonthName(monthStart.Month);
+        return $"{monthName} {monthStart.Year}";
     }
 
     private static HomeNavigationTargetDto ResolveApprovedThisMonthNavigation(bool mineScope) =>

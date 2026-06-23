@@ -1,4 +1,4 @@
-# Home Dashboard Verification (Phase 2 KPI + Phase 3 financial summary)
+# Home Dashboard Verification (Phase 2 KPI + Phase 3 financial + Phase 4 trend)
 # Run from repo root: .\scripts\verify-home-dashboard.ps1
 
 $ErrorActionPreference = "Stop"
@@ -155,6 +155,23 @@ try {
     # HD-11: home.generatedAt present for footer
     $genAt = Get-JsonField $dashMgr2.Content "home.generatedAt"
     Write-Result "HD-11" "home.generatedAt timestamp present" ($null -ne $genAt -and $genAt.Length -gt 10) "generatedAt=$genAt"
+
+    # HD-12: monthly_trend widget with exactly 6 points
+    $trendWidget = $widgets | Where-Object { $_.type -eq "monthly_trend" } | Select-Object -First 1
+    $trendPoints = @($trendWidget.data.points)
+    Write-Result "HD-12" "Manager monthly_trend with 6 points" ($null -ne $trendWidget -and $trendPoints.Count -eq 6) "points=$($trendPoints.Count)"
+
+    # HD-13: monthly trend point contract shape
+    $firstPoint = $trendPoints | Select-Object -First 1
+    $hasMonthKey = $null -ne $firstPoint.monthKey -and $firstPoint.monthKey -match '^\d{4}-\d{2}$'
+    $hasLabel = $null -ne $firstPoint.labelHe -and $firstPoint.labelHe.Length -gt 0
+    $hasSubtitle = $trendWidget.data.subtitle.Length -gt 0
+    Write-Result "HD-13" "Monthly trend contract shape" ($hasMonthKey -and $hasLabel -and $hasSubtitle) "monthKey=$($firstPoint.monthKey)"
+
+    # HD-14: Coordinator has monthly_trend (financial visibility gate)
+    $coordTrend = $coordWidgets | Where-Object { $_.type -eq "monthly_trend" } | Select-Object -First 1
+    $coordTrendPoints = @($coordTrend.data.points)
+    Write-Result "HD-14" "Coordinator monthly_trend present" ($null -ne $coordTrend -and $coordTrendPoints.Count -eq 6) "points=$($coordTrendPoints.Count)"
 
     $failed = @($results | Where-Object { -not $_.Passed })
     Write-Host ""

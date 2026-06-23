@@ -63,3 +63,16 @@ public sealed class HomeFinancialMetricDto
     public string StatusSemantic { get; init; } = string.Empty;
     public HomeNavigationTargetDto? NavigationTarget { get; init; }
 }
+
+public sealed class HomeMonthlyTrendDataDto
+{
+    public string Subtitle { get; init; } = string.Empty;
+    public required IReadOnlyList<HomeMonthlyTrendPointDto> Points { get; init; }
+}
+
+public sealed class HomeMonthlyTrendPointDto
+{
+    public string MonthKey { get; init; } = string.Empty;
+    public string LabelHe { get; init; } = string.Empty;
+    public decimal Amount { get; init; }
+}

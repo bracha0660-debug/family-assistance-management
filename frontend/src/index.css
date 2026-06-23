@@ -2123,3 +2123,58 @@ body {
   text-align: start;
 }
 
+/* Monthly trend widget (Phase 4) */
+.home-trend-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.home-trend-subtitle {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: #64748b;
+}
+
+.home-trend-chart-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.home-trend-chart {
+  width: 100%;
+  min-width: 18rem;
+  height: auto;
+  display: block;
+}
+
+.home-trend-axis {
+  stroke: #e2e8f0;
+  stroke-width: 1;
+}
+
+.home-trend-line {
+  stroke: var(--status-pending-execution);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.home-trend-point {
+  fill: #fff;
+  stroke: var(--status-pending-execution);
+  stroke-width: 2;
+}
+
+.home-trend-value-label {
+  fill: #334155;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.home-trend-month-label {
+  fill: #64748b;
+  font-size: 10px;
+  font-weight: 600;
+}
+

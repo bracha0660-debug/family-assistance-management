@@ -63,6 +63,17 @@ export interface HomeFinancialSummaryData {
   metrics: HomeFinancialMetric[];
 }
 
+export interface HomeMonthlyTrendPoint {
+  monthKey: string;
+  labelHe: string;
+  amount: number;
+}
+
+export interface HomeMonthlyTrendData {
+  subtitle: string;
+  points: HomeMonthlyTrendPoint[];
+}
+
 export interface HomeWidget {
   id: string;
   type: HomeWidgetType;
@@ -85,6 +96,18 @@ export function parseFinancialSummaryWidget(widget: HomeWidget): HomeFinancialMe
   }
   const data = widget.data as HomeFinancialSummaryData;
   return Array.isArray(data.metrics) ? data.metrics : [];
+}
+
+export function parseMonthlyTrendWidget(widget: HomeWidget): HomeMonthlyTrendData | null {
+  if (widget.type !== 'monthly_trend' || !widget.data || typeof widget.data !== 'object') {
+    return null;
+  }
+  const data = widget.data as HomeMonthlyTrendData;
+  if (!Array.isArray(data.points)) return null;
+  return {
+    subtitle: typeof data.subtitle === 'string' ? data.subtitle : '',
+    points: data.points,
+  };
 }
 
 export interface HomeDashboard {
