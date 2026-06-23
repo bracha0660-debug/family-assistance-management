@@ -48,4 +48,20 @@ public static class PaymentExecutionStatuses
     public const string ProofUploaded = "proof_uploaded";
     public const string Paid = "paid";
     public const string ReturnedToCoordinator = "returned_to_coordinator";
+    public const string OnHold = "on_hold";
+
+    public static readonly HashSet<string> ActiveQueue =
+    [
+        AwaitingPayment, Executing, ProofUploaded
+    ];
+}
+
+public static class WorkflowPhases
+{
+    public const string Intake = "intake";
+    public const string PendingManager = "pending_manager";
+    public const string OnHold = "on_hold";
+    public const string PendingFinance = "pending_finance";
+    public const string Completed = "completed";
+    public const string Closed = "closed";
 }

@@ -1,23 +1,52 @@
 # Family Assistance Management — Canonical Architecture
 
 **Document status:** Canonical living architecture document.
-**Last updated baseline:** **Step 15 stabilized** (tag `step-15-stabilized`, commit `d5c3006`).
-**Verification:** `scripts/verify-step15.ps1` passes **13/13**.
+**Last updated baseline:** **Workflow completion phase accepted** (extends Step 15 stabilized).
+**Verification:** `scripts/verify-step15.ps1` — **13/13**; `scripts/verify-workflow.ps1` — **7/7**.
 **Scope:** This document supersedes scattered per-step architecture notes for everything that is currently in scope. Per-step compliance reports under `docs/step-0N-*` remain as historical evidence.
 
 ---
 
 ## 1. System Overview
 
-A multi-tenant, Hebrew RTL platform that lets non-profit organizations manage the full lifecycle of family assistance:
+A multi-tenant, Hebrew RTL platform that lets non-profit organizations manage **financial committee decisions and payment execution** for family assistance — from coordinator-prepared decision drafts through manager approval to finance payout.
+
+**Product boundary:** The system does **not** manage the full real-world family assistance intake lifecycle. A separate Assistance Request process may exist operationally before a committee decision, but it is **intentionally out of scope** for this product. The in-system workflow root is **`CommitteeDecision`** (see §1.1).
+
+In scope today:
 
 - Organization onboarding and SuperAdmin administration
 - Internal user and role management with configurable grants
-- Family registration (family card with embedded bank details)
+- Family registration (family card with embedded bank details) — as a **reference record** for decisions, not intake casework
 - Assistance-type catalog
 - Supplier registry
-- Committee decisions with line-item assistance items
+- **Financial committee decisions** (`החלטות ועדה כספיות`) with line-item assistance items
 - Finance payment queue and execution
+- Workflow dashboard (permission-composed sections; suspend/resume/on-hold)
+
+### 1.1 Product scope boundary
+
+| In scope | Out of scope (deferred / not planned) |
+| -------- | ------------------------------------- |
+| `CommitteeDecision` as workflow root | Separate `assistance_requests` module or table |
+| Draft → submit → approve → pay pipeline | Full family intake process |
+| Coordinator prepares decision for committee/manager | Initial request submission by family |
+| Manager approve / reject / return / suspend | Document collection before committee |
+| Finance execute / proof / mark paid | Casework lifecycle before financial decision |
+| Family & supplier cards as payee references | Restoring historical assistance-request APIs |
+
+**Architectural rule:** Do **not** restore a separate Assistance Request entity. Any pre-committee work happens outside this system (or in a future phase not currently authorized).
+
+### 1.2 User-facing terminology (Hebrew)
+
+| Context | Preferred Hebrew label | Notes |
+| ------- | ---------------------- | ----- |
+| Module / navigation / screens | **החלטות ועדה כספיות** | User-facing name for committee decision workflow |
+| Technical / API / DB | `committee_decisions`, `CommitteeDecision` | English identifiers unchanged in code |
+| Line items | פריטי סיוע (within a decision) | `assistance_items` — not a standalone “request” |
+| Workflow dashboard | לוח בקרה | Permission-composed operational view |
+
+Legacy or generic labels such as “בקשת סיוע” or “intake” must not be used for the in-scope workflow unless explicitly referring to out-of-scope real-world process.
 
 ```mermaid
 flowchart LR
@@ -259,9 +288,9 @@ Supplier card mirrors family bank embedding: bank fields live on `suppliers` row
 
 ---
 
-## 9. Committee Decisions
+## 9. Financial Committee Decisions (החלטות ועדה כספיות)
 
-A committee decision is an org-scoped header tied to one **family**, with a meeting date, summary, status, and a collection of assistance items.
+A **financial committee decision** is the **workflow root entity**: an org-scoped header tied to one **family**, with a meeting date, summary, status, and a collection of assistance items. Coordinators create **draft** decisions that are already prepared for committee review and manager approval — this is not family intake or an external assistance request.
 
 | Field | Notes |
 | ----- | ----- |
@@ -401,6 +430,8 @@ Failure → **`400 INCOMPLETE_BANK_DETAILS`**.
 
 ## 13. Approval Workflow
 
+**Scope note:** This workflow begins at `CommitteeDecision` creation (`draft`). It does not model pre-committee assistance requests, family self-service intake, or casework stages that may occur in the real world before a financial decision is prepared.
+
 ### Committee decision statuses
 
 `draft` · `submitted` · `returned_for_revision` · `approved` · `rejected` · `suspended` · `cancelled` · `partially_paid` · `fully_paid`
@@ -409,7 +440,7 @@ Failure → **`400 INCOMPLETE_BANK_DETAILS`**.
 
 ```mermaid
 stateDiagram-v2
-  [*] --> draft: Coordinator creates
+  [*] --> draft: Coordinator prepares financial decision
   draft --> submitted: Submit
   returned_for_revision --> submitted: Re-submit
   submitted --> approved: Manager approve
@@ -511,7 +542,7 @@ All editable business entities use `version int` for optimistic concurrency. All
 | `families` | Yes | Family card with embedded bank |
 | `suppliers` | Yes | Supplier card with embedded bank |
 | `assistance_types` | Yes | Assistance type catalog |
-| `committee_decisions` | Yes | Committee decision headers |
+| `committee_decisions` | Yes | Financial committee decision headers (workflow root) |
 | `assistance_items` | Yes | Line items per decision |
 | `assistance_item_documents` | Yes | Payment proof documents |
 | `payment_executions` | Yes | Finance payment queue rows |
@@ -520,7 +551,10 @@ All editable business entities use `version int` for optimistic concurrency. All
 | `organization_role_grants` | No | Permission + scope per role |
 | `organization_role_permissions` | No | Legacy role-permission rows (migration artifact) |
 
-**Retired design:** `bank_accounts`, `bank_account_history` — never implemented; bank is embedded on `families` and `suppliers`.
+**Retired / never implemented designs:**
+
+- `bank_accounts`, `bank_account_history` — bank is embedded on `families` and `suppliers`
+- `assistance_requests` — real-world pre-committee requests are out of scope; **`CommitteeDecision` remains the workflow root**
 
 ---
 
@@ -538,7 +572,8 @@ Every stabilized baseline ships with PowerShell scripts that exercise end-to-end
 | `scripts/verify-family-card.ps1` | Family card (§14) |
 | `scripts/verify-supplier-card.ps1` | Supplier card |
 | `scripts/verify-permissions-system.ps1` | Permissions + scope system |
-| **`scripts/verify-step15.ps1`** | **Step 15 — committee decisions, suppliers, payments (13/13)** |
+| **`scripts/verify-step15.ps1`** | **Step 15 — financial committee decisions, suppliers, payments (13/13)** |
+| **`scripts/verify-workflow.ps1`** | **Workflow phase — dashboard, suspend/resume/on-hold (7/7)** |
 
 ### Step 15 verification coverage (S15-01..S15-13)
 
@@ -577,7 +612,7 @@ Every stabilized baseline ships with PowerShell scripts that exercise end-to-end
 | ---- | ------ |
 | **Tag** | `step-15-stabilized` |
 | **Commit** | `d5c3006` |
-| **Scope** | Committee decisions, assistance items (per-item urgency), suppliers integration, finance payment queue, backend bank-transfer eligibility on item add/update and payment execute |
+| **Scope** | Financial committee decisions (החלטות ועדה כספיות), assistance items (per-item urgency), suppliers integration, finance payment queue, backend bank-transfer eligibility on item add/update and payment execute |
 | **Verification** | `verify-step15.ps1` — **13/13 PASS** |
 
 ### Binding architectural decisions (Steps 1–15)
@@ -597,6 +632,7 @@ Every stabilized baseline ships with PowerShell scripts that exercise end-to-end
 13. Two separate audit streams (§14).
 14. No physical deletes of business entities — status flips only.
 15. Standardized `ApiError` model (§2).
+16. **No `assistance_requests` module** — financial workflow root is `CommitteeDecision` only; pre-committee intake is out of scope (§1.1).
 16. No external UI component library (§2).
 17. **Bank transfer requires complete payee bank details — enforced in backend** (§12).
 18. Automated PowerShell verification before release tags (§16).

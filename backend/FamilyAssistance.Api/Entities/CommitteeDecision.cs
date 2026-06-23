@@ -15,10 +15,13 @@ public class CommitteeDecision
     public string? SuspendReason { get; set; }
     public string? ReturnReason { get; set; }
     public string? CancelReason { get; set; }
+    public string? ApprovalNotes { get; set; }
+    public string? PreSuspendStatus { get; set; }
     public DateTime? SubmittedAt { get; set; }
     public DateTime? ApprovedAt { get; set; }
     public DateTime? RejectedAt { get; set; }
     public DateTime? SuspendedAt { get; set; }
+    public DateTime? ResumedAt { get; set; }
     public DateTime? CancelledAt { get; set; }
     public int Version { get; set; } = 1;
     public DateTime CreatedAt { get; set; }

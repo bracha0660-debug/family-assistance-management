@@ -114,6 +114,20 @@ public sealed class PermissionService(AppDbContext db)
         return auth.HasGrant(permissionKey);
     }
 
+    /// <summary>
+    /// Workflow operational grants: OrgAdmin has no bypass; SuperAdmin-in-org has break-glass access.
+    /// </summary>
+    public static bool HasWorkflowGrant(AuthorizationContext auth, string permissionKey)
+    {
+        if (auth.SystemRole == Roles.SuperAdmin && auth.ActingOrganizationId is not null)
+            return true;
+
+        if (auth.SystemRole == Roles.OrganizationAdministrator)
+            return false;
+
+        return auth.Grants.Any(g => g.PermissionKey == permissionKey);
+    }
+
     public async Task SeedCatalogAsync(CancellationToken cancellationToken = default)
     {
         foreach (var row in PermissionCatalogSeed.Rows)

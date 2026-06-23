@@ -5,6 +5,7 @@ export interface PaymentQueueSummary {
   awaitingPayment: number;
   executing: number;
   proofUploaded: number;
+  onHold: number;
 }
 
 export interface PaymentQueueItemDto {
@@ -23,8 +24,13 @@ export interface PaymentQueueItemDto {
   supplierName: string | null;
   payeeName: string | null;
   status: string;
+  decisionStatus: string;
+  suspendReason: string | null;
+  isUrgent: boolean;
+  isOnHold: boolean;
   executionReference: string | null;
   proofFileName: string | null;
+  availableActions: string[];
   version: number;
   createdAt: string;
   updatedAt: string;
@@ -35,8 +41,11 @@ export interface PaymentQueueListResponse {
   payments: PaymentQueueItemDto[];
 }
 
-export async function listPayments(): Promise<PaymentQueueListResponse> {
-  return apiJson<PaymentQueueListResponse>('/api/v1/org/payments');
+export async function listPayments(section?: string): Promise<PaymentQueueListResponse> {
+  const url = section
+    ? `/api/v1/org/payments?section=${encodeURIComponent(section)}`
+    : '/api/v1/org/payments';
+  return apiJson<PaymentQueueListResponse>(url);
 }
 
 export async function executePayment(

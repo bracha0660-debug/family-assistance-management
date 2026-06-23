@@ -1,4 +1,5 @@
 using FamilyAssistance.Api.Audit;
+using FamilyAssistance.Api.Auth;
 using FamilyAssistance.Api.Constants;
 using FamilyAssistance.Api.Data;
 using FamilyAssistance.Api.Entities;
@@ -24,20 +25,30 @@ public sealed class PaymentService(
 
     public async Task<PaymentQueueListResponse> ListQueueAsync(
         Guid organizationId,
+        AuthorizationContext auth,
+        PaymentListQuery? query = null,
         CancellationToken cancellationToken = default)
     {
-        var payments = await db.PaymentExecutions
+        query ??= new PaymentListQuery();
+
+        var paymentsQuery = db.PaymentExecutions
             .Include(p => p.AssistanceItem)
                 .ThenInclude(i => i!.AssistanceType)
             .Include(p => p.AssistanceItem)
                 .ThenInclude(i => i!.Supplier)
             .Include(p => p.CommitteeDecision)
                 .ThenInclude(d => d!.Family)
-            .Where(p => p.OrganizationId == organizationId && QueueStatuses.Contains(p.Status))
+            .Where(p => p.OrganizationId == organizationId);
+
+        paymentsQuery = ApplyPaymentListFilters(paymentsQuery, query);
+
+        var payments = await paymentsQuery
             .OrderBy(p => p.CreatedAt)
+            .Skip(Math.Max(0, query.Offset))
+            .Take(Math.Clamp(query.Limit, 1, 200))
             .ToListAsync(cancellationToken);
 
-        var dtos = payments.Select(MapPayment).ToList();
+        var dtos = payments.Select(p => MapPayment(p, auth)).ToList();
         return new PaymentQueueListResponse
         {
             Summary = new PaymentQueueSummaryDto
@@ -45,7 +56,8 @@ public sealed class PaymentService(
                 Total = dtos.Count,
                 AwaitingPayment = dtos.Count(p => p.Status == PaymentExecutionStatuses.AwaitingPayment),
                 Executing = dtos.Count(p => p.Status == PaymentExecutionStatuses.Executing),
-                ProofUploaded = dtos.Count(p => p.Status == PaymentExecutionStatuses.ProofUploaded)
+                ProofUploaded = dtos.Count(p => p.Status == PaymentExecutionStatuses.ProofUploaded),
+                OnHold = dtos.Count(p => p.IsOnHold)
             },
             Payments = dtos
         };
@@ -54,13 +66,14 @@ public sealed class PaymentService(
     public async Task<ServiceResult<PaymentQueueItemDto>> GetAsync(
         Guid organizationId,
         Guid id,
+        AuthorizationContext auth,
         CancellationToken cancellationToken = default)
     {
         var payment = await LoadPaymentAsync(organizationId, id, cancellationToken);
         if (payment is null)
             return ServiceResult<PaymentQueueItemDto>.Fail(404, "NOT_FOUND", "התשלום לא נמצא");
 
-        return ServiceResult<PaymentQueueItemDto>.Ok(MapPayment(payment));
+        return ServiceResult<PaymentQueueItemDto>.Ok(MapPayment(payment, auth));
     }
 
     public async Task<ServiceResult<PaymentQueueItemDto>> ExecuteAsync(
@@ -68,7 +81,7 @@ public sealed class PaymentService(
         Guid id,
         ExecutePaymentRequest request,
         int? expectedVersion,
-        Guid actorUserId,
+        AuthorizationContext auth,
         CancellationToken cancellationToken = default)
     {
         if (expectedVersion is null)
@@ -78,6 +91,10 @@ public sealed class PaymentService(
         var payment = await LoadPaymentAsync(organizationId, id, cancellationToken);
         if (payment is null)
             return ServiceResult<PaymentQueueItemDto>.Fail(404, "NOT_FOUND", "התשלום לא נמצא");
+
+        if (payment.Status == PaymentExecutionStatuses.OnHold
+            || payment.CommitteeDecision?.Status == CommitteeDecisionStatuses.Suspended)
+            return ServiceResult<PaymentQueueItemDto>.Fail(403, "DECISION_ON_HOLD", "ההחלטה מושעה — לא ניתן לבצע תשלום");
 
         if (payment.Status != PaymentExecutionStatuses.AwaitingPayment)
             return ServiceResult<PaymentQueueItemDto>.Fail(409, "INVALID_STATUS", "לא ניתן לבצע תשלום במצב זה");
@@ -139,7 +156,7 @@ public sealed class PaymentService(
             {
                 EventCode = BusinessEventCodes.PaymentExecutionStarted,
                 OrganizationId = organizationId,
-                ActorUserId = actorUserId,
+                ActorUserId = auth.UserId,
                 EntityType = "payment_execution",
                 EntityId = payment.Id,
                 Action = "payment_execute",
@@ -157,7 +174,7 @@ public sealed class PaymentService(
             return ServiceResult<PaymentQueueItemDto>.Fail(500, "INTERNAL_ERROR", "שגיאת מערכת");
         }
 
-        return ServiceResult<PaymentQueueItemDto>.Ok(MapPayment(payment));
+        return ServiceResult<PaymentQueueItemDto>.Ok(MapPayment(payment, auth));
     }
 
     public async Task<ServiceResult<PaymentQueueItemDto>> UploadProofAsync(
@@ -166,7 +183,7 @@ public sealed class PaymentService(
         UploadProofMetadata metadata,
         Stream fileContent,
         int? expectedVersion,
-        Guid actorUserId,
+        AuthorizationContext auth,
         CancellationToken cancellationToken = default)
     {
         if (expectedVersion is null)
@@ -207,7 +224,7 @@ public sealed class PaymentService(
             {
                 EventCode = BusinessEventCodes.PaymentProofUploaded,
                 OrganizationId = organizationId,
-                ActorUserId = actorUserId,
+                ActorUserId = auth.UserId,
                 EntityType = "payment_execution",
                 EntityId = payment.Id,
                 Action = "payment_upload_proof",
@@ -224,7 +241,7 @@ public sealed class PaymentService(
             return ServiceResult<PaymentQueueItemDto>.Fail(500, "INTERNAL_ERROR", "שגיאת מערכת");
         }
 
-        return ServiceResult<PaymentQueueItemDto>.Ok(MapPayment(payment));
+        return ServiceResult<PaymentQueueItemDto>.Ok(MapPayment(payment, auth));
     }
 
     public async Task<ServiceResult<PaymentQueueItemDto>> MarkPaidAsync(
@@ -232,7 +249,7 @@ public sealed class PaymentService(
         Guid id,
         MarkPaidRequest request,
         int? expectedVersion,
-        Guid actorUserId,
+        AuthorizationContext auth,
         CancellationToken cancellationToken = default)
     {
         if (expectedVersion is null)
@@ -271,7 +288,7 @@ public sealed class PaymentService(
             {
                 EventCode = BusinessEventCodes.PaymentMarkedPaid,
                 OrganizationId = organizationId,
-                ActorUserId = actorUserId,
+                ActorUserId = auth.UserId,
                 EntityType = "payment_execution",
                 EntityId = payment.Id,
                 Action = "payment_mark_paid",
@@ -289,7 +306,7 @@ public sealed class PaymentService(
             return ServiceResult<PaymentQueueItemDto>.Fail(500, "INTERNAL_ERROR", "שגיאת מערכת");
         }
 
-        return ServiceResult<PaymentQueueItemDto>.Ok(MapPayment(payment));
+        return ServiceResult<PaymentQueueItemDto>.Ok(MapPayment(payment, auth));
     }
 
     public async Task<ServiceResult<PaymentQueueItemDto>> ReturnToCoordinatorAsync(
@@ -297,7 +314,7 @@ public sealed class PaymentService(
         Guid id,
         ReturnPaymentRequest request,
         int? expectedVersion,
-        Guid actorUserId,
+        AuthorizationContext auth,
         CancellationToken cancellationToken = default)
     {
         if (expectedVersion is null)
@@ -342,7 +359,7 @@ public sealed class PaymentService(
             {
                 EventCode = BusinessEventCodes.PaymentReturnedToCoordinator,
                 OrganizationId = organizationId,
-                ActorUserId = actorUserId,
+                ActorUserId = auth.UserId,
                 EntityType = "payment_execution",
                 EntityId = payment.Id,
                 Action = "payment_return_to_coordinator",
@@ -366,7 +383,42 @@ public sealed class PaymentService(
             return ServiceResult<PaymentQueueItemDto>.Fail(500, "INTERNAL_ERROR", "שגיאת מערכת");
         }
 
-        return ServiceResult<PaymentQueueItemDto>.Ok(MapPayment(payment));
+        return ServiceResult<PaymentQueueItemDto>.Ok(MapPayment(payment, auth));
+    }
+
+    public PaymentQueueItemDto MapPaymentForDashboard(PaymentExecution payment, AuthorizationContext auth) =>
+        MapPayment(payment, auth);
+
+    private static IQueryable<PaymentExecution> ApplyPaymentListFilters(
+        IQueryable<PaymentExecution> query,
+        PaymentListQuery listQuery)
+    {
+        if (!string.IsNullOrWhiteSpace(listQuery.Status))
+            return query.Where(p => p.Status == listQuery.Status);
+
+        if (!string.IsNullOrWhiteSpace(listQuery.Section))
+        {
+            return listQuery.Section switch
+            {
+                "finance_on_hold" => query.Where(p =>
+                    p.Status == PaymentExecutionStatuses.OnHold
+                    || p.CommitteeDecision!.Status == CommitteeDecisionStatuses.Suspended),
+                "finance_awaiting_execution" => query.Where(p =>
+                    p.Status == PaymentExecutionStatuses.AwaitingPayment
+                    && (p.CommitteeDecision!.Status == CommitteeDecisionStatuses.Approved
+                        || p.CommitteeDecision.Status == CommitteeDecisionStatuses.PartiallyPaid)),
+                "finance_executing" => query.Where(p => p.Status == PaymentExecutionStatuses.Executing),
+                "finance_proof_uploaded" => query.Where(p => p.Status == PaymentExecutionStatuses.ProofUploaded),
+                "finance_paid" => query.Where(p => p.Status == PaymentExecutionStatuses.Paid),
+                "finance_returned" => query.Where(p => p.Status == PaymentExecutionStatuses.ReturnedToCoordinator),
+                _ => query.Where(p => QueueStatuses.Contains(p.Status))
+            };
+        }
+
+        if (listQuery.UrgentOnly)
+            query = query.Where(p => p.AssistanceItem!.IsUrgent);
+
+        return query.Where(p => QueueStatuses.Contains(p.Status));
     }
 
     private async Task UpdateDecisionPaymentStatusAsync(
@@ -406,11 +458,13 @@ public sealed class PaymentService(
         return trimmed.Length == 0 ? null : trimmed;
     }
 
-    private static PaymentQueueItemDto MapPayment(PaymentExecution p)
+    private static PaymentQueueItemDto MapPayment(PaymentExecution p, AuthorizationContext auth)
     {
         var item = p.AssistanceItem!;
         var decision = p.CommitteeDecision!;
         var family = decision.Family!;
+        var isOnHold = p.Status == PaymentExecutionStatuses.OnHold
+            || decision.Status == CommitteeDecisionStatuses.Suspended;
         return new PaymentQueueItemDto
         {
             Id = p.Id,
@@ -428,8 +482,13 @@ public sealed class PaymentService(
             SupplierName = item.Supplier?.Name,
             PayeeName = item.PayeeName,
             Status = p.Status,
+            DecisionStatus = decision.Status,
+            SuspendReason = decision.SuspendReason,
+            IsUrgent = item.IsUrgent,
+            IsOnHold = isOnHold,
             ExecutionReference = p.ExecutionReference,
             ProofFileName = p.ProofFileName,
+            AvailableActions = WorkflowHelpers.AvailablePaymentActions(p, auth),
             Version = p.Version,
             CreatedAt = p.CreatedAt,
             UpdatedAt = p.UpdatedAt

@@ -1,8 +1,10 @@
+@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700&display=swap');
+
 :root {
-  font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+  font-family: 'Heebo', 'Segoe UI', Tahoma, Arial, sans-serif;
   line-height: 1.5;
-  color: #1a1a2e;
-  background: #f0f2f5;
+  color: #334155;
+  background: #f4f6fa;
 }
 
 * {
@@ -230,6 +232,14 @@ body {
 
 .btn-danger {
   background: #dc2626 !important;
+}
+
+.btn-warning {
+  background: #ea580c !important;
+}
+
+.btn-warning:hover {
+  background: #c2410c !important;
 }
 
 .btn-small {
@@ -924,3 +934,681 @@ body {
   display: block;
   margin-top: 0.25rem;
 }
+
+/* ── App Shell (Phase 1) ─────────────────────────────────────────── */
+
+.app-shell {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  background: #f4f6fa;
+  color: #334155;
+}
+
+.app-shell-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  border: none;
+  padding: 0;
+  margin: 0;
+  background: rgba(15, 23, 42, 0.35);
+  cursor: pointer;
+}
+
+.app-shell-sidebar {
+  flex-shrink: 0;
+  width: 18rem;
+  background: #fff;
+  border-inline-start: 1px solid #f1f5f9;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  display: flex;
+  flex-direction: column;
+  z-index: 30;
+}
+
+.app-shell-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1rem 1.25rem;
+  min-height: 4.9375rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1e293b;
+  border-bottom: 1px solid #f8fafc;
+}
+
+.app-shell-brand-logo-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem;
+  border: 2px solid transparent;
+  border-radius: 0.875rem;
+  background: transparent;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+
+.app-shell-brand-logo-btn:hover {
+  background: #f8fafc;
+}
+
+.app-shell-brand-logo-btn-active {
+  border-color: #c7d2fe;
+  background: #eef2ff;
+  box-shadow: 0 1px 3px rgba(99, 102, 241, 0.15);
+}
+
+.app-shell-brand-logo {
+  display: block;
+  width: 4.5rem;
+  height: 4.5rem;
+  object-fit: contain;
+}
+
+.app-shell-brand-dot {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 999px;
+  background: #6366f1;
+  box-shadow: 0 1px 2px rgba(99, 102, 241, 0.35);
+  animation: app-shell-pulse 2s ease-in-out infinite;
+}
+
+@keyframes app-shell-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+.app-shell-nav {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  overflow-y: auto;
+}
+
+.app-shell-nav-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.75rem;
+  border: none;
+  border-radius: 1rem;
+  background: transparent;
+  color: #64748b;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  text-align: right;
+}
+
+.app-shell-nav-item:hover {
+  background: rgba(248, 250, 252, 0.9);
+  color: #1e293b;
+}
+
+.app-shell-nav-item-active {
+  background: rgba(238, 242, 255, 0.75);
+  color: #4338ca;
+  font-weight: 600;
+}
+
+.app-shell-nav-content {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.app-shell-nav-icon {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.app-shell-nav-icon svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.app-shell-nav-icon-indigo { background: #eef2ff; color: #6366f1; }
+.app-shell-nav-icon-emerald { background: #ecfdf5; color: #10b981; }
+.app-shell-nav-icon-amber { background: #fffbeb; color: #f59e0b; }
+.app-shell-nav-icon-purple { background: #faf5ff; color: #a855f7; }
+.app-shell-nav-icon-rose { background: #fff1f2; color: #f43f5e; }
+.app-shell-nav-icon-sky { background: #f0f9ff; color: #0ea5e9; }
+.app-shell-nav-icon-teal { background: #f0fdfa; color: #14b8a6; }
+
+.app-shell-nav-icon-active.app-shell-nav-icon-indigo {
+  background: #6366f1;
+  color: #fff;
+  box-shadow: 0 1px 3px rgba(99, 102, 241, 0.35);
+}
+
+.app-shell-nav-active-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: #6366f1;
+  flex-shrink: 0;
+}
+
+.app-shell-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.app-shell-header {
+  flex-shrink: 0;
+  height: 4rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0 2rem;
+  background: #fff;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.app-shell-header-start {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.app-shell-menu-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  background: #fff;
+  color: #475569;
+  cursor: pointer;
+  padding: 0;
+}
+
+.app-shell-menu-btn svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.app-shell-page-title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-shell-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-shrink: 0;
+}
+
+.app-shell-user {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.app-shell-avatar {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 999px;
+  background: linear-gradient(to top right, #6366f1, #4f46e5);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 2px rgba(99, 102, 241, 0.3);
+}
+
+.app-shell-user-name {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.app-shell-divider {
+  width: 1px;
+  height: 1rem;
+  background: #e2e8f0;
+}
+
+.app-shell-exit-btn {
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.5rem;
+  transition: color 0.15s, background 0.15s;
+}
+
+.app-shell-exit-btn:hover {
+  color: #1e293b;
+  background: #f8fafc;
+}
+
+.app-shell-logout-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0.25rem;
+  transition: color 0.15s;
+}
+
+.app-shell-logout-btn svg {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.app-shell-logout-btn:hover {
+  color: #f43f5e;
+}
+
+.app-shell-main {
+  flex: 1;
+  overflow-y: auto;
+  padding: 2rem;
+}
+
+@media (max-width: 768px) {
+  .app-shell-backdrop {
+    display: block;
+  }
+
+  .app-shell-sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    inset-inline-start: 0;
+    transform: translateX(100%);
+    transition: transform 0.2s ease;
+  }
+
+  .app-shell-sidebar-open .app-shell-sidebar {
+    transform: translateX(0);
+  }
+
+  .app-shell-menu-btn {
+    display: flex;
+  }
+
+  .app-shell-user-name {
+    display: none;
+  }
+
+  .app-shell-header {
+    padding: 0 1rem;
+  }
+
+  .app-shell-main {
+    padding: 1rem;
+  }
+}
+
+/* ── Workflow Dashboard (new design) ─────────────────────────────── */
+
+.workflow-dashboard-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.workflow-dashboard-toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.workflow-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.625rem 1.25rem;
+  border-radius: 1rem;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: #4f46e5;
+  color: #fff;
+  border: none;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
+  transition: background 0.15s;
+}
+
+.workflow-btn-primary:hover {
+  background: #4338ca;
+}
+
+.workflow-btn-primary svg {
+  width: 0.625rem;
+  height: 0.625rem;
+}
+
+.workflow-loading {
+  margin: 0;
+  color: #64748b;
+}
+
+.workflow-dashboard-page .workflow-awaiting-summary {
+  background: #fff;
+  border: 1px solid #f1f5f9;
+  border-radius: 1rem;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 0;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+}
+
+.workflow-dashboard-page .workflow-awaiting-summary h2 {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.workflow-dashboard-page .workflow-awaiting-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.workflow-dashboard-page .workflow-awaiting-badge {
+  background: #6366f1;
+  color: #fff;
+  border-radius: 999px;
+  padding: 0.2rem 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  box-shadow: 0 1px 2px rgba(99, 102, 241, 0.3);
+}
+
+.workflow-dashboard-page .workflow-awaiting-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.workflow-dashboard-page .workflow-chip {
+  border: 1px solid #e0e7ff;
+  background: #eef2ff;
+  color: #4f46e5;
+  border-radius: 999px;
+  padding: 0.5rem 1rem;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.workflow-dashboard-page .workflow-chip:hover {
+  background: #e0e7ff;
+}
+
+.workflow-dashboard-page .workflow-section-panel {
+  background: #fff;
+  border: 1px solid #f1f5f9;
+  border-radius: 1rem;
+  margin-bottom: 0;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+  overflow: hidden;
+  transition: box-shadow 0.2s;
+}
+
+.workflow-dashboard-page .workflow-section-panel:hover {
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+}
+
+.workflow-dashboard-page .workflow-section-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  border: none;
+  background: #fff;
+  cursor: pointer;
+  text-align: right;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1e293b;
+  transition: background 0.15s;
+}
+
+.workflow-dashboard-page .workflow-section-header:hover {
+  background: #f8fafc;
+}
+
+.workflow-dashboard-page .workflow-visibility-badge,
+.workflow-dashboard-page .workflow-action-badge {
+  font-size: 0.6875rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  margin-inline-start: auto;
+  font-weight: 600;
+}
+
+.workflow-dashboard-page .workflow-visibility-badge {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.workflow-dashboard-page .workflow-action-badge {
+  background: #fffbeb;
+  color: #b45309;
+}
+
+.workflow-dashboard-page .workflow-section-body {
+  padding: 0 1.25rem 1.25rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.workflow-dashboard-page .data-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 0.5rem;
+}
+
+.workflow-dashboard-page .data-table th {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border: none;
+  background: transparent;
+}
+
+.workflow-dashboard-page .data-table td {
+  padding: 0.75rem;
+  font-size: 0.75rem;
+  color: #475569;
+  background: #f8fafc;
+  border-block: 1px solid #f1f5f9;
+}
+
+.workflow-dashboard-page .data-table tbody tr:hover td {
+  background: #fff;
+}
+
+.workflow-dashboard-page .action-cell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.workflow-dashboard-page .workflow-btn-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem 0.75rem;
+  border-radius: 0.625rem;
+  font: inherit;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.25;
+  cursor: pointer;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+.workflow-dashboard-page .workflow-btn-action:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.workflow-dashboard-page .workflow-btn-action-purple {
+  border-color: #e0e7ff;
+  background: #eef2ff;
+  color: #4f46e5;
+  box-shadow: 0 1px 2px rgba(99, 102, 241, 0.12);
+}
+
+.workflow-dashboard-page .workflow-btn-action-purple:hover {
+  background: #e0e7ff;
+  border-color: #c7d2fe;
+  color: #4338ca;
+}
+
+.workflow-dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.workflow-awaiting-summary {
+  background: #fff;
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.workflow-awaiting-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.workflow-awaiting-badge {
+  background: #2563eb;
+  color: #fff;
+  border-radius: 999px;
+  padding: 0.15rem 0.65rem;
+  font-weight: 700;
+}
+
+.workflow-awaiting-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.workflow-chip {
+  border: 1px solid #dbeafe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  cursor: pointer;
+}
+
+.workflow-section-panel {
+  background: #fff;
+  border-radius: 10px;
+  margin-bottom: 0.75rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+}
+
+.workflow-section-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border: none;
+  background: #f8fafc;
+  cursor: pointer;
+  text-align: right;
+  font-size: 1rem;
+}
+
+.workflow-visibility-badge,
+.workflow-action-badge {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  margin-inline-start: auto;
+}
+
+.workflow-visibility-badge {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.workflow-action-badge {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.workflow-section-body {
+  padding: 0.75rem 1rem 1rem;
+}
+
+.row-on-hold {
+  opacity: 0.75;
+  background: #fff7ed;
+}
+
+.reason-banner {
+  display: block;
+  font-size: 0.8rem;
+  color: #9a3412;
+  margin-bottom: 0.35rem;
+}
+

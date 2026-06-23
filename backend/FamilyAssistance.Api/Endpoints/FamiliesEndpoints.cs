@@ -45,20 +45,14 @@ public static class FamiliesEndpoints
 
 
     private static async Task<IResult> ListFamilies(
-
         HttpContext httpContext,
-
         FamilyService service,
-
+        [Microsoft.AspNetCore.Mvc.FromQuery] string? ownership,
         CancellationToken cancellationToken)
-
     {
-
         var auth = httpContext.GetAuthorizationContext()!;
-
         var result = await service.ListFamiliesAsync(
-
-            auth.EffectiveOrganizationId!.Value, auth, cancellationToken);
+            auth.EffectiveOrganizationId!.Value, auth, ownership, cancellationToken);
 
         if (!result.IsSuccess)
 

@@ -88,6 +88,28 @@ public static class SessionAuthorizationExtensions
         });
     }
 
+    public static RouteHandlerBuilder RequireWorkflowPermission(this RouteHandlerBuilder builder, string permissionKey)
+    {
+        return builder.RequireOrgContext().AddEndpointFilter(async (context, next) =>
+        {
+            var httpContext = context.HttpContext;
+            var auth = httpContext.GetAuthorizationContext()
+                ?? await httpContext.RequestServices
+                    .GetRequiredService<PermissionService>()
+                    .BuildAuthorizationContextAsync(httpContext.GetCurrentUser()!, context.HttpContext.RequestAborted);
+
+            if (!PermissionService.HasWorkflowGrant(auth, permissionKey))
+            {
+                return Results.Json(
+                    new ApiError { Error = "אין הרשאה", Code = "FORBIDDEN" },
+                    statusCode: StatusCodes.Status403Forbidden);
+            }
+
+            httpContext.Items[AuthContextKey] = auth;
+            return await next(context);
+        });
+    }
+
     public static RouteHandlerBuilder RequirePermission(this RouteHandlerBuilder builder, string permissionKey)
     {
         return builder.RequireOrgContext().AddEndpointFilter(async (context, next) =>

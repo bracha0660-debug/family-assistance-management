@@ -7,6 +7,8 @@ import type { UserDto } from '../api/auth';
 import { PERMISSION_KEYS } from '../api/permissions';
 import { hasPermission } from '../hooks/usePermissions';
 
+import { WorkflowDashboardPage } from './workflow/WorkflowDashboardPage';
+import { hasWorkflowViewAccess } from './workflow/workflowSections';
 import { CommitteeDecisionsPage } from './CommitteeDecisionsPage';
 import { CoordinatorFamiliesPage } from './CoordinatorFamiliesPage';
 import { FinanceAssistanceTypesPage } from './FinanceAssistanceTypesPage';
@@ -17,6 +19,7 @@ import { OrgPermissionsPage } from './OrgPermissionsPage';
 import { OrgUsersPage } from './OrgUsersPage';
 import { PaymentsQueuePage } from './PaymentsQueuePage';
 import { SuppliersPage } from './SuppliersPage';
+import { AppShell } from '../components/AppShell';
 
 interface OrgAdminDashboardProps {
   user: UserDto;
@@ -24,11 +27,12 @@ interface OrgAdminDashboardProps {
   onUserUpdated?: (user: UserDto) => void;
 }
 
-type TabId = 'users' | 'families' | 'types' | 'suppliers' | 'decisions' | 'payments' | 'activity' | 'permissions';
+type TabId = 'workflow' | 'users' | 'families' | 'types' | 'suppliers' | 'decisions' | 'payments' | 'activity' | 'permissions';
 
 export function OrgAdminDashboard({ user, onLogout, onUserUpdated }: OrgAdminDashboardProps) {
-  const [tab, setTab] = useState<TabId>('users');
   const isSuperAdminInOrg = user.role === 'SuperAdmin' && !!user.actingOrganizationId;
+  const hasWorkflow = hasWorkflowViewAccess(user) || isSuperAdminInOrg;
+  const [tab, setTab] = useState<TabId>(hasWorkflow ? 'workflow' : 'users');
 
   async function handleLogout() {
     try {
@@ -60,6 +64,7 @@ export function OrgAdminDashboard({ user, onLogout, onUserUpdated }: OrgAdminDas
   }
 
   const tabs: { id: TabId; label: string; visible: boolean }[] = [
+    { id: 'workflow', label: 'לוח בקרה', visible: hasWorkflow },
     { id: 'users', label: 'ניהול משתמשים', visible: true },
     { id: 'families', label: 'משפחות', visible: hasPermission(user, PERMISSION_KEYS.familiesView) || isSuperAdminInOrg },
     { id: 'types', label: 'סוגי סיוע', visible: hasPermission(user, PERMISSION_KEYS.assistanceTypesView) || isSuperAdminInOrg },
@@ -70,49 +75,36 @@ export function OrgAdminDashboard({ user, onLogout, onUserUpdated }: OrgAdminDas
     { id: 'permissions', label: 'הרשאות', visible: true },
   ];
   const visibleTabs = tabs.filter((t) => t.visible);
+  const activeLabel = visibleTabs.find((t) => t.id === tab)?.label ?? 'ניהול ארגון';
+  const pageTitle = `${activeLabel}${user.organizationName ? ` — ${user.organizationName}` : ''}`;
+  const homeTabId: TabId | undefined = hasWorkflow ? 'workflow' : visibleTabs[0]?.id;
 
   return (
-    <div className="dashboard org-admin">
-      <header className="dashboard-header">
-        <h1>ניהול ארגון {user.organizationName ? `— ${user.organizationName}` : ''}</h1>
-        <div className="header-actions">
-          <span className="user-greeting">שלום, {user.fullName}</span>
-          {isSuperAdminInOrg && (
-            <button type="button" className="btn-secondary" onClick={handleExitOrg}>
-              יציאה מארגון
-            </button>
-          )}
-          <button type="button" onClick={handleLogout}>התנתק</button>
-        </div>
-      </header>
-
-      <nav className="tab-nav" aria-label="ניווט במערכת">
-        {visibleTabs.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            className={`tab-button ${tab === t.id ? 'tab-active' : ''}`}
-            onClick={() => setTab(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </nav>
-
-      <main className="dashboard-main super-admin-main">
-        {tab === 'users' && <OrgUsersPage />}
-        {tab === 'families' && isSuperAdminInOrg && <CoordinatorFamiliesPage user={user} />}
-        {tab === 'families' && !isSuperAdminInOrg && <OrgAdminFamiliesPage user={user} />}
-        {tab === 'types' && isSuperAdminInOrg && <FinanceAssistanceTypesPage user={user} />}
-        {tab === 'types' && !isSuperAdminInOrg && <OrgAdminAssistanceTypesPage user={user} />}
-        {tab === 'suppliers' && <SuppliersPage user={user} />}
-        {tab === 'decisions' && <CommitteeDecisionsPage user={user} />}
-        {tab === 'payments' && <PaymentsQueuePage user={user} />}
-        {tab === 'activity' && <OrgActivityLogPage />}
-        {tab === 'permissions' && (
-          <OrgPermissionsPage onPermissionsChanged={handlePermissionsChanged} />
-        )}
-      </main>
-    </div>
+    <AppShell
+      brandTitle="ניהול ארגון"
+      brandLogoSrc="/keren-ahavat-chesed-logo.png"
+      homeTabId={homeTabId}
+      pageTitle={pageTitle}
+      user={user}
+      tabs={visibleTabs}
+      activeTab={tab}
+      onTabChange={setTab}
+      onLogout={handleLogout}
+      onExitOrg={isSuperAdminInOrg ? handleExitOrg : undefined}
+    >
+      {tab === 'workflow' && hasWorkflow && <WorkflowDashboardPage user={user} />}
+      {tab === 'users' && <OrgUsersPage />}
+      {tab === 'families' && isSuperAdminInOrg && <CoordinatorFamiliesPage user={user} />}
+      {tab === 'families' && !isSuperAdminInOrg && <OrgAdminFamiliesPage user={user} />}
+      {tab === 'types' && isSuperAdminInOrg && <FinanceAssistanceTypesPage user={user} />}
+      {tab === 'types' && !isSuperAdminInOrg && <OrgAdminAssistanceTypesPage user={user} />}
+      {tab === 'suppliers' && <SuppliersPage user={user} />}
+      {tab === 'decisions' && <CommitteeDecisionsPage user={user} />}
+      {tab === 'payments' && <PaymentsQueuePage user={user} />}
+      {tab === 'activity' && <OrgActivityLogPage />}
+      {tab === 'permissions' && (
+        <OrgPermissionsPage onPermissionsChanged={handlePermissionsChanged} />
+      )}
+    </AppShell>
   );
 }

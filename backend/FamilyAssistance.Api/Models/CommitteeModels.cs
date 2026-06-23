@@ -18,6 +18,28 @@ public sealed class StatusTransitionRequest
     public string Reason { get; set; } = string.Empty;
 }
 
+public sealed class ApproveCommitteeDecisionRequest
+{
+    public string? Reason { get; set; }
+}
+
+public sealed class ResumeCommitteeDecisionRequest
+{
+    public string? Reason { get; set; }
+}
+
+public sealed class CommitteeDecisionListQuery
+{
+    public string? Status { get; set; }
+    public string? WorkflowPhase { get; set; }
+    public string? Ownership { get; set; }
+    public string? Section { get; set; }
+    public string? Q { get; set; }
+    public Guid? FamilyId { get; set; }
+    public int Limit { get; set; } = 50;
+    public int Offset { get; set; }
+}
+
 public sealed class RejectCommitteeDecisionRequest
 {
     public string Reason { get; set; } = string.Empty;
@@ -67,9 +89,21 @@ public sealed class AssistanceItemDto
     public string? VoucherType { get; init; }
     public bool IsUrgent { get; init; }
     public string ExecutionStatus { get; init; } = string.Empty;
+    public PaymentItemSummaryDto? PaymentSummary { get; init; }
     public int Version { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
+}
+
+public sealed class PaymentItemSummaryDto
+{
+    public Guid? PaymentId { get; init; }
+    public string? Status { get; init; }
+    public string? ReturnReason { get; init; }
+    public DateTime? ExecutedAt { get; init; }
+    public DateTime? ProofUploadedAt { get; init; }
+    public DateTime? PaidAt { get; init; }
+    public string? ProofFileName { get; init; }
 }
 
 public sealed class CommitteeDecisionDto
@@ -89,11 +123,16 @@ public sealed class CommitteeDecisionDto
     public string? SuspendReason { get; init; }
     public string? ReturnReason { get; init; }
     public string? CancelReason { get; init; }
+    public string? ApprovalNotes { get; init; }
     public DateTime? SubmittedAt { get; init; }
     public DateTime? ApprovedAt { get; init; }
     public DateTime? RejectedAt { get; init; }
     public DateTime? SuspendedAt { get; init; }
+    public DateTime? ResumedAt { get; init; }
     public DateTime? CancelledAt { get; init; }
+    public string WorkflowPhase { get; init; } = string.Empty;
+    public bool IsOwnedByCurrentUser { get; init; }
+    public IReadOnlyList<string> AvailableActions { get; init; } = [];
     public int Version { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }

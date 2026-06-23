@@ -15,6 +15,15 @@ public sealed class ReturnPaymentRequest
     public string Reason { get; set; } = string.Empty;
 }
 
+public sealed class PaymentListQuery
+{
+    public string? Status { get; set; }
+    public string? Section { get; set; }
+    public bool UrgentOnly { get; set; }
+    public int Limit { get; set; } = 50;
+    public int Offset { get; set; }
+}
+
 public sealed class PaymentQueueItemDto
 {
     public Guid Id { get; init; }
@@ -32,8 +41,13 @@ public sealed class PaymentQueueItemDto
     public string? SupplierName { get; init; }
     public string? PayeeName { get; init; }
     public string Status { get; init; } = string.Empty;
+    public string DecisionStatus { get; init; } = string.Empty;
+    public string? SuspendReason { get; init; }
+    public bool IsUrgent { get; init; }
+    public bool IsOnHold { get; init; }
     public string? ExecutionReference { get; init; }
     public string? ProofFileName { get; init; }
+    public IReadOnlyList<string> AvailableActions { get; init; } = [];
     public int Version { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
@@ -45,6 +59,7 @@ public sealed class PaymentQueueSummaryDto
     public int AwaitingPayment { get; init; }
     public int Executing { get; init; }
     public int ProofUploaded { get; init; }
+    public int OnHold { get; init; }
 }
 
 public sealed class PaymentQueueListResponse

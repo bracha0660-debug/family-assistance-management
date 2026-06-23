@@ -26,6 +26,15 @@ export function getGrantScope(user: UserDto | null | undefined, key: string): st
   return user.grants.find((g) => g.permissionKey === key)?.scope ?? null;
 }
 
+export function hasWorkflowPermission(user: UserDto | null | undefined, key: string): boolean {
+  if (!user) return false;
+  if (user.role === 'SuperAdmin' && user.actingOrganizationId) return true;
+  if (user.role === 'OrganizationAdministrator') return false;
+  return user.grants?.some((g) => g.permissionKey === key)
+    ?? user.permissions?.includes(key)
+    ?? false;
+}
+
 export function usePermissions(user: UserDto | null | undefined) {
   return {
     has: (key: string) => hasPermission(user, key),

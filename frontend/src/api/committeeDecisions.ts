@@ -21,6 +21,15 @@ export interface AssistanceItemDto {
   voucherType: string | null;
   isUrgent: boolean;
   executionStatus: string;
+  paymentSummary?: {
+    paymentId: string | null;
+    status: string | null;
+    returnReason: string | null;
+    executedAt: string | null;
+    proofUploadedAt: string | null;
+    paidAt: string | null;
+    proofFileName: string | null;
+  } | null;
   version: number;
   createdAt: string;
   updatedAt: string;
@@ -42,11 +51,16 @@ export interface CommitteeDecisionDto {
   suspendReason: string | null;
   returnReason: string | null;
   cancelReason: string | null;
+  approvalNotes: string | null;
   submittedAt: string | null;
   approvedAt: string | null;
   rejectedAt: string | null;
   suspendedAt: string | null;
+  resumedAt: string | null;
   cancelledAt: string | null;
+  workflowPhase: string;
+  isOwnedByCurrentUser: boolean;
+  availableActions: string[];
   version: number;
   createdAt: string;
   updatedAt: string;
@@ -158,7 +172,7 @@ export async function submitCommitteeDecision(
 export async function approveCommitteeDecision(
   id: string,
   version: number,
-  reason: string,
+  reason?: string | null,
 ): Promise<CommitteeDecisionDto> {
   const data = await apiJson<{ decision: CommitteeDecisionDto }>(
     `/api/v1/org/committee-decisions/${id}/approve`,
@@ -168,7 +182,7 @@ export async function approveCommitteeDecision(
         'Content-Type': 'application/json',
         'If-Match': String(version),
       },
-      body: JSON.stringify({ reason }),
+      body: JSON.stringify({ reason: reason ?? null }),
     },
   );
   return data.decision;
@@ -208,6 +222,44 @@ export async function cancelCommitteeDecision(
         'If-Match': String(version),
       },
       body: JSON.stringify({ reason }),
+    },
+  );
+  return data.decision;
+}
+
+export async function suspendCommitteeDecision(
+  id: string,
+  version: number,
+  reason: string,
+): Promise<CommitteeDecisionDto> {
+  const data = await apiJson<{ decision: CommitteeDecisionDto }>(
+    `/api/v1/org/committee-decisions/${id}/suspend`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'If-Match': String(version),
+      },
+      body: JSON.stringify({ reason }),
+    },
+  );
+  return data.decision;
+}
+
+export async function resumeCommitteeDecision(
+  id: string,
+  version: number,
+  reason?: string | null,
+): Promise<CommitteeDecisionDto> {
+  const data = await apiJson<{ decision: CommitteeDecisionDto }>(
+    `/api/v1/org/committee-decisions/${id}/resume`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'If-Match': String(version),
+      },
+      body: JSON.stringify({ reason: reason ?? null }),
     },
   );
   return data.decision;

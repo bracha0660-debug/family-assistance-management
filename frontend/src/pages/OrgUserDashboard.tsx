@@ -4,6 +4,8 @@ import type { UserDto } from '../api/auth';
 import { exitOrganization } from '../api/admin';
 import { PERMISSION_KEYS } from '../api/permissions';
 import { canWriteFamilies, hasPermission } from '../hooks/usePermissions';
+import { WorkflowDashboardPage } from './workflow/WorkflowDashboardPage';
+import { hasWorkflowViewAccess } from './workflow/workflowSections';
 import { CommitteeDecisionsPage } from './CommitteeDecisionsPage';
 import { CoordinatorFamiliesPage } from './CoordinatorFamiliesPage';
 import { FinanceAssistanceTypesPage } from './FinanceAssistanceTypesPage';
@@ -11,6 +13,7 @@ import { ManagerAssistanceTypesPage } from './ManagerAssistanceTypesPage';
 import { ManagerFamiliesPage } from './ManagerFamiliesPage';
 import { PaymentsQueuePage } from './PaymentsQueuePage';
 import { SuppliersPage } from './SuppliersPage';
+import { AppShell } from '../components/AppShell';
 
 interface OrgUserDashboardProps {
   user: UserDto;
@@ -18,10 +21,12 @@ interface OrgUserDashboardProps {
   onUserUpdated?: (user: UserDto) => void;
 }
 
-type TabId = 'families' | 'types' | 'suppliers' | 'decisions' | 'payments';
+type TabId = 'workflow' | 'families' | 'types' | 'suppliers' | 'decisions' | 'payments';
 
 export function OrgUserDashboard({ user, onLogout, onUserUpdated }: OrgUserDashboardProps) {
+  const hasWorkflow = hasWorkflowViewAccess(user);
   const tabs: { id: TabId; label: string; visible: boolean }[] = [
+    { id: 'workflow', label: 'לוח בקרה', visible: hasWorkflow },
     { id: 'families', label: 'משפחות', visible: hasPermission(user, PERMISSION_KEYS.familiesView) },
     { id: 'types', label: 'סוגי סיוע', visible: hasPermission(user, PERMISSION_KEYS.assistanceTypesView) },
     { id: 'suppliers', label: 'ספקים', visible: hasPermission(user, PERMISSION_KEYS.suppliersView) },
@@ -29,8 +34,9 @@ export function OrgUserDashboard({ user, onLogout, onUserUpdated }: OrgUserDashb
     { id: 'payments', label: 'תשלומים', visible: hasPermission(user, PERMISSION_KEYS.paymentsView) },
   ];
   const visibleTabs = tabs.filter((t) => t.visible);
-  const [tab, setTab] = useState<TabId>(visibleTabs[0]?.id ?? 'families');
-  const activeTab = visibleTabs.some((t) => t.id === tab) ? tab : (visibleTabs[0]?.id ?? 'families');
+  const defaultTab: TabId = hasWorkflow ? 'workflow' : (visibleTabs[0]?.id ?? 'families');
+  const [tab, setTab] = useState<TabId>(defaultTab);
+  const activeTab = visibleTabs.some((t) => t.id === tab) ? tab : defaultTab;
 
   useEffect(() => {
     if (!onUserUpdated) return;
@@ -66,63 +72,51 @@ export function OrgUserDashboard({ user, onLogout, onUserUpdated }: OrgUserDashb
   const showWritableFamilies = isSuperAdminInOrg || canWriteFamilies(user);
   const showReadOnlyFamilies = !showWritableFamilies && hasPermission(user, PERMISSION_KEYS.familiesView);
 
+  const activeLabel = visibleTabs.find((t) => t.id === activeTab)?.label ?? 'מערכת סיוע';
+  const pageTitle = `${activeLabel}${user.organizationName ? ` — ${user.organizationName}` : ''}`;
+  const homeTabId: TabId | undefined = hasWorkflow ? 'workflow' : visibleTabs[0]?.id;
+
   return (
-    <div className="dashboard org-admin">
-      <header className="dashboard-header">
-        <h1>מערכת סיוע {user.organizationName ? `— ${user.organizationName}` : ''}</h1>
-        <div className="header-actions">
-          <span className="user-greeting">שלום, {user.fullName}</span>
-          {user.role === 'SuperAdmin' && user.actingOrganizationId && (
-            <button type="button" className="btn-secondary" onClick={handleExitOrg}>
-              יציאה מארגון
-            </button>
-          )}
-          <button type="button" onClick={handleLogout}>התנתק</button>
-        </div>
-      </header>
-
-      {visibleTabs.length > 1 && (
-        <nav className="tab-nav" aria-label="ניווט במערכת">
-          {visibleTabs.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              className={`tab-button ${activeTab === t.id ? 'tab-active' : ''}`}
-              onClick={() => setTab(t.id)}
-            >
-              {t.label}
-            </button>
-          ))}
-        </nav>
+    <AppShell
+      brandTitle="מערכת סיוע"
+      brandLogoSrc="/keren-ahavat-chesed-logo.png"
+      homeTabId={homeTabId}
+      pageTitle={pageTitle}
+      user={user}
+      tabs={visibleTabs}
+      activeTab={activeTab}
+      onTabChange={setTab}
+      onLogout={handleLogout}
+      onExitOrg={user.role === 'SuperAdmin' && user.actingOrganizationId ? handleExitOrg : undefined}
+    >
+      {visibleTabs.length === 0 && (
+        <p className="empty-row">אין הרשאות מוגדרות. פנה/י למנהל/ת הארגון.</p>
       )}
-
-      <main className="dashboard-main super-admin-main">
-        {visibleTabs.length === 0 && (
-          <p className="empty-row">אין הרשאות מוגדרות. פנה/י למנהל/ת הארגון.</p>
-        )}
-        {activeTab === 'families' && showWritableFamilies && (
-          <CoordinatorFamiliesPage user={user} />
-        )}
-        {activeTab === 'families' && showReadOnlyFamilies && (
-          <ManagerFamiliesPage user={user} />
-        )}
-        {activeTab === 'types' && hasPermission(user, PERMISSION_KEYS.assistanceTypesCreate) && (
-          <FinanceAssistanceTypesPage user={user} />
-        )}
-        {activeTab === 'types' && hasPermission(user, PERMISSION_KEYS.assistanceTypesView)
-          && !hasPermission(user, PERMISSION_KEYS.assistanceTypesCreate) && (
-          <ManagerAssistanceTypesPage user={user} />
-        )}
-        {activeTab === 'suppliers' && hasPermission(user, PERMISSION_KEYS.suppliersView) && (
-          <SuppliersPage user={user} />
-        )}
-        {activeTab === 'decisions' && hasPermission(user, PERMISSION_KEYS.committeeDecisionsView) && (
-          <CommitteeDecisionsPage user={user} />
-        )}
-        {activeTab === 'payments' && hasPermission(user, PERMISSION_KEYS.paymentsView) && (
-          <PaymentsQueuePage user={user} />
-        )}
-      </main>
-    </div>
+      {activeTab === 'workflow' && hasWorkflow && (
+        <WorkflowDashboardPage user={user} />
+      )}
+      {activeTab === 'families' && showWritableFamilies && (
+        <CoordinatorFamiliesPage user={user} />
+      )}
+      {activeTab === 'families' && showReadOnlyFamilies && (
+        <ManagerFamiliesPage user={user} />
+      )}
+      {activeTab === 'types' && hasPermission(user, PERMISSION_KEYS.assistanceTypesCreate) && (
+        <FinanceAssistanceTypesPage user={user} />
+      )}
+      {activeTab === 'types' && hasPermission(user, PERMISSION_KEYS.assistanceTypesView)
+        && !hasPermission(user, PERMISSION_KEYS.assistanceTypesCreate) && (
+        <ManagerAssistanceTypesPage user={user} />
+      )}
+      {activeTab === 'suppliers' && hasPermission(user, PERMISSION_KEYS.suppliersView) && (
+        <SuppliersPage user={user} />
+      )}
+      {activeTab === 'decisions' && hasPermission(user, PERMISSION_KEYS.committeeDecisionsView) && (
+        <CommitteeDecisionsPage user={user} />
+      )}
+      {activeTab === 'payments' && hasPermission(user, PERMISSION_KEYS.paymentsView) && (
+        <PaymentsQueuePage user={user} />
+      )}
+    </AppShell>
   );
 }

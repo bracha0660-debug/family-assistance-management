@@ -35,12 +35,16 @@ public sealed class FamilyService(
     public async Task<ServiceResult<FamilyListResponse>> ListFamiliesAsync(
         Guid organizationId,
         AuthorizationContext auth,
+        string? ownership = null,
         CancellationToken cancellationToken = default)
     {
         var query = ScopeEvaluator.ApplyFamilyListScope(
             db.Families.Where(f => f.OrganizationId == organizationId),
             auth,
             PermissionKeys.FamiliesView);
+
+        if (ownership == "mine")
+            query = WorkflowHelpers.ApplyOwnershipMine(query, auth.UserId);
 
         var familyRows = await query
             .OrderBy(f => f.FamilyCode)

@@ -7,6 +7,7 @@ public class PaymentExecution
     public Guid CommitteeDecisionId { get; set; }
     public Guid AssistanceItemId { get; set; }
     public string Status { get; set; } = "awaiting_payment";
+    public string? PreHoldStatus { get; set; }
     public string? ExecutionReference { get; set; }
     public string? ProofFileName { get; set; }
     public string? ProofStoredFileName { get; set; }

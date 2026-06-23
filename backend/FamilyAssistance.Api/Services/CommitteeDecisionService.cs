@@ -20,9 +20,12 @@ public sealed class CommitteeDecisionService(
     public async Task<ServiceResult<CommitteeDecisionListResponse>> ListAsync(
         Guid organizationId,
         AuthorizationContext auth,
+        CommitteeDecisionListQuery? query = null,
         CancellationToken cancellationToken = default)
     {
-        var query = ScopeEvaluator.ApplyCommitteeListScope(
+        query ??= new CommitteeDecisionListQuery();
+
+        var baseQuery = ScopeEvaluator.ApplyCommitteeListScope(
             db.CommitteeDecisions
                 .Include(d => d.Family)
                 .Include(d => d.CreatedByUser)
@@ -34,11 +37,25 @@ public sealed class CommitteeDecisionService(
             auth,
             PermissionKeys.CommitteeDecisionsView);
 
-        var decisions = await query
+        baseQuery = ApplyDecisionListFilters(baseQuery, query, auth);
+
+        var decisions = await baseQuery
             .OrderByDescending(d => d.CreatedAt)
+            .Skip(Math.Max(0, query.Offset))
+            .Take(Math.Clamp(query.Limit, 1, 200))
             .ToListAsync(cancellationToken);
 
-        var dtos = decisions.Select(MapDecision).ToList();
+        if (!string.IsNullOrWhiteSpace(query.WorkflowPhase))
+        {
+            decisions = decisions
+                .Where(d => WorkflowHelpers.ComputeWorkflowPhase(d) == query.WorkflowPhase)
+                .ToList();
+        }
+
+        var decisionIds = decisions.Select(d => d.Id).ToList();
+        var paymentsByItem = await LoadPaymentsByItemIdAsync(decisionIds, cancellationToken);
+
+        var dtos = decisions.Select(d => MapDecision(d, auth, paymentsByItem)).ToList();
         return ServiceResult<CommitteeDecisionListResponse>.Ok(new CommitteeDecisionListResponse
         {
             Summary = new CommitteeDecisionSummaryDto
@@ -66,7 +83,8 @@ public sealed class CommitteeDecisionService(
         if (!ScopeEvaluator.CanAccessCommitteeDecision(auth, decision.Family!, PermissionKeys.CommitteeDecisionsView))
             return ServiceResult<CommitteeDecisionDto>.Fail(403, "FORBIDDEN", "אין הרשאה");
 
-        return ServiceResult<CommitteeDecisionDto>.Ok(MapDecision(decision));
+        var paymentsByItem = await LoadPaymentsByItemIdAsync([decision.Id], cancellationToken);
+        return ServiceResult<CommitteeDecisionDto>.Ok(MapDecision(decision, auth, paymentsByItem));
     }
 
     public async Task<ServiceResult<CommitteeDecisionDto>> CreateAsync(
@@ -130,7 +148,7 @@ public sealed class CommitteeDecisionService(
 
             decision.Family = family;
             decision.CreatedByUser = await db.Users.FindAsync([auth.UserId], cancellationToken);
-            return ServiceResult<CommitteeDecisionDto>.Ok(MapDecision(decision));
+            return ServiceResult<CommitteeDecisionDto>.Ok(MapDecision(decision, auth));
         }
         catch
         {
@@ -219,7 +237,7 @@ public sealed class CommitteeDecisionService(
             return ServiceResult<CommitteeDecisionDto>.Fail(500, "INTERNAL_ERROR", "שגיאת מערכת");
         }
 
-        return ServiceResult<CommitteeDecisionDto>.Ok(MapDecision(decision));
+        return ServiceResult<CommitteeDecisionDto>.Ok(MapDecision(decision, auth));
     }
 
     public async Task<ServiceResult<CommitteeDecisionDto>> SubmitAsync(
@@ -254,6 +272,7 @@ public sealed class CommitteeDecisionService(
     public async Task<ServiceResult<CommitteeDecisionDto>> ApproveAsync(
         Guid organizationId,
         Guid id,
+        ApproveCommitteeDecisionRequest? request,
         int? expectedVersion,
         AuthorizationContext auth,
         CancellationToken cancellationToken = default)
@@ -267,12 +286,15 @@ public sealed class CommitteeDecisionService(
 
         var decision = decisionResult.Value!;
         var now = DateTime.UtcNow;
+        var notes = NormalizeOptional(request?.Reason);
 
         await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
         try
         {
             decision.Status = CommitteeDecisionStatuses.Approved;
             decision.ApprovedAt = now;
+            if (notes is not null)
+                decision.ApprovalNotes = notes;
             decision.Version++;
             decision.UpdatedAt = now;
 
@@ -305,8 +327,24 @@ public sealed class CommitteeDecisionService(
                 Action = "approve",
                 FieldName = "status",
                 OldValue = CommitteeDecisionStatuses.Submitted,
-                NewValue = CommitteeDecisionStatuses.Approved
+                NewValue = CommitteeDecisionStatuses.Approved,
+                Reason = notes
             });
+
+            if (notes is not null)
+            {
+                auditService.Stage(new AuditEntry
+                {
+                    EventCode = BusinessEventCodes.CommitteeDecisionStatusChange,
+                    OrganizationId = organizationId,
+                    ActorUserId = auth.UserId,
+                    EntityType = "committee_decision",
+                    EntityId = decision.Id,
+                    Action = "approve",
+                    FieldName = "approval_notes",
+                    NewValue = notes
+                });
+            }
 
             await db.SaveChangesAsync(cancellationToken);
             await tx.CommitAsync(cancellationToken);
@@ -322,7 +360,7 @@ public sealed class CommitteeDecisionService(
             return ServiceResult<CommitteeDecisionDto>.Fail(500, "INTERNAL_ERROR", "שגיאת מערכת");
         }
 
-        return ServiceResult<CommitteeDecisionDto>.Ok(MapDecision(decision));
+        return ServiceResult<CommitteeDecisionDto>.Ok(MapDecision(decision, auth));
     }
 
     public async Task<ServiceResult<CommitteeDecisionDto>> RejectAsync(
@@ -378,16 +416,186 @@ public sealed class CommitteeDecisionService(
 
         var decisionResult = await LoadDecisionForTransitionAsync(organizationId, id, expectedVersion, auth,
             PermissionKeys.CommitteeDecisionsApprove,
-            [CommitteeDecisionStatuses.Approved, CommitteeDecisionStatuses.PartiallyPaid],
+            [
+                CommitteeDecisionStatuses.Submitted,
+                CommitteeDecisionStatuses.Approved,
+                CommitteeDecisionStatuses.PartiallyPaid
+            ],
             cancellationToken);
         if (!decisionResult.IsSuccess)
             return ServiceResult<CommitteeDecisionDto>.Fail(decisionResult.StatusCode, decisionResult.Code, decisionResult.Error);
 
         var decision = decisionResult.Value!;
-        decision.SuspendReason = reason;
-        decision.SuspendedAt = DateTime.UtcNow;
+        var oldStatus = decision.Status;
+        var now = DateTime.UtcNow;
 
-        return await TransitionStatusAsync(decision, CommitteeDecisionStatuses.Suspended, auth, _ => { }, reason, cancellationToken);
+        decision.PreSuspendStatus = oldStatus;
+        decision.SuspendReason = reason;
+        decision.SuspendedAt = now;
+        decision.Status = CommitteeDecisionStatuses.Suspended;
+        decision.Version++;
+        decision.UpdatedAt = now;
+
+        var payments = await db.PaymentExecutions
+            .Where(p => p.CommitteeDecisionId == decision.Id)
+            .ToListAsync(cancellationToken);
+
+        foreach (var payment in payments.Where(p => PaymentExecutionStatuses.ActiveQueue.Contains(p.Status)))
+        {
+            payment.PreHoldStatus = payment.Status;
+            payment.Status = PaymentExecutionStatuses.OnHold;
+            payment.Version++;
+            payment.UpdatedAt = now;
+
+            var item = decision.Items.FirstOrDefault(i => i.Id == payment.AssistanceItemId);
+            if (item is not null)
+            {
+                item.ExecutionStatus = PaymentExecutionStatuses.OnHold;
+                item.UpdatedAt = now;
+            }
+        }
+
+        await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            auditService.Stage(new AuditEntry
+            {
+                EventCode = BusinessEventCodes.CommitteeDecisionStatusChange,
+                OrganizationId = organizationId,
+                ActorUserId = auth.UserId,
+                EntityType = "committee_decision",
+                EntityId = decision.Id,
+                Action = "suspend",
+                FieldName = "status",
+                OldValue = oldStatus,
+                NewValue = CommitteeDecisionStatuses.Suspended,
+                Reason = reason
+            });
+
+            await db.SaveChangesAsync(cancellationToken);
+            await tx.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return ServiceResult<CommitteeDecisionDto>.Fail(500, "INTERNAL_ERROR", "שגיאת מערכת");
+        }
+
+        return ServiceResult<CommitteeDecisionDto>.Ok(MapDecision(decision, auth));
+    }
+
+    public async Task<ServiceResult<CommitteeDecisionDto>> ResumeAsync(
+        Guid organizationId,
+        Guid id,
+        ResumeCommitteeDecisionRequest? request,
+        int? expectedVersion,
+        AuthorizationContext auth,
+        CancellationToken cancellationToken = default)
+    {
+        var decisionResult = await LoadDecisionForTransitionAsync(organizationId, id, expectedVersion, auth,
+            PermissionKeys.CommitteeDecisionsApprove,
+            [CommitteeDecisionStatuses.Suspended],
+            cancellationToken);
+        if (!decisionResult.IsSuccess)
+            return ServiceResult<CommitteeDecisionDto>.Fail(decisionResult.StatusCode, decisionResult.Code, decisionResult.Error);
+
+        var decision = decisionResult.Value!;
+        var now = DateTime.UtcNow;
+        var notes = NormalizeOptional(request?.Reason);
+        var wasSubmitted = decision.PreSuspendStatus == CommitteeDecisionStatuses.Submitted
+            || (decision.ApprovedAt is null && !decision.Items.Any(i => i.ExecutionStatus == PaymentExecutionStatuses.Paid));
+
+        await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            if (wasSubmitted)
+            {
+                decision.Status = CommitteeDecisionStatuses.Approved;
+                decision.ApprovedAt ??= now;
+                foreach (var item in decision.Items)
+                {
+                    item.ExecutionStatus = PaymentExecutionStatuses.AwaitingPayment;
+                    item.UpdatedAt = now;
+
+                    var existingPayment = await db.PaymentExecutions
+                        .FirstOrDefaultAsync(p => p.AssistanceItemId == item.Id, cancellationToken);
+                    if (existingPayment is null)
+                    {
+                        db.PaymentExecutions.Add(new PaymentExecution
+                        {
+                            Id = Guid.NewGuid(),
+                            OrganizationId = organizationId,
+                            CommitteeDecisionId = decision.Id,
+                            AssistanceItemId = item.Id,
+                            Status = PaymentExecutionStatuses.AwaitingPayment,
+                            Version = 1,
+                            CreatedAt = now,
+                            UpdatedAt = now
+                        });
+                    }
+                }
+            }
+            else
+            {
+                var payments = await db.PaymentExecutions
+                    .Where(p => p.CommitteeDecisionId == decision.Id)
+                    .ToListAsync(cancellationToken);
+
+                foreach (var payment in payments.Where(p => p.Status == PaymentExecutionStatuses.OnHold))
+                {
+                    var restored = payment.PreHoldStatus ?? PaymentExecutionStatuses.AwaitingPayment;
+                    payment.Status = restored;
+                    payment.PreHoldStatus = null;
+                    payment.Version++;
+                    payment.UpdatedAt = now;
+
+                    var item = decision.Items.FirstOrDefault(i => i.Id == payment.AssistanceItemId);
+                    if (item is not null)
+                    {
+                        item.ExecutionStatus = restored;
+                        item.UpdatedAt = now;
+                    }
+                }
+
+                var itemStatuses = decision.Items.Select(i => i.ExecutionStatus).ToList();
+                if (itemStatuses.All(s => s == PaymentExecutionStatuses.Paid))
+                    decision.Status = CommitteeDecisionStatuses.FullyPaid;
+                else if (itemStatuses.Any(s => s == PaymentExecutionStatuses.Paid))
+                    decision.Status = CommitteeDecisionStatuses.PartiallyPaid;
+                else
+                    decision.Status = CommitteeDecisionStatuses.Approved;
+            }
+
+            if (notes is not null)
+                decision.ApprovalNotes = notes;
+            decision.ResumedAt = now;
+            decision.Version++;
+            decision.UpdatedAt = now;
+
+            auditService.Stage(new AuditEntry
+            {
+                EventCode = BusinessEventCodes.CommitteeDecisionStatusChange,
+                OrganizationId = organizationId,
+                ActorUserId = auth.UserId,
+                EntityType = "committee_decision",
+                EntityId = decision.Id,
+                Action = "resume",
+                FieldName = "status",
+                OldValue = CommitteeDecisionStatuses.Suspended,
+                NewValue = decision.Status,
+                Reason = notes
+            });
+
+            await db.SaveChangesAsync(cancellationToken);
+            await tx.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return ServiceResult<CommitteeDecisionDto>.Fail(500, "INTERNAL_ERROR", "שגיאת מערכת");
+        }
+
+        return ServiceResult<CommitteeDecisionDto>.Ok(MapDecision(decision, auth));
     }
 
     public async Task<ServiceResult<CommitteeDecisionDto>> CancelAsync(
@@ -702,7 +910,7 @@ public sealed class CommitteeDecisionService(
             return ServiceResult<CommitteeDecisionDto>.Fail(500, "INTERNAL_ERROR", "שגיאת מערכת");
         }
 
-        return ServiceResult<CommitteeDecisionDto>.Ok(MapDecision(decision));
+        return ServiceResult<CommitteeDecisionDto>.Ok(MapDecision(decision, auth));
     }
 
     private async Task<ServiceResult<CommitteeDecision>> LoadDecisionForTransitionAsync(
@@ -786,7 +994,7 @@ public sealed class CommitteeDecisionService(
             return ServiceResult<CommitteeDecisionDto>.Fail(500, "INTERNAL_ERROR", "שגיאת מערכת");
         }
 
-        return ServiceResult<CommitteeDecisionDto>.Ok(MapDecision(decision));
+        return ServiceResult<CommitteeDecisionDto>.Ok(MapDecision(decision, auth));
     }
 
     private async Task<CommitteeDecision?> LoadDecisionAsync(
@@ -914,52 +1122,160 @@ public sealed class CommitteeDecisionService(
         return trimmed.Length == 0 ? null : trimmed;
     }
 
-    private static CommitteeDecisionDto MapDecision(CommitteeDecision d) => new()
+    private static IQueryable<CommitteeDecision> ApplyDecisionListFilters(
+        IQueryable<CommitteeDecision> query,
+        CommitteeDecisionListQuery listQuery,
+        AuthorizationContext auth)
     {
-        Id = d.Id,
-        DecisionCode = d.DecisionCode,
-        FamilyId = d.FamilyId,
-        FamilyCode = d.Family?.FamilyCode ?? string.Empty,
-        FamilyLastName = d.Family?.FamilyLastName ?? string.Empty,
-        MeetingDate = d.MeetingDate,
-        Summary = d.Summary,
-        Status = d.Status,
-        CreatedByUserId = d.CreatedByUserId,
-        CreatedByUserName = d.CreatedByUser?.FullName ?? string.Empty,
-        TotalAmount = d.TotalAmount,
-        RejectionReason = d.RejectionReason,
-        SuspendReason = d.SuspendReason,
-        ReturnReason = d.ReturnReason,
-        CancelReason = d.CancelReason,
-        SubmittedAt = d.SubmittedAt,
-        ApprovedAt = d.ApprovedAt,
-        RejectedAt = d.RejectedAt,
-        SuspendedAt = d.SuspendedAt,
-        CancelledAt = d.CancelledAt,
-        Version = d.Version,
-        CreatedAt = d.CreatedAt,
-        UpdatedAt = d.UpdatedAt,
-        Items = d.Items.OrderBy(i => i.LineNumber).Select(MapItem).ToList()
-    };
+        if (listQuery.FamilyId is not null)
+            query = query.Where(d => d.FamilyId == listQuery.FamilyId);
 
-    private static AssistanceItemDto MapItem(AssistanceItem i) => new()
+        if (!string.IsNullOrWhiteSpace(listQuery.Status))
+            query = query.Where(d => d.Status == listQuery.Status);
+
+        if (listQuery.Ownership == "mine")
+            query = WorkflowHelpers.ApplyOwnershipMine(query, auth.UserId);
+
+        if (!string.IsNullOrWhiteSpace(listQuery.Section))
+        {
+            if (WorkflowSectionRegistry.IsDecisionSectionOrgScoped(listQuery.Section))
+            {
+                var grant = auth.GetGrant(PermissionKeys.CommitteeDecisionsView);
+                if (!auth.FullOrgAccess && grant?.Scope != PermissionScopes.Organization)
+                    query = query.Where(_ => false);
+            }
+            else if (listQuery.Section.StartsWith("my_", StringComparison.Ordinal))
+            {
+                query = WorkflowHelpers.ApplyOwnershipMine(query, auth.UserId);
+            }
+
+            query = listQuery.Section switch
+            {
+                "my_drafts" => query.Where(d => d.Status == CommitteeDecisionStatuses.Draft),
+                "my_returned_for_revision" => query.Where(d => d.Status == CommitteeDecisionStatuses.ReturnedForRevision),
+                "my_waiting_manager_approval" => query.Where(d => d.Status == CommitteeDecisionStatuses.Submitted),
+                "my_suspended" => query.Where(d => d.Status == CommitteeDecisionStatuses.Suspended),
+                "my_in_finance_execution" => query.Where(d =>
+                    d.Status == CommitteeDecisionStatuses.Approved || d.Status == CommitteeDecisionStatuses.PartiallyPaid),
+                "my_paid_completed" => query.Where(d => d.Status == CommitteeDecisionStatuses.FullyPaid),
+                "my_rejected" => query.Where(d =>
+                    d.Status == CommitteeDecisionStatuses.Rejected || d.Status == CommitteeDecisionStatuses.Cancelled),
+                "waiting_my_approval" => query.Where(d => d.Status == CommitteeDecisionStatuses.Submitted),
+                "approved" => query.Where(d =>
+                    d.Status == CommitteeDecisionStatuses.Approved || d.Status == CommitteeDecisionStatuses.PartiallyPaid),
+                "manager_rejected" => query.Where(d => d.Status == CommitteeDecisionStatuses.Rejected),
+                "manager_returned" => query.Where(d => d.Status == CommitteeDecisionStatuses.ReturnedForRevision),
+                "manager_suspended" => query.Where(d => d.Status == CommitteeDecisionStatuses.Suspended),
+                _ => query
+            };
+        }
+
+        if (!string.IsNullOrWhiteSpace(listQuery.Q))
+        {
+            var term = listQuery.Q.Trim().ToLowerInvariant();
+            query = query.Where(d =>
+                d.DecisionCode.ToLower().Contains(term)
+                || d.Family!.FamilyCode.ToLower().Contains(term)
+                || d.Family.FamilyLastName.ToLower().Contains(term));
+        }
+
+        return query;
+    }
+
+    private async Task<Dictionary<Guid, PaymentExecution>> LoadPaymentsByItemIdAsync(
+        IReadOnlyList<Guid> decisionIds,
+        CancellationToken cancellationToken)
     {
-        Id = i.Id,
-        LineNumber = i.LineNumber,
-        AssistanceTypeId = i.AssistanceTypeId,
-        AssistanceTypeName = i.AssistanceType?.Name ?? string.Empty,
-        Description = i.Description,
-        Amount = i.Amount,
-        PaymentTarget = i.PaymentTarget,
-        PaymentMethod = i.PaymentMethod,
-        SupplierId = i.SupplierId,
-        SupplierName = i.Supplier?.Name,
-        PayeeName = i.PayeeName,
-        VoucherType = i.VoucherType,
-        IsUrgent = i.IsUrgent,
-        ExecutionStatus = i.ExecutionStatus,
-        Version = i.Version,
-        CreatedAt = i.CreatedAt,
-        UpdatedAt = i.UpdatedAt
-    };
+        if (decisionIds.Count == 0)
+            return new Dictionary<Guid, PaymentExecution>();
+
+        return await db.PaymentExecutions
+            .Where(p => decisionIds.Contains(p.CommitteeDecisionId))
+            .ToDictionaryAsync(p => p.AssistanceItemId, cancellationToken);
+    }
+
+    public CommitteeDecisionDto MapDecisionForDashboard(CommitteeDecision decision, AuthorizationContext auth) =>
+        MapDecision(decision, auth);
+
+    private CommitteeDecisionDto MapDecision(
+        CommitteeDecision d,
+        AuthorizationContext auth,
+        IReadOnlyDictionary<Guid, PaymentExecution>? paymentsByItem = null)
+    {
+        var payments = paymentsByItem?.Values.ToList();
+        return new CommitteeDecisionDto
+        {
+            Id = d.Id,
+            DecisionCode = d.DecisionCode,
+            FamilyId = d.FamilyId,
+            FamilyCode = d.Family?.FamilyCode ?? string.Empty,
+            FamilyLastName = d.Family?.FamilyLastName ?? string.Empty,
+            MeetingDate = d.MeetingDate,
+            Summary = d.Summary,
+            Status = d.Status,
+            CreatedByUserId = d.CreatedByUserId,
+            CreatedByUserName = d.CreatedByUser?.FullName ?? string.Empty,
+            TotalAmount = d.TotalAmount,
+            RejectionReason = d.RejectionReason,
+            SuspendReason = d.SuspendReason,
+            ReturnReason = d.ReturnReason,
+            CancelReason = d.CancelReason,
+            ApprovalNotes = d.ApprovalNotes,
+            SubmittedAt = d.SubmittedAt,
+            ApprovedAt = d.ApprovedAt,
+            RejectedAt = d.RejectedAt,
+            SuspendedAt = d.SuspendedAt,
+            ResumedAt = d.ResumedAt,
+            CancelledAt = d.CancelledAt,
+            WorkflowPhase = WorkflowHelpers.ComputeWorkflowPhase(d, payments),
+            IsOwnedByCurrentUser = d.Family is not null && WorkflowHelpers.IsDecisionOwnedByUser(d, auth.UserId),
+            AvailableActions = WorkflowHelpers.AvailableDecisionActions(d, auth),
+            Version = d.Version,
+            CreatedAt = d.CreatedAt,
+            UpdatedAt = d.UpdatedAt,
+            Items = d.Items.OrderBy(i => i.LineNumber).Select(i => MapItem(i, paymentsByItem)).ToList()
+        };
+    }
+
+    private static AssistanceItemDto MapItem(
+        AssistanceItem i,
+        IReadOnlyDictionary<Guid, PaymentExecution>? paymentsByItem = null)
+    {
+        PaymentItemSummaryDto? summary = null;
+        if (paymentsByItem is not null && paymentsByItem.TryGetValue(i.Id, out var payment))
+        {
+            summary = new PaymentItemSummaryDto
+            {
+                PaymentId = payment.Id,
+                Status = payment.Status,
+                ReturnReason = payment.ReturnReason,
+                ExecutedAt = payment.ExecutedAt,
+                ProofUploadedAt = payment.ProofUploadedAt,
+                PaidAt = payment.PaidAt,
+                ProofFileName = payment.ProofFileName
+            };
+        }
+
+        return new AssistanceItemDto
+        {
+            Id = i.Id,
+            LineNumber = i.LineNumber,
+            AssistanceTypeId = i.AssistanceTypeId,
+            AssistanceTypeName = i.AssistanceType?.Name ?? string.Empty,
+            Description = i.Description,
+            Amount = i.Amount,
+            PaymentTarget = i.PaymentTarget,
+            PaymentMethod = i.PaymentMethod,
+            SupplierId = i.SupplierId,
+            SupplierName = i.Supplier?.Name,
+            PayeeName = i.PayeeName,
+            VoucherType = i.VoucherType,
+            IsUrgent = i.IsUrgent,
+            ExecutionStatus = i.ExecutionStatus,
+            PaymentSummary = summary,
+            Version = i.Version,
+            CreatedAt = i.CreatedAt,
+            UpdatedAt = i.UpdatedAt
+        };
+    }
 }

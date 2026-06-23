@@ -6,6 +6,7 @@ import { listOrganizations, enterOrganization } from '../api/admin';
 import { BootstrapAdminModal } from '../components/BootstrapAdminModal';
 import { CreateOrganizationModal } from '../components/CreateOrganizationModal';
 import { SuspendOrganizationDialog } from '../components/SuspendOrganizationDialog';
+import { AppShell } from '../components/AppShell';
 
 interface SuperAdminDashboardProps {
   user: UserDto;
@@ -65,17 +66,16 @@ export function SuperAdminDashboard({ user, onLogout, onUserUpdated }: SuperAdmi
   }
 
   return (
-    <div className="dashboard super-admin">
-      <header className="dashboard-header">
-        <h1>ניהול ארגונים — מנהל מערכת</h1>
-        <div className="header-actions">
-          <span className="user-greeting">שלום, {user.fullName}</span>
-          <button type="button" onClick={handleLogout}>התנתק</button>
-        </div>
-      </header>
-
-      <main className="dashboard-main super-admin-main">
-        {data && (
+    <AppShell
+      brandTitle="ניהול מערכת"
+      pageTitle="ניהול ארגונים — מנהל מערכת"
+      user={user}
+      tabs={[{ id: 'organizations', label: 'ארגונים' }]}
+      activeTab="organizations"
+      onTabChange={() => {}}
+      onLogout={handleLogout}
+    >
+      {data && (
           <div className="summary-cards">
             <div className="summary-card">
               <span className="summary-label">סה״כ ארגונים</span>
@@ -149,7 +149,7 @@ export function SuperAdminDashboard({ user, onLogout, onUserUpdated }: SuperAdmi
                           {!org.hasOrgAdmin && (
                             <button
                               type="button"
-                              className="btn-small"
+                              className="btn-small btn-warning"
                               onClick={() => setBootstrapTarget(org)}
                             >
                               מנהל ראשון
@@ -164,8 +164,6 @@ export function SuperAdminDashboard({ user, onLogout, onUserUpdated }: SuperAdmi
             </table>
           </div>
         )}
-      </main>
-
       {showCreate && (
         <CreateOrganizationModal
           onClose={() => setShowCreate(false)}
@@ -186,6 +184,6 @@ export function SuperAdminDashboard({ user, onLogout, onUserUpdated }: SuperAdmi
           onBootstrapped={loadOrganizations}
         />
       )}
-    </div>
+    </AppShell>
   );
 }

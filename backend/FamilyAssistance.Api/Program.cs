@@ -37,6 +37,7 @@ builder.Services.AddScoped<FamilyService>();
 builder.Services.AddScoped<SupplierService>();
 builder.Services.AddScoped<CommitteeDecisionService>();
 builder.Services.AddScoped<PaymentService>();
+builder.Services.AddScoped<WorkflowDashboardService>();
 builder.Services.AddSingleton<DocumentStorageService>();
 builder.Services.AddScoped<AssistanceTypeService>();
 builder.Services.AddAuthorizationPolicies();
@@ -79,6 +80,7 @@ app.MapFamiliesEndpoints();
 app.MapSuppliersEndpoints();
 app.MapCommitteeDecisionsEndpoints();
 app.MapPaymentsEndpoints();
+app.MapWorkflowEndpoints();
 app.MapAssistanceTypesEndpoints();
 
 app.Run();
