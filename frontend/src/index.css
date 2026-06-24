@@ -790,6 +790,202 @@ body {
   color: #2563eb;
 }
 
+.bank-combobox {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.bank-combobox-input {
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bank-combobox-list {
+  position: absolute;
+  top: calc(100% + 2px);
+  inset-inline: 0;
+  z-index: 20;
+  max-height: 200px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bank-combobox-option {
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bank-combobox-option:hover,
+.bank-combobox-option--highlighted {
+  background: #eff6ff;
+}
+
+/* Create Family modal — parent rows, phone RTL, bank layout */
+.create-family-modal-body {
+  overflow-x: hidden;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.create-family-modal-body input,
+.create-family-modal-body select,
+.create-family-modal-body textarea {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.create-family-modal-body .form-grid-2 > *,
+.create-family-modal-body .form-field,
+.create-family-modal-body fieldset {
+  min-width: 0;
+}
+
+.family-details-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  column-gap: 12px;
+  row-gap: 0.75rem;
+  width: 100%;
+  align-items: start;
+  margin: 0.25rem 0;
+}
+
+.family-details-grid .form-field {
+  min-width: 0;
+}
+
+.family-details-grid__col-name {
+  grid-column: 1;
+}
+
+.family-details-grid__col-id {
+  grid-column: 2;
+}
+
+.family-details-grid__col-phone {
+  grid-column: 3;
+}
+
+.family-details-grid .form-field--phone .validated-control {
+  width: fit-content;
+  max-width: 100%;
+}
+
+.phone-input-group {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0.35rem;
+  max-width: 100%;
+}
+
+.phone-input-field {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.phone-input-field .field-validation-tooltip {
+  inset-inline-start: 0;
+  inset-inline-end: auto;
+  white-space: nowrap;
+}
+
+.phone-input-prefix {
+  width: 58px;
+  min-width: 58px;
+  flex: 0 0 58px;
+  box-sizing: border-box;
+  text-align: center;
+}
+
+.phone-input-number {
+  width: 96px;
+  min-width: 96px;
+  flex: 0 0 96px;
+  box-sizing: border-box;
+}
+
+.phone-input-separator {
+  flex-shrink: 0;
+  color: #6b7280;
+  user-select: none;
+}
+
+.bank-fieldset--create-layout .bank-create-row--primary {
+  display: grid;
+  grid-template-columns: minmax(0, 100px) minmax(0, 1fr);
+  gap: 0.75rem 1rem;
+  align-items: end;
+  margin-bottom: 0.75rem;
+}
+
+.bank-fieldset--create-layout .bank-create-row--primary .bank-sync-field {
+  min-width: 0;
+}
+
+.bank-fieldset--create-layout .bank-create-row--branch,
+.bank-fieldset--create-layout .bank-create-row--account {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+  max-width: 100%;
+}
+
+.bank-fieldset--create-layout .bank-create-row--branch {
+  max-width: 280px;
+}
+
+.bank-fieldset--create-layout .bank-create-row--account {
+  max-width: 420px;
+}
+
+.bank-fieldset--create-layout .bank-create-row--holder {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.bank-fieldset--create-layout .bank-create-row input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 720px) {
+  .family-details-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .family-details-grid__col-name,
+  .family-details-grid__col-id,
+  .family-details-grid__col-phone {
+    grid-column: 1;
+  }
+
+  .bank-fieldset--create-layout .bank-create-row--primary {
+    grid-template-columns: 1fr;
+  }
+
+  .bank-fieldset--create-layout .bank-create-row--branch,
+  .bank-fieldset--create-layout .bank-create-row--account {
+    max-width: none;
+  }
+}
+
 @media (max-width: 640px) {
   .bank-sync-row {
     grid-template-columns: 1fr;

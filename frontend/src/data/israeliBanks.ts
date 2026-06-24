@@ -35,9 +35,19 @@ export function findBankByNumber(bankNumber: string): IsraeliBank | undefined {
 export function findBankByName(bankName: string): IsraeliBank | undefined {
   const trimmed = bankName.trim();
   if (!trimmed) return undefined;
-  const exact = ISRAELI_BANKS.find((b) => b.name === trimmed);
-  if (exact) return exact;
-  return ISRAELI_BANKS.find((b) => b.name.includes(trimmed) || trimmed.includes(b.name));
+  return ISRAELI_BANKS.find((b) => b.name === trimmed);
+}
+
+export function isKnownBankName(bankName: string): boolean {
+  return findBankByName(bankName) !== undefined;
+}
+
+export function filterBanks(query: string): IsraeliBank[] {
+  const trimmed = query.trim().toLowerCase();
+  if (trimmed.length === 0) return [...ISRAELI_BANKS];
+  return ISRAELI_BANKS.filter(
+    (bank) => bank.name.toLowerCase().includes(trimmed) || bank.number.includes(trimmed),
+  );
 }
 
 export function isKnownBankNumber(bankNumber: string): boolean {

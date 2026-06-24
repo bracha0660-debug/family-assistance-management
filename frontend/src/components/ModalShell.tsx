@@ -80,11 +80,12 @@ interface FormFieldProps {
   id: string;
   label: ReactNode;
   error?: string | null;
+  helperText?: string;
   children: ReactNode;
   className?: string;
 }
 
-export function FormField({ id, label, error, children, className }: FormFieldProps) {
+export function FormField({ id, label, error, helperText, children, className }: FormFieldProps) {
   const invalid = Boolean(error);
   return (
     <div className={['form-field', className].filter(Boolean).join(' ')}>
@@ -92,6 +93,9 @@ export function FormField({ id, label, error, children, className }: FormFieldPr
       <ValidatedControl error={invalid ? error : null} errorId={`${id}-error`}>
         {children}
       </ValidatedControl>
+      {helperText && !invalid && (
+        <p className="bank-field-hint">{helperText}</p>
+      )}
     </div>
   );
 }

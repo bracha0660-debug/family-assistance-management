@@ -45,6 +45,7 @@ function SupplierFormModal({
   const [address, setAddress] = useState(supplier?.address ?? '');
   const [bankDetails, setBankDetails] = useState<BankDetailsValues>({
     bankNumber: supplier?.bankNumber ?? '',
+    bankName: findBankByNumber(supplier?.bankNumber ?? '')?.name ?? '',
     branchNumber: supplier?.branchNumber ?? '',
     accountNumber: supplier?.accountNumber ?? '',
     accountHolderName: supplier?.accountHolderName ?? '',
@@ -77,7 +78,7 @@ function SupplierFormModal({
   }
 
   function resolveBankName(): string {
-    return findBankByNumber(bankDetails.bankNumber)?.name ?? '';
+    return bankDetails.bankName.trim() || findBankByNumber(bankDetails.bankNumber)?.name || '';
   }
 
   function validateBank(showAll: boolean, field?: keyof BankFieldErrors) {

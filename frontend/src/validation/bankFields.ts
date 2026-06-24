@@ -1,4 +1,4 @@
-import { findBankByName, isKnownBankNumber } from '../data/israeliBanks';
+import { findBankByNumber, isKnownBankName, isKnownBankNumber } from '../data/israeliBanks';
 
 export interface BankFieldErrors {
   bankNumber?: string | null;
@@ -10,6 +10,7 @@ export interface BankFieldErrors {
 }
 
 export const PARTIAL_BANK_MESSAGE = 'פרטי בנק חייבים להיות מלאים או ריקים';
+export const BANK_MISMATCH_MESSAGE = 'מספר בנק אינו תואם לשם הבנק';
 
 export function isBankAllEmpty(
   bankNumber: string,
@@ -68,12 +69,28 @@ export function validateBankFieldErrors(
   }
 
   const errors: BankFieldErrors = {};
+  const trimmedName = bankName.trim();
+  const bankFromNumber = findBankByNumber(bankNumber);
+
   const bankNumErr = validateBankNumber(bankNumber);
   if (bankNumErr) errors.bankNumber = bankNumErr;
 
-  const trimmedName = bankName.trim();
-  if (trimmedName.length > 0 && !findBankByName(trimmedName)) {
+  if (trimmedName.length > 0 && !isKnownBankName(trimmedName)) {
     errors.bankName = 'שם בנק אינו מזוהה';
+  }
+
+  if (bankFromNumber && trimmedName.length > 0 && bankFromNumber.name !== trimmedName) {
+    errors.bankNumber = BANK_MISMATCH_MESSAGE;
+    errors.bankName = BANK_MISMATCH_MESSAGE;
+  }
+
+  const allCoreFilled = bankNumber.trim().length > 0
+    && branchNumber.trim().length > 0
+    && accountNumber.trim().length > 0
+    && accountHolderName.trim().length > 0;
+
+  if (allCoreFilled && trimmedName.length === 0) {
+    errors.bankName = 'יש לבחור בנק מהרשימה';
   }
 
   const branchErr = validateBankDigits(branchNumber, 'מספר סניף');
@@ -104,11 +121,13 @@ export function validateBankDetails(
   branchNumber: string,
   accountNumber: string,
   accountHolderName: string,
+  bankName = '',
 ): string | null {
   return firstBankFieldError(validateBankFieldErrors(
     bankNumber,
     branchNumber,
     accountNumber,
     accountHolderName,
+    bankName,
   ));
 }

@@ -81,7 +81,7 @@ export async function getSuggestedAccountingCode(
   coordinatorId: string,
 ): Promise<SuggestedAccountingCodeResponse> {
   return apiJson<SuggestedAccountingCodeResponse>(
-    `/api/v1/org/families/suggested-accounting-code?accountingCoordinatorId=${encodeURIComponent(coordinatorId)}`,
+    `/api/v1/org/families/suggested-accounting-code?coordinatorId=${encodeURIComponent(coordinatorId)}`,
   );
 }
 

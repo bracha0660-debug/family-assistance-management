@@ -11,6 +11,7 @@ import { listOrgUsers, type OrgUserDto } from '../api/orgUsers';
 import { AddressFields, validateAddressFields, type AddressFieldErrors } from './AddressFields';
 import { BankDetailsFields, type BankDetailsValues } from './BankDetailsFields';
 import { FormField, ModalShell } from './ModalShell';
+import { joinPhoneValue, PhoneInputGroup } from './PhoneInputGroup';
 import { usesMyRecordsFamilyScope } from '../hooks/usePermissions';
 import { findBankByNumber } from '../data/israeliBanks';
 import { focusFirstInvalidField } from '../utils/formValidation';
@@ -22,6 +23,11 @@ import {
   type StructuredAddress,
 } from '../validation/familyAddress';
 import { isValidIsraeliId } from '../validation/israeliId';
+import {
+  hasPhoneErrors,
+  validateOptionalPhoneParts,
+  type PhoneFieldErrors,
+} from '../validation/israeliPhone';
 
 interface CreateFamilyModalProps {
   user: UserDto;
@@ -41,7 +47,11 @@ function validateOptionalId(value: string): string | null {
 const FOCUS_FIELD_ORDER = [
   `${ID_PREFIX}-family-last-name`,
   `${ID_PREFIX}-father-id`,
+  `${ID_PREFIX}-father-phone-prefix`,
+  `${ID_PREFIX}-father-phone-number`,
   `${ID_PREFIX}-mother-id`,
+  `${ID_PREFIX}-mother-phone-prefix`,
+  `${ID_PREFIX}-mother-phone-number`,
   `${ID_PREFIX}-city`,
   `${ID_PREFIX}-street`,
   `${ID_PREFIX}-bank-number`,
@@ -62,10 +72,14 @@ export function CreateFamilyModal({ user, onClose, onCreated }: CreateFamilyModa
   const [fatherIsraeliId, setFatherIsraeliId] = useState('');
   const [motherName, setMotherName] = useState('');
   const [motherIsraeliId, setMotherIsraeliId] = useState('');
-  const [phone, setPhone] = useState('');
+  const [fatherPhonePrefix, setFatherPhonePrefix] = useState('');
+  const [fatherPhoneNumber, setFatherPhoneNumber] = useState('');
+  const [motherPhonePrefix, setMotherPhonePrefix] = useState('');
+  const [motherPhoneNumber, setMotherPhoneNumber] = useState('');
   const [structuredAddress, setStructuredAddress] = useState<StructuredAddress>({ ...EMPTY_STRUCTURED_ADDRESS });
   const [bankDetails, setBankDetails] = useState<BankDetailsValues>({
     bankNumber: '',
+    bankName: '',
     branchNumber: '',
     accountNumber: '',
     accountHolderName: '',
@@ -73,6 +87,8 @@ export function CreateFamilyModal({ user, onClose, onCreated }: CreateFamilyModa
   const [lastNameError, setLastNameError] = useState<string | null>(null);
   const [fatherIdError, setFatherIdError] = useState<string | null>(null);
   const [motherIdError, setMotherIdError] = useState<string | null>(null);
+  const [fatherPhoneErrors, setFatherPhoneErrors] = useState<PhoneFieldErrors>({});
+  const [motherPhoneErrors, setMotherPhoneErrors] = useState<PhoneFieldErrors>({});
   const [accountingError, setAccountingError] = useState<string | null>(null);
   const [addressErrors, setAddressErrors] = useState<AddressFieldErrors>({});
   const [bankErrors, setBankErrors] = useState<BankFieldErrors>({});
@@ -111,7 +127,7 @@ export function CreateFamilyModal({ user, onClose, onCreated }: CreateFamilyModa
   }
 
   function resolveBankName(): string {
-    return findBankByNumber(bankDetails.bankNumber)?.name ?? '';
+    return bankDetails.bankName.trim() || findBankByNumber(bankDetails.bankNumber)?.name || '';
   }
 
   function validateBank(showAll: boolean, field?: keyof BankFieldErrors) {
@@ -133,6 +149,18 @@ export function CreateFamilyModal({ user, onClose, onCreated }: CreateFamilyModa
     return errors;
   }
 
+  function validateFatherPhone(showAll = true): PhoneFieldErrors {
+    const errors = validateOptionalPhoneParts(fatherPhonePrefix, fatherPhoneNumber);
+    if (showAll) setFatherPhoneErrors(errors);
+    return errors;
+  }
+
+  function validateMotherPhone(showAll = true): PhoneFieldErrors {
+    const errors = validateOptionalPhoneParts(motherPhonePrefix, motherPhoneNumber);
+    if (showAll) setMotherPhoneErrors(errors);
+    return errors;
+  }
+
   function validateAll(): boolean {
     setFormError('');
     let valid = true;
@@ -151,6 +179,12 @@ export function CreateFamilyModal({ user, onClose, onCreated }: CreateFamilyModa
     const mErr = validateOptionalId(motherIsraeliId);
     setMotherIdError(mErr);
     if (mErr) valid = false;
+
+    const fatherPhoneErrs = validateFatherPhone(true);
+    if (hasPhoneErrors(fatherPhoneErrs)) valid = false;
+
+    const motherPhoneErrs = validateMotherPhone(true);
+    if (hasPhoneErrors(motherPhoneErrs)) valid = false;
 
     const addrErrs = validateAddressFields(structuredAddress);
     setAddressErrors(addrErrs);
@@ -195,7 +229,9 @@ export function CreateFamilyModal({ user, onClose, onCreated }: CreateFamilyModa
         fatherIsraeliId: fatherIsraeliId.trim().length > 0 ? fatherIsraeliId.trim() : null,
         motherName: motherName.trim().length > 0 ? motherName.trim() : null,
         motherIsraeliId: motherIsraeliId.trim().length > 0 ? motherIsraeliId.trim() : null,
-        phone: phone.trim().length > 0 ? phone.trim() : null,
+        phone: joinPhoneValue(fatherPhonePrefix, fatherPhoneNumber).length > 0
+          ? joinPhoneValue(fatherPhonePrefix, fatherPhoneNumber)
+          : null,
         address: formatFamilyAddress(structuredAddress),
       };
       if (!isBankAllEmpty(
@@ -219,11 +255,39 @@ export function CreateFamilyModal({ user, onClose, onCreated }: CreateFamilyModa
     }
   }
 
+  function handleFatherPhonePrefixChange(value: string) {
+    setFatherPhonePrefix(value);
+    if (hasPhoneErrors(fatherPhoneErrors)) {
+      setFatherPhoneErrors(validateOptionalPhoneParts(value, fatherPhoneNumber));
+    }
+  }
+
+  function handleFatherPhoneNumberChange(value: string) {
+    setFatherPhoneNumber(value);
+    if (hasPhoneErrors(fatherPhoneErrors)) {
+      setFatherPhoneErrors(validateOptionalPhoneParts(fatherPhonePrefix, value));
+    }
+  }
+
+  function handleMotherPhonePrefixChange(value: string) {
+    setMotherPhonePrefix(value);
+    if (hasPhoneErrors(motherPhoneErrors)) {
+      setMotherPhoneErrors(validateOptionalPhoneParts(value, motherPhoneNumber));
+    }
+  }
+
+  function handleMotherPhoneNumberChange(value: string) {
+    setMotherPhoneNumber(value);
+    if (hasPhoneErrors(motherPhoneErrors)) {
+      setMotherPhoneErrors(validateOptionalPhoneParts(motherPhonePrefix, value));
+    }
+  }
+
   return (
     <ModalShell
       title="יצירת משפחה חדשה"
-      hint="קוד המשפחה יוקצה אוטומטית בפורמט F-000001. מספר חשבונאי מוצע לפי הרכז/ת."
       wide
+      bodyClassName="create-family-modal-body"
       loading={loading}
       onClose={onClose}
       onSubmit={handleSubmit}
@@ -258,11 +322,13 @@ export function CreateFamilyModal({ user, onClose, onCreated }: CreateFamilyModa
         </FormField>
       )}
 
-      <div className="form-grid-2">
+      <div className="family-details-grid">
         <FormField
           id={`${ID_PREFIX}-accounting-code`}
           label="מספר חשבונאי"
+          className="family-details-grid__col-name"
           error={accountingError}
+          helperText="ניתן לערוך במידת הצורך"
         >
           <input
             id={`${ID_PREFIX}-accounting-code`}
@@ -276,6 +342,7 @@ export function CreateFamilyModal({ user, onClose, onCreated }: CreateFamilyModa
             }}
             disabled={loading}
             inputMode="numeric"
+            placeholder="מוצע לפי הרכז"
             aria-invalid={accountingError ? true : undefined}
           />
         </FormField>
@@ -283,6 +350,7 @@ export function CreateFamilyModal({ user, onClose, onCreated }: CreateFamilyModa
         <FormField
           id={`${ID_PREFIX}-family-last-name`}
           label={<>שם משפחה <span className="field-required">*</span></>}
+          className="family-details-grid__col-phone"
           error={lastNameError}
         >
           <input
@@ -298,10 +366,8 @@ export function CreateFamilyModal({ user, onClose, onCreated }: CreateFamilyModa
             aria-invalid={lastNameError ? true : undefined}
           />
         </FormField>
-      </div>
 
-      <div className="form-grid-2">
-        <FormField id={`${ID_PREFIX}-father-name`} label="שם האב">
+        <FormField id={`${ID_PREFIX}-father-name`} label="שם האב" className="family-details-grid__col-name">
           <input
             id={`${ID_PREFIX}-father-name`}
             type="text"
@@ -312,7 +378,7 @@ export function CreateFamilyModal({ user, onClose, onCreated }: CreateFamilyModa
           />
         </FormField>
 
-        <FormField id={`${ID_PREFIX}-father-id`} label="ת.ז. האב" error={fatherIdError}>
+        <FormField id={`${ID_PREFIX}-father-id`} label="ת.ז. האב" className="family-details-grid__col-id" error={fatherIdError}>
           <input
             id={`${ID_PREFIX}-father-id`}
             type="text"
@@ -329,10 +395,27 @@ export function CreateFamilyModal({ user, onClose, onCreated }: CreateFamilyModa
             aria-invalid={fatherIdError ? true : undefined}
           />
         </FormField>
-      </div>
 
-      <div className="form-grid-2">
-        <FormField id={`${ID_PREFIX}-mother-name`} label="שם האם">
+        <FormField
+          id={`${ID_PREFIX}-father-phone-number`}
+          label="טלפון האב"
+          className="family-details-grid__col-phone form-field--phone"
+        >
+          <PhoneInputGroup
+            idPrefix={`${ID_PREFIX}-father-phone`}
+            prefix={fatherPhonePrefix}
+            number={fatherPhoneNumber}
+            disabled={loading}
+            prefixError={fatherPhoneErrors.prefix}
+            numberError={fatherPhoneErrors.number}
+            onPrefixChange={handleFatherPhonePrefixChange}
+            onNumberChange={handleFatherPhoneNumberChange}
+            onPrefixBlur={() => setFatherPhoneErrors(validateOptionalPhoneParts(fatherPhonePrefix, fatherPhoneNumber))}
+            onNumberBlur={() => setFatherPhoneErrors(validateOptionalPhoneParts(fatherPhonePrefix, fatherPhoneNumber))}
+          />
+        </FormField>
+
+        <FormField id={`${ID_PREFIX}-mother-name`} label="שם האם" className="family-details-grid__col-name">
           <input
             id={`${ID_PREFIX}-mother-name`}
             type="text"
@@ -343,7 +426,7 @@ export function CreateFamilyModal({ user, onClose, onCreated }: CreateFamilyModa
           />
         </FormField>
 
-        <FormField id={`${ID_PREFIX}-mother-id`} label="ת.ז. האם" error={motherIdError}>
+        <FormField id={`${ID_PREFIX}-mother-id`} label="ת.ז. האם" className="family-details-grid__col-id" error={motherIdError}>
           <input
             id={`${ID_PREFIX}-mother-id`}
             type="text"
@@ -360,18 +443,26 @@ export function CreateFamilyModal({ user, onClose, onCreated }: CreateFamilyModa
             aria-invalid={motherIdError ? true : undefined}
           />
         </FormField>
-      </div>
 
-      <FormField id={`${ID_PREFIX}-phone`} label="טלפון (אופציונלי)">
-        <input
-          id={`${ID_PREFIX}-phone`}
-          type="tel"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          disabled={loading}
-          maxLength={30}
-        />
-      </FormField>
+        <FormField
+          id={`${ID_PREFIX}-mother-phone-number`}
+          label="טלפון האם"
+          className="family-details-grid__col-phone form-field--phone"
+        >
+          <PhoneInputGroup
+            idPrefix={`${ID_PREFIX}-mother-phone`}
+            prefix={motherPhonePrefix}
+            number={motherPhoneNumber}
+            disabled={loading}
+            prefixError={motherPhoneErrors.prefix}
+            numberError={motherPhoneErrors.number}
+            onPrefixChange={handleMotherPhonePrefixChange}
+            onNumberChange={handleMotherPhoneNumberChange}
+            onPrefixBlur={() => setMotherPhoneErrors(validateOptionalPhoneParts(motherPhonePrefix, motherPhoneNumber))}
+            onNumberBlur={() => setMotherPhoneErrors(validateOptionalPhoneParts(motherPhonePrefix, motherPhoneNumber))}
+          />
+        </FormField>
+      </div>
 
       <AddressFields
         idPrefix={ID_PREFIX}
@@ -385,10 +476,18 @@ export function CreateFamilyModal({ user, onClose, onCreated }: CreateFamilyModa
       <BankDetailsFields
         idPrefix={ID_PREFIX}
         values={bankDetails}
-        defaultAccountHolderName={familyLastName.trim()}
+        defaultAccountHolderName=""
         accountHolderHint="(נלקח אוטומטית משם המשפחה, ניתן לעריכה במידת הצורך)"
         disabled={loading}
         fieldErrors={bankErrors}
+        layoutVariant="create-family"
+        strictBankSelection
+        accountHolderSuggestOnFocus
+        suggestedAccountHolderParts={{
+          familyLastName,
+          fatherName,
+          motherName,
+        }}
         onChange={handleBankChange}
         onBlurField={(field) => {
           validateBank(false, field === 'bankName' ? 'bankName' : field);
