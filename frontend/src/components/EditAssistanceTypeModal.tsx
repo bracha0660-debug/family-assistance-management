@@ -1,14 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import {
   assistanceFrequencies,
   updateAssistanceType,
   type AssistanceFrequency,
   type AssistanceTypeDto,
+  type RelatedSupplierDto,
   type UpdateAssistanceTypePayload,
 } from '../api/assistanceTypes';
+import { listSuppliers } from '../api/suppliers';
 import { translateFrequency } from './roleLabel';
 import { FormField, ModalShell } from './ModalShell';
+import { RelatedSupplierTags } from './RelatedSupplierTags';
 import { focusFirstInvalidField } from '../utils/formValidation';
 
 interface EditAssistanceTypeModalProps {
@@ -21,6 +24,13 @@ function isFrequency(value: string): value is AssistanceFrequency {
   return (assistanceFrequencies as readonly string[]).includes(value);
 }
 
+function relatedSupplierIdsEqual(a: RelatedSupplierDto[], b: RelatedSupplierDto[]): boolean {
+  if (a.length !== b.length) return false;
+  const aIds = a.map((s) => s.id).sort();
+  const bIds = b.map((s) => s.id).sort();
+  return aIds.every((id, index) => id === bIds[index]);
+}
+
 const FOCUS_ORDER = ['edit-type-name', 'edit-type-amount'];
 
 export function EditAssistanceTypeModal({
@@ -28,6 +38,11 @@ export function EditAssistanceTypeModal({
   onClose,
   onUpdated,
 }: EditAssistanceTypeModalProps) {
+  const initialRelated = useMemo(
+    () => assistanceType.relatedSuppliers ?? [],
+    [assistanceType.relatedSuppliers],
+  );
+
   const initialFrequency: AssistanceFrequency = isFrequency(assistanceType.frequency)
     ? assistanceType.frequency
     : 'monthly';
@@ -38,9 +53,52 @@ export function EditAssistanceTypeModal({
     assistanceType.defaultAmount !== null ? String(assistanceType.defaultAmount) : '',
   );
   const [frequency, setFrequency] = useState<AssistanceFrequency>(initialFrequency);
+  const [activeSuppliers, setActiveSuppliers] = useState<RelatedSupplierDto[]>([]);
+  const [selectedRelatedSuppliers, setSelectedRelatedSuppliers] = useState<RelatedSupplierDto[]>(initialRelated);
+  const [addSupplierId, setAddSupplierId] = useState('');
+  const [suppliersLoading, setSuppliersLoading] = useState(true);
   const [amountError, setAmountError] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSuppliersLoading(true);
+    listSuppliers()
+      .then((res) => {
+        if (cancelled) return;
+        setActiveSuppliers(
+          res.suppliers
+            .filter((s) => s.status === 'active')
+            .map((s) => ({ id: s.id, name: s.name })),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setActiveSuppliers([]);
+      })
+      .finally(() => {
+        if (!cancelled) setSuppliersLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const availableToAdd = activeSuppliers.filter(
+    (s) => !selectedRelatedSuppliers.some((r) => r.id === s.id),
+  );
+
+  function handleAddSupplier() {
+    if (!addSupplierId) return;
+    const supplier = activeSuppliers.find((s) => s.id === addSupplierId);
+    if (!supplier) return;
+    setSelectedRelatedSuppliers((prev) => [...prev, supplier]);
+    setAddSupplierId('');
+  }
+
+  function handleRemoveRelatedSupplier(supplierId: string) {
+    setSelectedRelatedSuppliers((prev) => prev.filter((s) => s.id !== supplierId));
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -72,6 +130,10 @@ export function EditAssistanceTypeModal({
     }
 
     if (frequency !== assistanceType.frequency) payload.frequency = frequency;
+
+    if (!relatedSupplierIdsEqual(selectedRelatedSuppliers, initialRelated)) {
+      payload.relatedSupplierIds = selectedRelatedSuppliers.map((s) => s.id);
+    }
 
     if (Object.keys(payload).length === 0) {
       setError('אין שינויים לעדכון');
@@ -167,6 +229,36 @@ export function EditAssistanceTypeModal({
           </option>
         ))}
       </select>
+      <label htmlFor="edit-type-add-supplier">הוסף ספק מקושר</label>
+      <div className="related-supplier-picker">
+        <select
+          id="edit-type-add-supplier"
+          value={addSupplierId}
+          onChange={(e) => setAddSupplierId(e.target.value)}
+          disabled={loading || suppliersLoading || availableToAdd.length === 0}
+        >
+          <option value="">— בחר ספק —</option>
+          {availableToAdd.map((s) => (
+            <option key={s.id} value={s.id}>{s.name}</option>
+          ))}
+        </select>
+        <button
+          type="button"
+          className="btn-small"
+          onClick={handleAddSupplier}
+          disabled={loading || suppliersLoading || !addSupplierId}
+        >
+          הוסף
+        </button>
+      </div>
+      <label>ספקים קשורים</label>
+      <RelatedSupplierTags
+        suppliers={selectedRelatedSuppliers}
+        editable
+        disabled={loading}
+        onRemove={handleRemoveRelatedSupplier}
+        emptyLabel="אין ספקים קשורים"
+      />
     </ModalShell>
   );
 }

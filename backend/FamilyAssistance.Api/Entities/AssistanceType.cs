@@ -16,4 +16,5 @@ public class AssistanceType
     public DateTime UpdatedAt { get; set; }
 
     public Organization? Organization { get; set; }
+    public ICollection<AssistanceTypeSupplier> RelatedSupplierLinks { get; set; } = [];
 }

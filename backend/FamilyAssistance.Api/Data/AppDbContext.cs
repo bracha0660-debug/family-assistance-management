@@ -13,6 +13,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Family> Families => Set<Family>();
     public DbSet<Supplier> Suppliers => Set<Supplier>();
     public DbSet<AssistanceType> AssistanceTypes => Set<AssistanceType>();
+    public DbSet<AssistanceTypeSupplier> AssistanceTypeSuppliers => Set<AssistanceTypeSupplier>();
     public DbSet<CommitteeDecision> CommitteeDecisions => Set<CommitteeDecision>();
     public DbSet<AssistanceItem> AssistanceItems => Set<AssistanceItem>();
     public DbSet<AssistanceItemDocument> AssistanceItemDocuments => Set<AssistanceItemDocument>();
@@ -255,6 +256,22 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasIndex(x => new { x.OrganizationId, x.Status })
                 .HasDatabaseName("ix_assistance_types_org_status");
             e.HasOne(x => x.Organization).WithMany(x => x.AssistanceTypes).HasForeignKey(x => x.OrganizationId);
+        });
+
+        modelBuilder.Entity<AssistanceTypeSupplier>(e =>
+        {
+            e.ToTable("assistance_type_suppliers");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
+            e.HasIndex(x => new { x.OrganizationId, x.AssistanceTypeId, x.SupplierId })
+                .IsUnique()
+                .HasDatabaseName("ux_assistance_type_suppliers_org_type_supplier");
+            e.HasIndex(x => new { x.OrganizationId, x.AssistanceTypeId })
+                .HasDatabaseName("ix_assistance_type_suppliers_org_type");
+            e.HasOne(x => x.Organization).WithMany().HasForeignKey(x => x.OrganizationId);
+            e.HasOne(x => x.AssistanceType).WithMany(x => x.RelatedSupplierLinks).HasForeignKey(x => x.AssistanceTypeId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Supplier).WithMany().HasForeignKey(x => x.SupplierId);
         });
 
         modelBuilder.Entity<PermissionCatalog>(e =>

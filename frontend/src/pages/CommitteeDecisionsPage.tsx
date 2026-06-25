@@ -31,6 +31,7 @@ import { hasPermission } from '../hooks/usePermissions';
 import { FieldValidationTooltip } from '../components/FieldValidation';
 import { ModalShell } from '../components/ModalShell';
 import { focusFirstInvalidField } from '../utils/formValidation';
+import { partitionSuppliersForAssistanceType } from '../utils/relatedSuppliers';
 
 interface CommitteeDecisionsPageProps {
   user: UserDto;
@@ -95,6 +96,39 @@ const ITEM_FOCUS_ORDER = [
   'item-payee-transfer',
   'item-amount',
 ];
+
+function SupplierSelectOptions({
+  recommended,
+  other,
+}: {
+  recommended: SupplierDto[];
+  other: SupplierDto[];
+}) {
+  if (recommended.length === 0) {
+    return (
+      <>
+        {other.map((s) => (
+          <option key={s.id} value={s.id}>{s.name}</option>
+        ))}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <optgroup label="ספקים מומלצים">
+        {recommended.map((s) => (
+          <option key={s.id} value={s.id}>{s.name}</option>
+        ))}
+      </optgroup>
+      <optgroup label="כל הספקים">
+        {other.map((s) => (
+          <option key={s.id} value={s.id}>{s.name}</option>
+        ))}
+      </optgroup>
+    </>
+  );
+}
 
 function validateItemFields(
   assistanceTypeId: string,
@@ -203,6 +237,11 @@ function ItemFormRow({
   const [isUrgent, setIsUrgent] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const { recommended: recommendedSuppliers, other: otherSuppliers } = partitionSuppliersForAssistanceType(
+    types,
+    suppliers,
+    assistanceTypeId,
+  );
 
   async function handleAdd() {
     setError('');
@@ -294,9 +333,7 @@ function ItemFormRow({
           <>
             <select id="item-payee-transfer" value={supplierId} onChange={(e) => setSupplierId(e.target.value)} disabled={disabled || loading}>
               <option value="">— בחר ספק —</option>
-              {suppliers.filter((s) => s.status === 'active').map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
+              <SupplierSelectOptions recommended={recommendedSuppliers} other={otherSuppliers} />
             </select>
             {paymentMethod === 'vouchers' && (
               <input type="text" placeholder="סוג שובר" value={voucherType} onChange={(e) => setVoucherType(e.target.value)} disabled={disabled || loading} />
@@ -352,6 +389,11 @@ function ItemEditModal({
   const [isUrgent, setIsUrgent] = useState(item.isUrgent);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const { recommended: recommendedSuppliers, other: otherSuppliers } = partitionSuppliersForAssistanceType(
+    types,
+    suppliers,
+    assistanceTypeId,
+  );
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -433,9 +475,7 @@ function ItemEditModal({
           <label htmlFor="edit-item-supplier">ספק <span className="field-required">*</span></label>
           <select id="edit-item-supplier" value={supplierId} onChange={(e) => setSupplierId(e.target.value)} disabled={loading}>
             <option value="">— בחר ספק —</option>
-            {suppliers.filter((s) => s.status === 'active').map((s) => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
+            <SupplierSelectOptions recommended={recommendedSuppliers} other={otherSuppliers} />
           </select>
         </>
       )}

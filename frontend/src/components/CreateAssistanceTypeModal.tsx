@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import {
   assistanceFrequencies,
@@ -6,9 +6,12 @@ import {
   type AssistanceFrequency,
   type AssistanceTypeDto,
   type CreateAssistanceTypePayload,
+  type RelatedSupplierDto,
 } from '../api/assistanceTypes';
+import { listSuppliers } from '../api/suppliers';
 import { translateFrequency } from './roleLabel';
 import { FormField, ModalShell } from './ModalShell';
+import { RelatedSupplierTags } from './RelatedSupplierTags';
 import { focusFirstInvalidField } from '../utils/formValidation';
 
 interface CreateAssistanceTypeModalProps {
@@ -29,10 +32,53 @@ export function CreateAssistanceTypeModal({
   const [description, setDescription] = useState('');
   const [defaultAmount, setDefaultAmount] = useState<string>('');
   const [frequency, setFrequency] = useState<AssistanceFrequency>('monthly');
+  const [activeSuppliers, setActiveSuppliers] = useState<RelatedSupplierDto[]>([]);
+  const [selectedRelatedSuppliers, setSelectedRelatedSuppliers] = useState<RelatedSupplierDto[]>([]);
+  const [addSupplierId, setAddSupplierId] = useState('');
+  const [suppliersLoading, setSuppliersLoading] = useState(true);
   const [typeCodeError, setTypeCodeError] = useState<string | null>(null);
   const [amountError, setAmountError] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSuppliersLoading(true);
+    listSuppliers()
+      .then((res) => {
+        if (cancelled) return;
+        setActiveSuppliers(
+          res.suppliers
+            .filter((s) => s.status === 'active')
+            .map((s) => ({ id: s.id, name: s.name })),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setActiveSuppliers([]);
+      })
+      .finally(() => {
+        if (!cancelled) setSuppliersLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const availableToAdd = activeSuppliers.filter(
+    (s) => !selectedRelatedSuppliers.some((r) => r.id === s.id),
+  );
+
+  function handleAddSupplier() {
+    if (!addSupplierId) return;
+    const supplier = activeSuppliers.find((s) => s.id === addSupplierId);
+    if (!supplier) return;
+    setSelectedRelatedSuppliers((prev) => [...prev, supplier]);
+    setAddSupplierId('');
+  }
+
+  function handleRemoveRelatedSupplier(supplierId: string) {
+    setSelectedRelatedSuppliers((prev) => prev.filter((s) => s.id !== supplierId));
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -72,6 +118,7 @@ export function CreateAssistanceTypeModal({
         description: description.trim().length > 0 ? description.trim() : null,
         defaultAmount: amount,
         frequency,
+        relatedSupplierIds: selectedRelatedSuppliers.map((s) => s.id),
       };
       const created = await createAssistanceType(payload);
       onCreated(created);
@@ -102,7 +149,7 @@ export function CreateAssistanceTypeModal({
         </>
       )}
     >
-      <FormField id="new-type-code" label="קוד סוג סיוע" error={typeCodeError}>
+      <FormField id="new-type-code" label="קוד סוג הסיוע" error={typeCodeError}>
         <input
           id="new-type-code"
           type="text"
@@ -169,6 +216,36 @@ export function CreateAssistanceTypeModal({
           </option>
         ))}
       </select>
+      <label htmlFor="new-type-add-supplier">הוסף ספק מקושר</label>
+      <div className="related-supplier-picker">
+        <select
+          id="new-type-add-supplier"
+          value={addSupplierId}
+          onChange={(e) => setAddSupplierId(e.target.value)}
+          disabled={loading || suppliersLoading || availableToAdd.length === 0}
+        >
+          <option value="">— בחר ספק —</option>
+          {availableToAdd.map((s) => (
+            <option key={s.id} value={s.id}>{s.name}</option>
+          ))}
+        </select>
+        <button
+          type="button"
+          className="btn-small"
+          onClick={handleAddSupplier}
+          disabled={loading || suppliersLoading || !addSupplierId}
+        >
+          הוסף
+        </button>
+      </div>
+      <label>ספקים קשורים</label>
+      <RelatedSupplierTags
+        suppliers={selectedRelatedSuppliers}
+        editable
+        disabled={loading}
+        onRemove={handleRemoveRelatedSupplier}
+        emptyLabel="אין ספקים קשורים"
+      />
     </ModalShell>
   );
 }

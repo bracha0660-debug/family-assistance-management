@@ -42,4 +42,6 @@ public static class BusinessEventCodes
     public const string SuperAdminExitOrg = "AUD-026";
     public const string RoleGrantsUpdate = "AUD-016";
     public const string UserPermissionOverrideChange = "AUD-039";
+    public const string AssistanceTypeRelatedSupplierAdd = "AUD-040";
+    public const string AssistanceTypeRelatedSupplierRemove = "AUD-041";
 }

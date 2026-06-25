@@ -7,6 +7,7 @@ public sealed class CreateAssistanceTypeRequest
     public string? Description { get; set; }
     public decimal? DefaultAmount { get; set; }
     public string Frequency { get; set; } = string.Empty;
+    public IReadOnlyList<Guid>? RelatedSupplierIds { get; set; }
 }
 
 public sealed class UpdateAssistanceTypeRequest
@@ -16,11 +17,18 @@ public sealed class UpdateAssistanceTypeRequest
     public decimal? DefaultAmount { get; set; }
     public bool ClearDefaultAmount { get; set; }
     public string? Frequency { get; set; }
+    public IReadOnlyList<Guid>? RelatedSupplierIds { get; set; }
 }
 
 public sealed class DeactivateAssistanceTypeRequest
 {
     public string Reason { get; set; } = string.Empty;
+}
+
+public sealed class RelatedSupplierDto
+{
+    public Guid Id { get; init; }
+    public string Name { get; init; } = string.Empty;
 }
 
 public sealed class AssistanceTypeDto
@@ -36,6 +44,7 @@ public sealed class AssistanceTypeDto
     public int Version { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
+    public IReadOnlyList<RelatedSupplierDto> RelatedSuppliers { get; init; } = [];
 }
 
 public sealed class AssistanceTypeSummaryDto

@@ -1,4 +1,5 @@
 import type { AssistanceTypeDto } from '../api/assistanceTypes';
+import { RelatedSupplierTags } from './RelatedSupplierTags';
 import { translateFrequency, translateStatus } from './roleLabel';
 
 interface AssistanceTypesTableProps {
@@ -27,6 +28,7 @@ export function AssistanceTypesTable({
             <th>קוד</th>
             <th>שם</th>
             <th>תיאור</th>
+            <th>ספקים קשורים</th>
             <th>סכום ברירת מחדל</th>
             <th>תדירות</th>
             <th>סטטוס</th>
@@ -36,7 +38,7 @@ export function AssistanceTypesTable({
         <tbody>
           {types.length === 0 && (
             <tr>
-              <td colSpan={7} className="empty-row">אין סוגי סיוע להצגה</td>
+              <td colSpan={8} className="empty-row">אין סוגי סיוע להצגה</td>
             </tr>
           )}
           {types.map((t) => (
@@ -44,6 +46,13 @@ export function AssistanceTypesTable({
               <td><code>{t.typeCode}</code></td>
               <td>{t.name}</td>
               <td>{t.description ?? '—'}</td>
+              <td>
+                <RelatedSupplierTags
+                  suppliers={t.relatedSuppliers ?? []}
+                  editable={false}
+                  compact
+                />
+              </td>
               <td>{formatAmount(t.defaultAmount, t.currency)}</td>
               <td>{translateFrequency(t.frequency)}</td>
               <td>
