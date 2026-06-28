@@ -75,6 +75,7 @@ public sealed class AssistanceTypeService(
         }
 
         var now = DateTime.UtcNow;
+        var frequency = ResolveCreateFrequency(request.Frequency);
         var type = new AssistanceType
         {
             Id = Guid.NewGuid(),
@@ -84,7 +85,7 @@ public sealed class AssistanceTypeService(
             Description = NormalizeOptional(request.Description),
             DefaultAmount = request.DefaultAmount,
             Currency = "ILS",
-            Frequency = request.Frequency.Trim(),
+            Frequency = frequency,
             Status = "active",
             Version = 1,
             CreatedAt = now,
@@ -518,12 +519,16 @@ public sealed class AssistanceTypeService(
             errors.Add("סכום ברירת מחדל חייב להיות בין 0 ל-1,000,000");
 
         var freq = request.Frequency?.Trim() ?? string.Empty;
-        if (freq.Length == 0)
-            errors.Add("תדירות היא שדה חובה");
-        else if (!AllowedFrequencies.Contains(freq))
+        if (freq.Length > 0 && !AllowedFrequencies.Contains(freq))
             errors.Add("תדירות לא חוקית");
 
         return errors;
+    }
+
+    private static string ResolveCreateFrequency(string? frequency)
+    {
+        var trimmed = frequency?.Trim() ?? string.Empty;
+        return trimmed.Length == 0 ? "one_time" : trimmed;
     }
 
     private static string? NormalizeOptional(string? value)

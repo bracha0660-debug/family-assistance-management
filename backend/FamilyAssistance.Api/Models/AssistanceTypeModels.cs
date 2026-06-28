@@ -6,7 +6,8 @@ public sealed class CreateAssistanceTypeRequest
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
     public decimal? DefaultAmount { get; set; }
-    public string Frequency { get; set; } = string.Empty;
+    /// <summary>Optional on create; omitted or empty defaults to one_time server-side.</summary>
+    public string? Frequency { get; set; }
     public IReadOnlyList<Guid>? RelatedSupplierIds { get; set; }
 }
 
