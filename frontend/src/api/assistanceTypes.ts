@@ -44,17 +44,12 @@ export interface CreateAssistanceTypePayload {
   typeCode: string;
   name: string;
   description?: string | null;
-  defaultAmount?: number | null;
-  frequency: AssistanceFrequency;
   relatedSupplierIds?: string[];
 }
 
 export interface UpdateAssistanceTypePayload {
   name?: string;
   description?: string | null;
-  defaultAmount?: number | null;
-  clearDefaultAmount?: boolean;
-  frequency?: AssistanceFrequency;
   relatedSupplierIds?: string[];
 }
 

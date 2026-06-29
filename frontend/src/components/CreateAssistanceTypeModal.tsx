@@ -1,15 +1,12 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import {
-  assistanceFrequencies,
   createAssistanceType,
-  type AssistanceFrequency,
   type AssistanceTypeDto,
   type CreateAssistanceTypePayload,
   type RelatedSupplierDto,
 } from '../api/assistanceTypes';
 import { listSuppliers } from '../api/suppliers';
-import { translateFrequency } from './roleLabel';
 import { FormField, ModalShell } from './ModalShell';
 import { RelatedSupplierTags } from './RelatedSupplierTags';
 import { focusFirstInvalidField } from '../utils/formValidation';
@@ -21,7 +18,7 @@ interface CreateAssistanceTypeModalProps {
 
 const TYPE_CODE_PATTERN = /^[A-Z0-9-]{2,50}$/;
 
-const FOCUS_ORDER = ['new-type-code', 'new-type-name', 'new-type-amount'];
+const FOCUS_ORDER = ['new-type-code', 'new-type-name'];
 
 export function CreateAssistanceTypeModal({
   onClose,
@@ -30,14 +27,11 @@ export function CreateAssistanceTypeModal({
   const [typeCode, setTypeCode] = useState('');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [defaultAmount, setDefaultAmount] = useState<string>('');
-  const [frequency, setFrequency] = useState<AssistanceFrequency>('monthly');
   const [activeSuppliers, setActiveSuppliers] = useState<RelatedSupplierDto[]>([]);
   const [selectedRelatedSuppliers, setSelectedRelatedSuppliers] = useState<RelatedSupplierDto[]>([]);
   const [addSupplierId, setAddSupplierId] = useState('');
   const [suppliersLoading, setSuppliersLoading] = useState(true);
   const [typeCodeError, setTypeCodeError] = useState<string | null>(null);
-  const [amountError, setAmountError] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -84,24 +78,12 @@ export function CreateAssistanceTypeModal({
     e.preventDefault();
     setError('');
     setTypeCodeError(null);
-    setAmountError(null);
 
     const normalizedCode = typeCode.trim().toUpperCase();
     if (!TYPE_CODE_PATTERN.test(normalizedCode)) {
       setTypeCodeError('קוד סוג הסיוע חייב להיות באותיות גדולות, ספרות ומקף בלבד');
       focusFirstInvalidField(FOCUS_ORDER);
       return;
-    }
-
-    let amount: number | null = null;
-    if (defaultAmount.trim().length > 0) {
-      const parsed = Number(defaultAmount);
-      if (Number.isNaN(parsed) || parsed < 0 || parsed > 1000000) {
-        setAmountError('סכום ברירת מחדל חייב להיות בין 0 ל-1,000,000');
-        focusFirstInvalidField(FOCUS_ORDER);
-        return;
-      }
-      amount = parsed;
     }
 
     const form = e.currentTarget as HTMLFormElement;
@@ -116,8 +98,6 @@ export function CreateAssistanceTypeModal({
         typeCode: normalizedCode,
         name: name.trim(),
         description: description.trim().length > 0 ? description.trim() : null,
-        defaultAmount: amount,
-        frequency,
         relatedSupplierIds: selectedRelatedSuppliers.map((s) => s.id),
       };
       const created = await createAssistanceType(payload);
@@ -132,7 +112,6 @@ export function CreateAssistanceTypeModal({
   return (
     <ModalShell
       title="יצירת סוג סיוע חדש"
-      hint="המטבע הוא ש״ח בלבד."
       loading={loading}
       onClose={onClose}
       onSubmit={handleSubmit}
@@ -186,36 +165,6 @@ export function CreateAssistanceTypeModal({
         rows={3}
         maxLength={1000}
       />
-      <FormField id="new-type-amount" label="סכום ברירת מחדל בש״ח (אופציונלי)" error={amountError}>
-        <input
-          id="new-type-amount"
-          type="number"
-          value={defaultAmount}
-          onChange={(e) => {
-            setDefaultAmount(e.target.value);
-            if (amountError) setAmountError(null);
-          }}
-          disabled={loading}
-          min={0}
-          max={1000000}
-          step="0.01"
-          aria-invalid={amountError ? true : undefined}
-        />
-      </FormField>
-      <label htmlFor="new-type-frequency">תדירות</label>
-      <select
-        id="new-type-frequency"
-        value={frequency}
-        onChange={(e) => setFrequency(e.target.value as AssistanceFrequency)}
-        disabled={loading}
-        required
-      >
-        {assistanceFrequencies.map((f) => (
-          <option key={f} value={f}>
-            {translateFrequency(f)}
-          </option>
-        ))}
-      </select>
       <label htmlFor="new-type-add-supplier">הוסף ספק מקושר</label>
       <div className="related-supplier-picker">
         <select

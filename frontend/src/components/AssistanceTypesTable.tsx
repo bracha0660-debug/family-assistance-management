@@ -1,17 +1,12 @@
 import type { AssistanceTypeDto } from '../api/assistanceTypes';
 import { RelatedSupplierTags } from './RelatedSupplierTags';
-import { translateFrequency, translateStatus } from './roleLabel';
+import { translateStatus } from './roleLabel';
 
 interface AssistanceTypesTableProps {
   types: AssistanceTypeDto[];
   canManage: boolean;
   onEdit?: (type: AssistanceTypeDto) => void;
   onDeactivate?: (type: AssistanceTypeDto) => void;
-}
-
-function formatAmount(amount: number | null, currency: string): string {
-  if (amount === null) return '—';
-  return `${amount.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
 }
 
 export function AssistanceTypesTable({
@@ -29,8 +24,6 @@ export function AssistanceTypesTable({
             <th>שם</th>
             <th>תיאור</th>
             <th>ספקים קשורים</th>
-            <th>סכום ברירת מחדל</th>
-            <th>תדירות</th>
             <th>סטטוס</th>
             <th>פעולות</th>
           </tr>
@@ -38,7 +31,7 @@ export function AssistanceTypesTable({
         <tbody>
           {types.length === 0 && (
             <tr>
-              <td colSpan={8} className="empty-row">אין סוגי סיוע להצגה</td>
+              <td colSpan={6} className="empty-row">אין סוגי סיוע להצגה</td>
             </tr>
           )}
           {types.map((t) => (
@@ -53,8 +46,6 @@ export function AssistanceTypesTable({
                   compact
                 />
               </td>
-              <td>{formatAmount(t.defaultAmount, t.currency)}</td>
-              <td>{translateFrequency(t.frequency)}</td>
               <td>
                 <span
                   className={`status-badge status-${
