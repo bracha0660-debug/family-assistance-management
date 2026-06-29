@@ -5,6 +5,8 @@ public sealed class CreateSupplierRequest
     public string Name { get; set; } = string.Empty;
     public string? RegistrationNumber { get; set; }
     public string? Phone { get; set; }
+    public string? AccountingCode { get; set; }
+    public string? Email { get; set; }
     public string? Address { get; set; }
     public string? BankNumber { get; set; }
     public string? BranchNumber { get; set; }
@@ -17,6 +19,8 @@ public sealed class UpdateSupplierRequest
     public string? Name { get; set; }
     public string? RegistrationNumber { get; set; }
     public string? Phone { get; set; }
+    public string? AccountingCode { get; set; }
+    public string? Email { get; set; }
     public string? Address { get; set; }
     public string? BankNumber { get; set; }
     public string? BranchNumber { get; set; }
@@ -42,6 +46,8 @@ public sealed class SupplierDto
     public string Name { get; init; } = string.Empty;
     public string? RegistrationNumber { get; init; }
     public string? Phone { get; init; }
+    public string? AccountingCode { get; init; }
+    public string? Email { get; init; }
     public string? Address { get; init; }
     public string? BankNumber { get; init; }
     public string? BranchNumber { get; init; }

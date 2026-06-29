@@ -155,6 +155,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.Name).HasMaxLength(200);
             e.Property(x => x.RegistrationNumber).HasMaxLength(50);
             e.Property(x => x.Phone).HasMaxLength(30);
+            e.Property(x => x.AccountingCode).HasMaxLength(50);
+            e.Property(x => x.Email).HasMaxLength(254);
             e.Property(x => x.Address).HasMaxLength(300);
             e.Property(x => x.BankNumber).HasMaxLength(10);
             e.Property(x => x.BranchNumber).HasMaxLength(10);

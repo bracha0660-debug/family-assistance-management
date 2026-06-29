@@ -16,11 +16,18 @@ import {
 } from '../api/suppliers';
 import { BankDetailsFields, type BankDetailsValues } from '../components/BankDetailsFields';
 import { ModalShell, FormField } from '../components/ModalShell';
+import { PhoneInputGroup, joinPhoneValue } from '../components/PhoneInputGroup';
 import { hasPermission } from '../hooks/usePermissions';
 import { findBankByNumber } from '../data/israeliBanks';
 import { focusFirstInvalidField } from '../utils/formValidation';
 import type { BankFieldErrors } from '../validation/bankFields';
 import { isBankAllEmpty, validateBankFieldErrors } from '../validation/bankFields';
+import {
+  hasPhoneErrors,
+  parsePhoneValue,
+  validateOptionalPhoneParts,
+  type PhoneFieldErrors,
+} from '../validation/israeliPhone';
 import { validateSupplierRegistrationNumber } from '../validation/supplierRegistrationNumber';
 import { translateStatus } from '../components/roleLabel';
 
@@ -41,7 +48,9 @@ function SupplierFormModal({
   const isEdit = supplier !== null;
   const [name, setName] = useState(supplier?.name ?? '');
   const [registrationNumber, setRegistrationNumber] = useState(supplier?.registrationNumber ?? '');
-  const [phone, setPhone] = useState(supplier?.phone ?? '');
+  const initialPhone = parsePhoneValue(supplier?.phone ?? '');
+  const [phonePrefix, setPhonePrefix] = useState(initialPhone.prefix);
+  const [phoneNumber, setPhoneNumber] = useState(initialPhone.number);
   const [address, setAddress] = useState(supplier?.address ?? '');
   const [bankDetails, setBankDetails] = useState<BankDetailsValues>({
     bankNumber: supplier?.bankNumber ?? '',
@@ -53,6 +62,7 @@ function SupplierFormModal({
   const [error, setError] = useState('');
   const [nameError, setNameError] = useState<string | null>(null);
   const [registrationError, setRegistrationError] = useState<string | null>(null);
+  const [phoneErrors, setPhoneErrors] = useState<PhoneFieldErrors>({});
   const [bankErrors, setBankErrors] = useState<BankFieldErrors>({});
   const [loading, setLoading] = useState(false);
 
@@ -97,9 +107,29 @@ function SupplierFormModal({
     return errors;
   }
 
+  function handlePhoneBlur() {
+    setPhoneErrors(validateOptionalPhoneParts(phonePrefix, phoneNumber));
+  }
+
+  function handlePhonePrefixChange(value: string) {
+    setPhonePrefix(value);
+    if (hasPhoneErrors(phoneErrors)) {
+      setPhoneErrors(validateOptionalPhoneParts(value, phoneNumber));
+    }
+  }
+
+  function handlePhoneNumberChange(value: string) {
+    setPhoneNumber(value);
+    if (hasPhoneErrors(phoneErrors)) {
+      setPhoneErrors(validateOptionalPhoneParts(phonePrefix, value));
+    }
+  }
+
   const SUPPLIER_FOCUS_ORDER = [
     'supplier-name',
     'supplier-reg',
+    'supplier-phone-prefix',
+    'supplier-phone-number',
     'supplier-bank-number',
     'supplier-bank-name',
     'supplier-branch-number',
@@ -125,6 +155,14 @@ function SupplierFormModal({
     }
     setRegistrationError(null);
 
+    const phoneErrs = validateOptionalPhoneParts(phonePrefix, phoneNumber);
+    if (hasPhoneErrors(phoneErrs)) {
+      setPhoneErrors(phoneErrs);
+      focusFirstInvalidField(SUPPLIER_FOCUS_ORDER);
+      return;
+    }
+    setPhoneErrors({});
+
     const bErrs = validateBank(true);
     if (Object.values(bErrs).some(Boolean)) {
       focusFirstInvalidField(SUPPLIER_FOCUS_ORDER);
@@ -133,6 +171,7 @@ function SupplierFormModal({
     setLoading(true);
     try {
       const trimmedReg = registrationNumber.trim();
+      const phoneValue = joinPhoneValue(phonePrefix, phoneNumber);
       const bankEmpty = isBankAllEmpty(
         bankDetails.bankNumber,
         bankDetails.branchNumber,
@@ -144,7 +183,7 @@ function SupplierFormModal({
         const updatePayload: UpdateSupplierPayload = {
           name: name.trim(),
           registrationNumber: trimmedReg,
-          phone: phone.trim() || null,
+          phone: phoneValue || null,
           address: address.trim() || null,
         };
         const hadBank = !isBankAllEmpty(
@@ -177,7 +216,7 @@ function SupplierFormModal({
         const payload: CreateSupplierPayload = {
           name: name.trim(),
           registrationNumber: trimmedReg,
-          phone: phone.trim() || null,
+          phone: phoneValue || null,
           address: address.trim() || null,
         };
         if (!bankEmpty) {
@@ -250,8 +289,20 @@ function SupplierFormModal({
           aria-describedby={registrationError ? 'supplier-reg-error' : undefined}
         />
       </FormField>
-      <label htmlFor="supplier-phone">טלפון</label>
-      <input id="supplier-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} disabled={loading} maxLength={30} />
+      <FormField id="supplier-phone-prefix" label="טלפון" error={phoneErrors.prefix || phoneErrors.number}>
+        <PhoneInputGroup
+          idPrefix="supplier-phone"
+          prefix={phonePrefix}
+          number={phoneNumber}
+          disabled={loading}
+          prefixError={phoneErrors.prefix}
+          numberError={phoneErrors.number}
+          onPrefixChange={handlePhonePrefixChange}
+          onNumberChange={handlePhoneNumberChange}
+          onPrefixBlur={handlePhoneBlur}
+          onNumberBlur={handlePhoneBlur}
+        />
+      </FormField>
       <label htmlFor="supplier-address">כתובת</label>
       <input id="supplier-address" type="text" value={address} onChange={(e) => setAddress(e.target.value)} disabled={loading} maxLength={300} />
       <BankDetailsFields

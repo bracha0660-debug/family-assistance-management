@@ -8,6 +8,8 @@ public class Supplier
     public string Name { get; set; } = string.Empty;
     public string? RegistrationNumber { get; set; }
     public string? Phone { get; set; }
+    public string? AccountingCode { get; set; }
+    public string? Email { get; set; }
     public string? Address { get; set; }
     public string? BankNumber { get; set; }
     public string? BranchNumber { get; set; }

@@ -83,6 +83,8 @@ public sealed class SupplierService(
                 Name = normalized.Name!,
                 RegistrationNumber = normalized.RegistrationNumber,
                 Phone = normalized.Phone,
+                AccountingCode = normalized.AccountingCode,
+                Email = normalized.Email,
                 Address = normalized.Address,
                 BankNumber = NormalizeBankField(normalized.BankNumber),
                 BranchNumber = NormalizeBankField(normalized.BranchNumber),
@@ -176,8 +178,9 @@ public sealed class SupplierService(
         if (request.Phone is not null)
         {
             var newPhone = NormalizeOptional(request.Phone);
-            if (newPhone is not null && newPhone.Length > 30)
-                errors.Add("טלפון חייב להיות עד 30 תווים");
+            var phoneError = IsraeliPhoneValidator.Validate(newPhone);
+            if (phoneError is not null)
+                errors.Add(phoneError);
             else if (newPhone != supplier.Phone)
             {
                 changes.Add(("phone", supplier.Phone, newPhone, "update", BusinessEventCodes.SupplierUpdate));
@@ -196,6 +199,9 @@ public sealed class SupplierService(
                 supplier.Address = newAddress;
             }
         }
+
+        ApplyAccountingCodeUpdate(request, supplier, errors, changes);
+        ApplyEmailUpdate(request, supplier, errors, changes);
 
         ApplyBankUpdate(request, supplier, errors, changes);
 
@@ -394,6 +400,8 @@ public sealed class SupplierService(
         Name = request.Name?.Trim() ?? string.Empty,
         RegistrationNumber = NormalizeOptional(request.RegistrationNumber),
         Phone = NormalizeOptional(request.Phone),
+        AccountingCode = NormalizeOptional(request.AccountingCode),
+        Email = NormalizeOptional(request.Email),
         Address = NormalizeOptional(request.Address),
         BankNumber = request.BankNumber?.Trim(),
         BranchNumber = request.BranchNumber?.Trim(),
@@ -418,11 +426,90 @@ public sealed class SupplierService(
         if (registrationError is not null)
             errors.Add(registrationError);
 
-        if (request.Phone is not null && request.Phone.Length > 30)
-            errors.Add("טלפון חייב להיות עד 30 תווים");
+        var phoneError = IsraeliPhoneValidator.Validate(request.Phone);
+        if (phoneError is not null)
+            errors.Add(phoneError);
+
+        var accountingError = ValidateAccountingCodeRequired(request.AccountingCode);
+        if (accountingError is not null)
+            errors.Add(accountingError);
+
+        var emailError = EmailValidator.Validate(request.Email);
+        if (emailError is not null)
+            errors.Add(emailError);
+
         if (request.Address is not null && request.Address.Length > 300)
             errors.Add("כתובת חייבת להיות עד 300 תווים");
         return errors;
+    }
+
+    private static void ApplyAccountingCodeUpdate(
+        UpdateSupplierRequest request,
+        Supplier supplier,
+        List<string> errors,
+        List<(string Field, string? Old, string? New, string Action, string EventCode)> changes)
+    {
+        var storedEmpty = string.IsNullOrWhiteSpace(supplier.AccountingCode);
+
+        if (request.AccountingCode is not null)
+        {
+            var accountingError = ValidateAccountingCodeRequired(request.AccountingCode);
+            if (accountingError is not null)
+            {
+                errors.Add(accountingError);
+                return;
+            }
+
+            var newCode = request.AccountingCode.Trim();
+            if (newCode != supplier.AccountingCode)
+            {
+                changes.Add(("accounting_code", supplier.AccountingCode, newCode, "update", BusinessEventCodes.SupplierUpdate));
+                supplier.AccountingCode = newCode;
+            }
+        }
+        else if (storedEmpty)
+            errors.Add(AccountingCodeRequiredMessage);
+    }
+
+    private static void ApplyEmailUpdate(
+        UpdateSupplierRequest request,
+        Supplier supplier,
+        List<string> errors,
+        List<(string Field, string? Old, string? New, string Action, string EventCode)> changes)
+    {
+        if (request.Email is null) return;
+
+        var newEmail = NormalizeOptional(request.Email);
+        var emailError = EmailValidator.Validate(newEmail);
+        if (emailError is not null)
+        {
+            errors.Add(emailError);
+            return;
+        }
+
+        if (newEmail != supplier.Email)
+        {
+            changes.Add(("email", supplier.Email, newEmail, "update", BusinessEventCodes.SupplierUpdate));
+            supplier.Email = newEmail;
+        }
+    }
+
+    private const string AccountingCodeRequiredMessage = "קוד בהנהלת חשבונות הוא שדה חובה";
+    private const string AccountingCodeMaxLengthMessage = "קוד בהנהלת חשבונות חייב להיות עד 50 תווים";
+
+    private static string? ValidateAccountingCodeRequired(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return AccountingCodeRequiredMessage;
+
+        var trimmed = value.Trim();
+        if (trimmed.Length == 0)
+            return AccountingCodeRequiredMessage;
+
+        if (trimmed.Length > 50)
+            return AccountingCodeMaxLengthMessage;
+
+        return null;
     }
 
     private static void ApplyBankUpdate(
@@ -477,6 +564,8 @@ public sealed class SupplierService(
         Name = s.Name,
         RegistrationNumber = s.RegistrationNumber,
         Phone = s.Phone,
+        AccountingCode = s.AccountingCode,
+        Email = s.Email,
         Address = s.Address,
         BankNumber = s.BankNumber,
         BranchNumber = s.BranchNumber,
