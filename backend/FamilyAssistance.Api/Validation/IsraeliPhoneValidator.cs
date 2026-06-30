@@ -12,7 +12,7 @@ public static class IsraeliPhoneValidator
     public const string NumberLengthMessage = "מספר טלפון חייב להכיל 7 ספרות";
     public const string MaxLengthMessage = "טלפון חייב להיות עד 30 תווים";
 
-    private static readonly Regex DashedPhoneRegex = new(@"^(\d{2,3})-(\d+)$", RegexOptions.CultureInvariant);
+    private static readonly Regex DashedPhoneRegex = new(@"^(\d+)-(\d+)$", RegexOptions.CultureInvariant);
 
     public static string? Validate(string? value)
     {
@@ -36,12 +36,23 @@ public static class IsraeliPhoneValidator
         if (dashed.Success)
             return (dashed.Groups[1].Value, dashed.Groups[2].Value);
 
-        var digits = trimmed.Where(char.IsDigit).ToArray();
-        var digitStr = new string(digits);
-        if (digitStr.Length <= 3)
-            return (digitStr, string.Empty);
+        if (!trimmed.All(char.IsDigit))
+            return (trimmed, string.Empty);
 
-        return (digitStr[..3], digitStr[3..]);
+        if (trimmed.Length <= 3)
+            return (trimmed, string.Empty);
+
+        // joinPhoneValue sends number-only as 7 digits without prefix
+        if (trimmed.Length == 7)
+            return (string.Empty, trimmed);
+
+        if (trimmed.Length == 9)
+            return (trimmed[..2], trimmed[2..]);
+
+        if (trimmed.Length == 10)
+            return (trimmed[..3], trimmed[3..]);
+
+        return (trimmed[..3], trimmed[3..]);
     }
 
     private static string? ValidateParts(string prefix, string number)

@@ -29,6 +29,7 @@ import {
   type PhoneFieldErrors,
 } from '../validation/israeliPhone';
 import { validateSupplierRegistrationNumber } from '../validation/supplierRegistrationNumber';
+import { validateOptionalEmail } from '../validation/email';
 import { translateStatus } from '../components/roleLabel';
 
 interface SuppliersPageProps {
@@ -51,6 +52,8 @@ function SupplierFormModal({
   const initialPhone = parsePhoneValue(supplier?.phone ?? '');
   const [phonePrefix, setPhonePrefix] = useState(initialPhone.prefix);
   const [phoneNumber, setPhoneNumber] = useState(initialPhone.number);
+  const [accountingCode, setAccountingCode] = useState(supplier?.accountingCode ?? '');
+  const [email, setEmail] = useState(supplier?.email ?? '');
   const [address, setAddress] = useState(supplier?.address ?? '');
   const [bankDetails, setBankDetails] = useState<BankDetailsValues>({
     bankNumber: supplier?.bankNumber ?? '',
@@ -63,6 +66,8 @@ function SupplierFormModal({
   const [nameError, setNameError] = useState<string | null>(null);
   const [registrationError, setRegistrationError] = useState<string | null>(null);
   const [phoneErrors, setPhoneErrors] = useState<PhoneFieldErrors>({});
+  const [accountingCodeError, setAccountingCodeError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
   const [bankErrors, setBankErrors] = useState<BankFieldErrors>({});
   const [loading, setLoading] = useState(false);
 
@@ -125,9 +130,22 @@ function SupplierFormModal({
     }
   }
 
+  function handleEmailBlur() {
+    setEmailError(validateOptionalEmail(email));
+  }
+
+  function handleEmailChange(value: string) {
+    setEmail(value);
+    if (emailError !== null) {
+      setEmailError(validateOptionalEmail(value));
+    }
+  }
+
   const SUPPLIER_FOCUS_ORDER = [
     'supplier-name',
     'supplier-reg',
+    'supplier-accounting-code',
+    'supplier-email',
     'supplier-phone-prefix',
     'supplier-phone-number',
     'supplier-bank-number',
@@ -163,6 +181,27 @@ function SupplierFormModal({
     }
     setPhoneErrors({});
 
+    const trimmedAccountingCode = accountingCode.trim();
+    if (trimmedAccountingCode.length === 0) {
+      setAccountingCodeError('קוד בהנהלת חשבונות הוא שדה חובה');
+      focusFirstInvalidField(SUPPLIER_FOCUS_ORDER);
+      return;
+    }
+    if (trimmedAccountingCode.length > 50) {
+      setAccountingCodeError('קוד בהנהלת חשבונות חייב להיות עד 50 תווים');
+      focusFirstInvalidField(SUPPLIER_FOCUS_ORDER);
+      return;
+    }
+    setAccountingCodeError(null);
+
+    const emailErr = validateOptionalEmail(email);
+    if (emailErr) {
+      setEmailError(emailErr);
+      focusFirstInvalidField(SUPPLIER_FOCUS_ORDER);
+      return;
+    }
+    setEmailError(null);
+
     const bErrs = validateBank(true);
     if (Object.values(bErrs).some(Boolean)) {
       focusFirstInvalidField(SUPPLIER_FOCUS_ORDER);
@@ -184,6 +223,8 @@ function SupplierFormModal({
           name: name.trim(),
           registrationNumber: trimmedReg,
           phone: phoneValue || null,
+          accountingCode: trimmedAccountingCode,
+          email: email.trim() || null,
           address: address.trim() || null,
         };
         const hadBank = !isBankAllEmpty(
@@ -217,6 +258,8 @@ function SupplierFormModal({
           name: name.trim(),
           registrationNumber: trimmedReg,
           phone: phoneValue || null,
+          accountingCode: trimmedAccountingCode,
+          email: email.trim() || null,
           address: address.trim() || null,
         };
         if (!bankEmpty) {
@@ -287,6 +330,36 @@ function SupplierFormModal({
           maxLength={9}
           aria-invalid={registrationError !== null}
           aria-describedby={registrationError ? 'supplier-reg-error' : undefined}
+        />
+      </FormField>
+      <FormField
+        id="supplier-accounting-code"
+        label={<>קוד בהנהלת חשבונות <span className="field-required">*</span></>}
+        error={accountingCodeError}
+      >
+        <input
+          id="supplier-accounting-code"
+          type="text"
+          value={accountingCode}
+          onChange={(e) => {
+            setAccountingCode(e.target.value);
+            if (accountingCodeError) setAccountingCodeError(null);
+          }}
+          disabled={loading}
+          maxLength={50}
+          aria-invalid={accountingCodeError ? true : undefined}
+        />
+      </FormField>
+      <FormField id="supplier-email" label="כתובת אימייל" error={emailError}>
+        <input
+          id="supplier-email"
+          type="email"
+          value={email}
+          onChange={(e) => handleEmailChange(e.target.value)}
+          onBlur={handleEmailBlur}
+          disabled={loading}
+          maxLength={254}
+          aria-invalid={emailError ? true : undefined}
         />
       </FormField>
       <FormField id="supplier-phone-prefix" label="טלפון" error={phoneErrors.prefix || phoneErrors.number}>
@@ -439,6 +512,8 @@ export function SuppliersPage({ user }: SuppliersPageProps) {
                 <th>קוד</th>
                 <th>שם</th>
                 <th>ח.פ./עוסק</th>
+                <th>קוד הנהלת חשבונות</th>
+                <th>אימייל</th>
                 <th>טלפון</th>
                 <th>חשבון בנק</th>
                 <th>סטטוס</th>
@@ -447,13 +522,15 @@ export function SuppliersPage({ user }: SuppliersPageProps) {
             </thead>
             <tbody>
               {(data?.suppliers ?? []).length === 0 && (
-                <tr><td colSpan={7} className="empty-row">אין ספקים להצגה</td></tr>
+                <tr><td colSpan={9} className="empty-row">אין ספקים להצגה</td></tr>
               )}
               {(data?.suppliers ?? []).map((s) => (
                 <tr key={s.id} className={s.status === 'inactive' ? 'row-disabled' : undefined}>
                   <td><code>{s.supplierCode}</code></td>
                   <td>{s.name}</td>
                   <td>{s.registrationNumber ?? '—'}</td>
+                  <td>{s.accountingCode ?? '—'}</td>
+                  <td>{s.email ?? '—'}</td>
                   <td>{s.phone ?? '—'}</td>
                   <td><code>{maskSupplierBank(s)}</code></td>
                   <td>

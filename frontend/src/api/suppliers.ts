@@ -12,6 +12,8 @@ export interface SupplierDto {
   name: string;
   registrationNumber: string | null;
   phone: string | null;
+  accountingCode: string | null;
+  email: string | null;
   address: string | null;
   bankNumber: string | null;
   branchNumber: string | null;
@@ -32,6 +34,8 @@ export interface CreateSupplierPayload {
   name: string;
   registrationNumber?: string | null;
   phone?: string | null;
+  accountingCode: string;
+  email?: string | null;
   address?: string | null;
   bankNumber?: string | null;
   branchNumber?: string | null;
@@ -43,6 +47,8 @@ export interface UpdateSupplierPayload {
   name?: string;
   registrationNumber?: string | null;
   phone?: string | null;
+  accountingCode?: string | null;
+  email?: string | null;
   address?: string | null;
   bankNumber?: string | null;
   branchNumber?: string | null;
