@@ -434,6 +434,7 @@ public sealed class ServiceResult<T>
     public string Code { get; init; } = string.Empty;
     public string Error { get; init; } = string.Empty;
     public IReadOnlyList<string> Details { get; init; } = [];
+    public object? StructuredDetails { get; init; }
 
     public static ServiceResult<T> Ok(T value) => new()
     {
@@ -449,5 +450,14 @@ public sealed class ServiceResult<T>
         Code = code,
         Error = error,
         Details = details ?? []
+    };
+
+    public static ServiceResult<T> FailWithStructuredDetails(int statusCode, string code, string error, object structuredDetails) => new()
+    {
+        IsSuccess = false,
+        StatusCode = statusCode,
+        Code = code,
+        Error = error,
+        StructuredDetails = structuredDetails
     };
 }

@@ -14,6 +14,19 @@ public sealed class SupplierService(
     IAuditService auditService)
 {
     private const string MaterialReasonRequiredMessage = "יש לציין סיבה לשינוי מהותי";
+    private const string DuplicateRegistrationMessage = "מספר עוסק / ח.פ. כבר קיים אצל ספק פעיל בארגון";
+    private const string InactiveRegistrationMessage = "קיים ספק מושבת עם מספר עוסק / ח.פ. זה";
+
+    private enum RegistrationConflictKind
+    {
+        None,
+        ActiveDuplicate,
+        InactiveDuplicate
+    }
+
+    private sealed record RegistrationConflict(
+        RegistrationConflictKind Kind,
+        Supplier? InactiveSupplier = null);
 
     public async Task<SupplierListResponse> ListAsync(
         Guid organizationId,
@@ -62,6 +75,16 @@ public sealed class SupplierService(
             normalized.BankNumber, normalized.BranchNumber, normalized.AccountNumber, normalized.AccountHolderName));
         if (errors.Count > 0)
             return ServiceResult<SupplierDto>.Fail(400, "VALIDATION_ERROR", errors[0], errors);
+
+        if (!string.IsNullOrEmpty(normalized.RegistrationNumber))
+        {
+            var conflict = await FindRegistrationConflictAsync(
+                organizationId, normalized.RegistrationNumber, null, cancellationToken);
+            if (conflict.Kind == RegistrationConflictKind.ActiveDuplicate)
+                return ServiceResult<SupplierDto>.Fail(409, "DUPLICATE_REGISTRATION_NUMBER", DuplicateRegistrationMessage);
+            if (conflict.Kind == RegistrationConflictKind.InactiveDuplicate && !request.AcknowledgeInactiveDuplicate)
+                return InactiveConflictFail(conflict.InactiveSupplier!);
+        }
 
         await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
         try
@@ -168,6 +191,11 @@ public sealed class SupplierService(
                 var newReg = request.RegistrationNumber.Trim();
                 if (newReg != supplier.RegistrationNumber)
                 {
+                    var conflict = await FindRegistrationConflictAsync(
+                        organizationId, newReg, supplier.Id, cancellationToken);
+                    if (conflict.Kind == RegistrationConflictKind.ActiveDuplicate)
+                        return ServiceResult<SupplierDto>.Fail(409, "DUPLICATE_REGISTRATION_NUMBER", DuplicateRegistrationMessage);
+
                     changes.Add(("registration_number", supplier.RegistrationNumber, newReg,
                         "supplier_identity_change", BusinessEventCodes.SupplierIdentityChange));
                     supplier.RegistrationNumber = newReg;
@@ -356,6 +384,14 @@ public sealed class SupplierService(
             return ServiceResult<SupplierDto>.Fail(409, "VERSION_CONFLICT",
                 "הרשומה עודכנה על ידי משתמש אחר. יש לטעון מחדש.");
 
+        if (!string.IsNullOrEmpty(supplier.RegistrationNumber))
+        {
+            var conflict = await FindRegistrationConflictAsync(
+                organizationId, supplier.RegistrationNumber, supplier.Id, cancellationToken);
+            if (conflict.Kind == RegistrationConflictKind.ActiveDuplicate)
+                return ServiceResult<SupplierDto>.Fail(409, "DUPLICATE_REGISTRATION_NUMBER", DuplicateRegistrationMessage);
+        }
+
         var oldStatus = supplier.Status;
         supplier.Status = "active";
         supplier.Version++;
@@ -406,8 +442,50 @@ public sealed class SupplierService(
         BankNumber = request.BankNumber?.Trim(),
         BranchNumber = request.BranchNumber?.Trim(),
         AccountNumber = request.AccountNumber?.Trim(),
-        AccountHolderName = request.AccountHolderName?.Trim()
+        AccountHolderName = request.AccountHolderName?.Trim(),
+        AcknowledgeInactiveDuplicate = request.AcknowledgeInactiveDuplicate
     };
+
+    private async Task<RegistrationConflict> FindRegistrationConflictAsync(
+        Guid organizationId,
+        string normalizedReg,
+        Guid? excludeSupplierId,
+        CancellationToken cancellationToken)
+    {
+        var matches = db.Suppliers.Where(s =>
+            s.OrganizationId == organizationId &&
+            s.RegistrationNumber == normalizedReg);
+
+        if (excludeSupplierId is not null)
+            matches = matches.Where(s => s.Id != excludeSupplierId.Value);
+
+        if (await matches.AnyAsync(s => s.Status == "active", cancellationToken))
+            return new RegistrationConflict(RegistrationConflictKind.ActiveDuplicate);
+
+        var inactive = await matches
+            .Where(s => s.Status == "inactive")
+            .OrderByDescending(s => s.UpdatedAt)
+            .ThenByDescending(s => s.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (inactive is not null)
+            return new RegistrationConflict(RegistrationConflictKind.InactiveDuplicate, inactive);
+
+        return new RegistrationConflict(RegistrationConflictKind.None);
+    }
+
+    private static ServiceResult<SupplierDto> InactiveConflictFail(Supplier inactive) =>
+        ServiceResult<SupplierDto>.FailWithStructuredDetails(
+            409,
+            "INACTIVE_SUPPLIER_SAME_REGISTRATION",
+            InactiveRegistrationMessage,
+            new InactiveSupplierConflictDetails
+            {
+                ExistingSupplierId = inactive.Id,
+                ExistingSupplierCode = inactive.SupplierCode,
+                ExistingSupplierName = inactive.Name,
+                ExistingVersion = inactive.Version
+            });
 
     private static string? NormalizeBankField(string? value)
     {

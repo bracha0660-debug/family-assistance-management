@@ -12,6 +12,7 @@ public sealed class CreateSupplierRequest
     public string? BranchNumber { get; set; }
     public string? AccountNumber { get; set; }
     public string? AccountHolderName { get; set; }
+    public bool AcknowledgeInactiveDuplicate { get; set; }
 }
 
 public sealed class UpdateSupplierRequest
@@ -75,4 +76,12 @@ public sealed class SupplierListResponse
 public sealed class SupplierResponse
 {
     public required SupplierDto Supplier { get; init; }
+}
+
+public sealed class InactiveSupplierConflictDetails
+{
+    public Guid ExistingSupplierId { get; init; }
+    public string ExistingSupplierCode { get; init; } = string.Empty;
+    public string ExistingSupplierName { get; init; } = string.Empty;
+    public int ExistingVersion { get; init; }
 }

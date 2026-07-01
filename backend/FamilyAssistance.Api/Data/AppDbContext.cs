@@ -165,6 +165,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.Status).HasMaxLength(20);
             e.HasIndex(x => new { x.OrganizationId, x.SupplierCode }).IsUnique().HasDatabaseName("ux_suppliers_org_code");
             e.HasIndex(x => new { x.OrganizationId, x.Status }).HasDatabaseName("ix_suppliers_org_status");
+            e.HasIndex(x => new { x.OrganizationId, x.RegistrationNumber })
+                .IsUnique()
+                .HasDatabaseName("ux_suppliers_org_active_registration")
+                .HasFilter("status = 'active' AND registration_number IS NOT NULL");
             e.HasOne(x => x.Organization).WithMany(x => x.Suppliers).HasForeignKey(x => x.OrganizationId);
         });
 

@@ -4,7 +4,7 @@ public sealed class ApiError
 {
     public required string Error { get; init; }
     public required string Code { get; init; }
-    public IReadOnlyList<string> Details { get; init; } = [];
+    public object? Details { get; init; }
 }
 
 public sealed class LoginRequest
