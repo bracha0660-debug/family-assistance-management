@@ -9,7 +9,7 @@ namespace FamilyAssistance.Api.Tests;
 public sealed class SupplierRegistrationDuplicateTests : IDisposable
 {
     private const string RegA = "514111111";
-    private const string RegB = "033627865";
+    private const string RegB = "123456782";
     private const string RegC = "514111103";
 
     private readonly AppDbContext _db;
