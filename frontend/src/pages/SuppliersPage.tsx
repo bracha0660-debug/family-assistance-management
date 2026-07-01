@@ -9,7 +9,9 @@ import {
   maskSupplierBank,
   restoreSupplier,
   updateSupplier,
+  SupplierApiError,
   type CreateSupplierPayload,
+  type InactiveSupplierConflictDetails,
   type SupplierDto,
   type SupplierListResponse,
   type UpdateSupplierPayload,
@@ -35,6 +37,72 @@ import { translateStatus } from '../components/roleLabel';
 interface SuppliersPageProps {
 
   user: UserDto;
+}
+
+function InactiveSupplierConflictModal({
+  conflict,
+  loading,
+  onRestore,
+  onCreateNew,
+  onCancel,
+}: {
+  conflict: InactiveSupplierConflictDetails;
+  loading: boolean;
+  onRestore: (reason: string) => Promise<void>;
+  onCreateNew: () => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [showReason, setShowReason] = useState(false);
+  const [reason, setReason] = useState('');
+  const [error, setError] = useState('');
+
+  async function handleRestoreSubmit(e: FormEvent) {
+    e.preventDefault();
+    const trimmed = reason.trim();
+    if (trimmed.length < 3) {
+      setError('סיבה חייבת להכיל לפחות 3 תווים');
+      return;
+    }
+    setError('');
+    await onRestore(trimmed);
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onCancel}>
+      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+        <h2>ספק מושבת עם אותו מספר</h2>
+        <p>
+          קיים ספק מושבת <strong>{conflict.existingSupplierCode}</strong> — {conflict.existingSupplierName} עם מספר עוסק / ח.פ. זה.
+        </p>
+        {showReason ? (
+          <form onSubmit={handleRestoreSubmit}>
+            <label htmlFor="inactive-supplier-restore-reason">סיבה (חובה)</label>
+            <textarea
+              id="inactive-supplier-restore-reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={4}
+              minLength={3}
+              maxLength={500}
+              required
+              disabled={loading}
+            />
+            {error && <div className="error" role="alert">{error}</div>}
+            <div className="modal-actions">
+              <button type="button" className="btn-secondary" onClick={() => setShowReason(false)} disabled={loading}>חזרה</button>
+              <button type="submit" disabled={loading}>{loading ? 'מעבד...' : 'אישור החייאה'}</button>
+            </div>
+          </form>
+        ) : (
+          <div className="modal-actions">
+            <button type="button" onClick={() => setShowReason(true)} disabled={loading}>החייאת הספק הקיים</button>
+            <button type="button" onClick={() => void onCreateNew()} disabled={loading}>יצירת ספק חדש</button>
+            <button type="button" className="btn-secondary" onClick={onCancel} disabled={loading}>ביטול</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function SupplierFormModal({
@@ -70,6 +138,8 @@ function SupplierFormModal({
   const [emailError, setEmailError] = useState<string | null>(null);
   const [bankErrors, setBankErrors] = useState<BankFieldErrors>({});
   const [loading, setLoading] = useState(false);
+  const [inactiveConflict, setInactiveConflict] = useState<InactiveSupplierConflictDetails | null>(null);
+  const [pendingCreatePayload, setPendingCreatePayload] = useState<CreateSupplierPayload | null>(null);
 
   const handleBankChange = useCallback((patch: Partial<BankDetailsValues>) => {
     setBankDetails((prev) => ({ ...prev, ...patch }));
@@ -141,6 +211,75 @@ function SupplierFormModal({
     }
   }
 
+  function buildCreatePayload(): CreateSupplierPayload {
+    const trimmedReg = registrationNumber.trim();
+    const phoneValue = joinPhoneValue(phonePrefix, phoneNumber);
+    const bankEmpty = isBankAllEmpty(
+      bankDetails.bankNumber,
+      bankDetails.branchNumber,
+      bankDetails.accountNumber,
+      bankDetails.accountHolderName,
+      resolveBankName(),
+    );
+    const payload: CreateSupplierPayload = {
+      name: name.trim(),
+      registrationNumber: trimmedReg,
+      phone: phoneValue || null,
+      accountingCode: accountingCode.trim(),
+      email: email.trim() || null,
+      address: address.trim() || null,
+    };
+    if (!bankEmpty) {
+      payload.bankNumber = bankDetails.bankNumber.trim();
+      payload.branchNumber = bankDetails.branchNumber.trim();
+      payload.accountNumber = bankDetails.accountNumber.trim();
+      payload.accountHolderName = bankDetails.accountHolderName.trim();
+    }
+    return payload;
+  }
+
+  async function submitCreate(payload: CreateSupplierPayload) {
+    await createSupplier(payload);
+    onSaved();
+    onClose();
+  }
+
+  async function handleRestoreExisting(reason: string) {
+    if (!inactiveConflict) return;
+    setLoading(true);
+    setError('');
+    try {
+      await restoreSupplier(inactiveConflict.existingSupplierId, inactiveConflict.existingVersion, reason);
+      setInactiveConflict(null);
+      setPendingCreatePayload(null);
+      onSaved();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'שגיאת מערכת');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleCreateDespiteInactive() {
+    if (!pendingCreatePayload) return;
+    setLoading(true);
+    setError('');
+    try {
+      await submitCreate({ ...pendingCreatePayload, acknowledgeInactiveDuplicate: true });
+      setInactiveConflict(null);
+      setPendingCreatePayload(null);
+    } catch (err) {
+      if (err instanceof SupplierApiError) {
+        setError(err.message);
+      } else {
+        setError(err instanceof Error ? err.message : 'שגיאת מערכת');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
   const SUPPLIER_FOCUS_ORDER = [
     'supplier-name',
     'supplier-reg',
@@ -209,16 +348,16 @@ function SupplierFormModal({
     }
     setLoading(true);
     try {
-      const trimmedReg = registrationNumber.trim();
-      const phoneValue = joinPhoneValue(phonePrefix, phoneNumber);
-      const bankEmpty = isBankAllEmpty(
-        bankDetails.bankNumber,
-        bankDetails.branchNumber,
-        bankDetails.accountNumber,
-        bankDetails.accountHolderName,
-        resolveBankName(),
-      );
       if (isEdit && supplier) {
+        const trimmedReg = registrationNumber.trim();
+        const phoneValue = joinPhoneValue(phonePrefix, phoneNumber);
+        const bankEmpty = isBankAllEmpty(
+          bankDetails.bankNumber,
+          bankDetails.branchNumber,
+          bankDetails.accountNumber,
+          bankDetails.accountHolderName,
+          resolveBankName(),
+        );
         const updatePayload: UpdateSupplierPayload = {
           name: name.trim(),
           registrationNumber: trimmedReg,
@@ -254,25 +393,19 @@ function SupplierFormModal({
         }
         await updateSupplier(supplier.id, supplier.version, updatePayload);
       } else {
-        const payload: CreateSupplierPayload = {
-          name: name.trim(),
-          registrationNumber: trimmedReg,
-          phone: phoneValue || null,
-          accountingCode: trimmedAccountingCode,
-          email: email.trim() || null,
-          address: address.trim() || null,
-        };
-        if (!bankEmpty) {
-          payload.bankNumber = bankDetails.bankNumber.trim();
-          payload.branchNumber = bankDetails.branchNumber.trim();
-          payload.accountNumber = bankDetails.accountNumber.trim();
-          payload.accountHolderName = bankDetails.accountHolderName.trim();
-        }
-        await createSupplier(payload);
+        const payload = buildCreatePayload();
+        await submitCreate(payload);
       }
-      onSaved();
-      onClose();
     } catch (err) {
+      if (err instanceof SupplierApiError && err.code === 'INACTIVE_SUPPLIER_SAME_REGISTRATION' && err.inactiveConflict) {
+        setPendingCreatePayload(buildCreatePayload());
+        setInactiveConflict(err.inactiveConflict);
+        return;
+      }
+      if (err instanceof SupplierApiError) {
+        setError(err.message);
+        return;
+      }
       setError(err instanceof Error ? err.message : 'שגיאת מערכת');
     } finally {
       setLoading(false);
@@ -280,6 +413,7 @@ function SupplierFormModal({
   }
 
   return (
+    <>
     <ModalShell
       title={isEdit ? 'עריכת ספק' : 'ספק חדש'}
       wide
@@ -391,6 +525,20 @@ function SupplierFormModal({
         }}
       />
     </ModalShell>
+    {inactiveConflict && (
+      <InactiveSupplierConflictModal
+        conflict={inactiveConflict}
+        loading={loading}
+        onRestore={handleRestoreExisting}
+        onCreateNew={handleCreateDespiteInactive}
+        onCancel={() => {
+          if (loading) return;
+          setInactiveConflict(null);
+          setPendingCreatePayload(null);
+        }}
+      />
+    )}
+    </>
   );
 }
 
