@@ -18,6 +18,9 @@ export interface AssistanceItemDto {
   supplierId: string | null;
   supplierName: string | null;
   payeeName: string | null;
+  transferBankNumber: string | null;
+  transferBranchNumber: string | null;
+  transferAccountNumber: string | null;
   voucherType: string | null;
   isUrgent: boolean;
   executionStatus: string;
@@ -98,6 +101,9 @@ export interface CreateAssistanceItemPayload {
   paymentMethod: PaymentMethod;
   supplierId?: string | null;
   payeeName?: string | null;
+  transferBankNumber?: string | null;
+  transferBranchNumber?: string | null;
+  transferAccountNumber?: string | null;
   voucherType?: string | null;
   isUrgent?: boolean;
 }
@@ -111,6 +117,10 @@ export interface UpdateAssistanceItemPayload {
   supplierId?: string | null;
   clearSupplierId?: boolean;
   payeeName?: string | null;
+  transferBankNumber?: string | null;
+  transferBranchNumber?: string | null;
+  transferAccountNumber?: string | null;
+  clearTransferBank?: boolean;
   voucherType?: string | null;
   isUrgent?: boolean;
 }

@@ -56,6 +56,9 @@ public sealed class CreateAssistanceItemRequest
     public string PaymentMethod { get; set; } = string.Empty;
     public Guid? SupplierId { get; set; }
     public string? PayeeName { get; set; }
+    public string? TransferBankNumber { get; set; }
+    public string? TransferBranchNumber { get; set; }
+    public string? TransferAccountNumber { get; set; }
     public string? VoucherType { get; set; }
     public bool IsUrgent { get; set; }
 }
@@ -70,6 +73,10 @@ public sealed class UpdateAssistanceItemRequest
     public Guid? SupplierId { get; set; }
     public bool ClearSupplierId { get; set; }
     public string? PayeeName { get; set; }
+    public string? TransferBankNumber { get; set; }
+    public string? TransferBranchNumber { get; set; }
+    public string? TransferAccountNumber { get; set; }
+    public bool ClearTransferBank { get; set; }
     public string? VoucherType { get; set; }
     public bool? IsUrgent { get; set; }
 }
@@ -87,6 +94,9 @@ public sealed class AssistanceItemDto
     public Guid? SupplierId { get; init; }
     public string? SupplierName { get; init; }
     public string? PayeeName { get; init; }
+    public string? TransferBankNumber { get; init; }
+    public string? TransferBranchNumber { get; init; }
+    public string? TransferAccountNumber { get; init; }
     public string? VoucherType { get; init; }
     public bool IsUrgent { get; init; }
     public string ExecutionStatus { get; init; } = string.Empty;

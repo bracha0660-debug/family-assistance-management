@@ -260,9 +260,29 @@ public sealed class CommitteeDecisionService(
 
         foreach (var item in entity.Items)
         {
-            var itemErrors = ValidateItemFields(item.PaymentTarget, item.PaymentMethod, item.SupplierId, item.PayeeName, item.VoucherType);
+            var itemErrors = CommitteeItemPaymentRules.ValidateItemFields(
+                item.PaymentTarget, item.PaymentMethod, item.SupplierId, item.PayeeName, item.VoucherType);
             if (itemErrors.Count > 0)
                 return ServiceResult<CommitteeDecisionDto>.Fail(400, "VALIDATION_ERROR", itemErrors[0], itemErrors);
+
+            Supplier? supplier = item.Supplier;
+            if (item.SupplierId is not null && supplier is null)
+            {
+                supplier = await db.Suppliers.FirstOrDefaultAsync(
+                    s => s.Id == item.SupplierId && s.OrganizationId == organizationId,
+                    cancellationToken);
+            }
+
+            var bankErrors = CommitteeItemPaymentRules.ValidateBankForTransfer(
+                item.PaymentTarget, item.PaymentMethod, entity.Family!, supplier);
+            if (bankErrors.Count > 0)
+                return ServiceResult<CommitteeDecisionDto>.Fail(400, "INCOMPLETE_BANK_DETAILS", bankErrors[0], bankErrors);
+
+            var transferErrors = CommitteeItemPaymentRules.ValidateTransferBankForOther(
+                item.PaymentTarget, item.PaymentMethod, item.PayeeName,
+                item.TransferBankNumber, item.TransferBranchNumber, item.TransferAccountNumber);
+            if (transferErrors.Count > 0)
+                return ServiceResult<CommitteeDecisionDto>.Fail(400, "VALIDATION_ERROR", transferErrors[0], transferErrors);
         }
 
         return await TransitionStatusAsync(entity, CommitteeDecisionStatuses.Submitted, auth,
@@ -679,13 +699,23 @@ public sealed class CommitteeDecisionService(
                 return ServiceResult<(AssistanceItemDto, int)>.Fail(400, "VALIDATION_ERROR", "ספק לא חוקי");
         }
 
-        var bankErrors = ValidateBankTransferBankDetails(
+        var bankErrors = CommitteeItemPaymentRules.ValidateBankForTransfer(
             request.PaymentTarget.Trim(),
             request.PaymentMethod.Trim(),
             decision.Family!,
             supplier);
         if (bankErrors.Count > 0)
             return ServiceResult<(AssistanceItemDto, int)>.Fail(400, "INCOMPLETE_BANK_DETAILS", bankErrors[0], bankErrors);
+
+        var transferErrors = CommitteeItemPaymentRules.ValidateTransferBankForOther(
+            request.PaymentTarget.Trim(),
+            request.PaymentMethod.Trim(),
+            request.PayeeName,
+            request.TransferBankNumber,
+            request.TransferBranchNumber,
+            request.TransferAccountNumber);
+        if (transferErrors.Count > 0)
+            return ServiceResult<(AssistanceItemDto, int)>.Fail(400, "VALIDATION_ERROR", transferErrors[0], transferErrors);
 
         var now = DateTime.UtcNow;
         var lineNumber = decision.Items.Count == 0
@@ -705,6 +735,9 @@ public sealed class CommitteeDecisionService(
             PaymentMethod = request.PaymentMethod.Trim(),
             SupplierId = request.SupplierId,
             PayeeName = NormalizeOptional(request.PayeeName),
+            TransferBankNumber = NormalizeOptional(request.TransferBankNumber),
+            TransferBranchNumber = NormalizeOptional(request.TransferBranchNumber),
+            TransferAccountNumber = NormalizeOptional(request.TransferAccountNumber),
             VoucherType = NormalizeOptional(request.VoucherType),
             IsUrgent = request.IsUrgent,
             ExecutionStatus = PaymentExecutionStatuses.AwaitingPayment,
@@ -712,6 +745,7 @@ public sealed class CommitteeDecisionService(
             CreatedAt = now,
             UpdatedAt = now
         };
+        CommitteeItemPaymentRules.SyncTransferBankStorage(item);
 
         await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
         try
@@ -784,7 +818,7 @@ public sealed class CommitteeDecisionService(
         if (errors.Count > 0)
             return ServiceResult<AssistanceItemDto>.Fail(400, "VALIDATION_ERROR", errors[0], errors);
 
-        var validationErrors = ValidateItemFields(
+        var validationErrors = CommitteeItemPaymentRules.ValidateItemFields(
             item.PaymentTarget, item.PaymentMethod, item.SupplierId, item.PayeeName, item.VoucherType);
         if (validationErrors.Count > 0)
             return ServiceResult<AssistanceItemDto>.Fail(400, "VALIDATION_ERROR", validationErrors[0], validationErrors);
@@ -824,10 +858,16 @@ public sealed class CommitteeDecisionService(
                 cancellationToken);
         }
 
-        var bankErrors = ValidateBankTransferBankDetails(
+        var bankErrors = CommitteeItemPaymentRules.ValidateBankForTransfer(
             item.PaymentTarget, item.PaymentMethod, decision.Family!, supplierForBank);
         if (bankErrors.Count > 0)
             return ServiceResult<AssistanceItemDto>.Fail(400, "INCOMPLETE_BANK_DETAILS", bankErrors[0], bankErrors);
+
+        var transferErrors = CommitteeItemPaymentRules.ValidateTransferBankForOther(
+            item.PaymentTarget, item.PaymentMethod, item.PayeeName,
+            item.TransferBankNumber, item.TransferBranchNumber, item.TransferAccountNumber);
+        if (transferErrors.Count > 0)
+            return ServiceResult<AssistanceItemDto>.Fail(400, "VALIDATION_ERROR", transferErrors[0], transferErrors);
 
         decision.TotalAmount = decision.TotalAmount - oldAmount + item.Amount;
         item.Version++;
@@ -1018,63 +1058,12 @@ public sealed class CommitteeDecisionService(
         if (!string.IsNullOrWhiteSpace(request.Description) && request.Description.Trim().Length > 500)
             errors.Add("תיאור חייב להיות עד 500 תווים");
 
-        errors.AddRange(ValidateItemFields(
+        errors.AddRange(CommitteeItemPaymentRules.ValidateItemFields(
             request.PaymentTarget?.Trim() ?? string.Empty,
             request.PaymentMethod?.Trim() ?? string.Empty,
             request.SupplierId,
             request.PayeeName,
             request.VoucherType));
-        return errors;
-    }
-
-    private static List<string> ValidateBankTransferBankDetails(
-        string paymentTarget,
-        string paymentMethod,
-        Family family,
-        Supplier? supplier)
-    {
-        if (paymentMethod != PaymentMethods.BankTransfer)
-            return [];
-
-        if (paymentTarget == PaymentTargets.Family)
-        {
-            return BankFieldValidator.ValidateCompleteForPayment(
-                family.BankNumber, family.BranchNumber, family.AccountNumber, family.AccountHolderName);
-        }
-
-        if (paymentTarget == PaymentTargets.Supplier)
-        {
-            if (supplier is null)
-                return [BankFieldValidator.IncompleteBankForPaymentMessage];
-
-            return BankFieldValidator.ValidateCompleteForPayment(
-                supplier.BankNumber, supplier.BranchNumber, supplier.AccountNumber, supplier.AccountHolderName);
-        }
-
-        return [];
-    }
-
-    private static List<string> ValidateItemFields(
-        string paymentTarget,
-        string paymentMethod,
-        Guid? supplierId,
-        string? payeeName,
-        string? voucherType)
-    {
-        var errors = new List<string>();
-
-        if (!PaymentTargets.All.Contains(paymentTarget))
-            errors.Add("יעד תשלום לא חוקי");
-        if (!PaymentMethods.All.Contains(paymentMethod))
-            errors.Add("אמצעי תשלום לא חוקי");
-
-        if (paymentTarget == PaymentTargets.Supplier && supplierId is null)
-            errors.Add("יש לבחור ספק");
-        if (paymentTarget == PaymentTargets.Other && string.IsNullOrWhiteSpace(payeeName))
-            errors.Add("יש לציין שם מוטב");
-        if (paymentMethod == PaymentMethods.Vouchers && string.IsNullOrWhiteSpace(voucherType))
-            errors.Add("יש לציין סוג שובר");
-
         return errors;
     }
 
@@ -1108,11 +1097,19 @@ public sealed class CommitteeDecisionService(
 
         if (request.PayeeName is not null)
             item.PayeeName = NormalizeOptional(request.PayeeName);
+        CommitteeItemPaymentRules.ApplyTransferBankFromRequest(
+            item,
+            request.TransferBankNumber,
+            request.TransferBranchNumber,
+            request.TransferAccountNumber,
+            request.ClearTransferBank);
         if (request.VoucherType is not null)
             item.VoucherType = NormalizeOptional(request.VoucherType);
 
         if (request.IsUrgent is not null)
             item.IsUrgent = request.IsUrgent.Value;
+
+        CommitteeItemPaymentRules.SyncTransferBankStorage(item);
     }
 
     private static string? NormalizeOptional(string? value)
@@ -1279,6 +1276,9 @@ public sealed class CommitteeDecisionService(
             SupplierId = i.SupplierId,
             SupplierName = i.Supplier?.Name,
             PayeeName = i.PayeeName,
+            TransferBankNumber = i.TransferBankNumber,
+            TransferBranchNumber = i.TransferBranchNumber,
+            TransferAccountNumber = i.TransferAccountNumber,
             VoucherType = i.VoucherType,
             IsUrgent = i.IsUrgent,
             ExecutionStatus = i.ExecutionStatus,

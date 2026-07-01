@@ -13,6 +13,9 @@ public class AssistanceItem
     public string PaymentMethod { get; set; } = string.Empty;
     public Guid? SupplierId { get; set; }
     public string? PayeeName { get; set; }
+    public string? TransferBankNumber { get; set; }
+    public string? TransferBranchNumber { get; set; }
+    public string? TransferAccountNumber { get; set; }
     public string? VoucherType { get; set; }
     public bool IsUrgent { get; set; }
     public string ExecutionStatus { get; set; } = "awaiting_payment";

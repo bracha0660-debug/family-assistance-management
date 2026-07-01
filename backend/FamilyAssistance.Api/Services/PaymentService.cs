@@ -104,8 +104,7 @@ public sealed class PaymentService(
                 "הרשומה עודכנה על ידי משתמש אחר. יש לטעון מחדש.");
 
         var item = payment.AssistanceItem!;
-        if (item.PaymentMethod == PaymentMethods.BankTransfer
-            && item.PaymentTarget is PaymentTargets.Family or PaymentTargets.Supplier)
+        if (item.PaymentMethod == PaymentMethods.BankTransfer)
         {
             string? bankNumber;
             string? branchNumber;
@@ -120,7 +119,7 @@ public sealed class PaymentService(
                 accountNumber = family.AccountNumber;
                 accountHolderName = family.AccountHolderName;
             }
-            else
+            else if (item.PaymentTarget == PaymentTargets.Supplier)
             {
                 if (item.Supplier is null)
                     return ServiceResult<PaymentQueueItemDto>.Fail(400, "INCOMPLETE_BANK_DETAILS",
@@ -131,11 +130,30 @@ public sealed class PaymentService(
                 accountNumber = item.Supplier.AccountNumber;
                 accountHolderName = item.Supplier.AccountHolderName;
             }
+            else if (item.PaymentTarget == PaymentTargets.Other)
+            {
+                bankNumber = item.TransferBankNumber;
+                branchNumber = item.TransferBranchNumber;
+                accountNumber = item.TransferAccountNumber;
+                accountHolderName = item.PayeeName;
+            }
+            else
+            {
+                bankNumber = null;
+                branchNumber = null;
+                accountNumber = null;
+                accountHolderName = null;
+            }
 
             var bankErrors = BankFieldValidator.ValidateCompleteForPayment(
                 bankNumber, branchNumber, accountNumber, accountHolderName);
             if (bankErrors.Count > 0)
-                return ServiceResult<PaymentQueueItemDto>.Fail(400, "INCOMPLETE_BANK_DETAILS", bankErrors[0], bankErrors);
+            {
+                var message = item.PaymentTarget == PaymentTargets.Other
+                    ? CommitteeItemPaymentRules.TransferBankRequiredMessage
+                    : bankErrors[0];
+                return ServiceResult<PaymentQueueItemDto>.Fail(400, "INCOMPLETE_BANK_DETAILS", message, bankErrors);
+            }
         }
 
         var now = DateTime.UtcNow;

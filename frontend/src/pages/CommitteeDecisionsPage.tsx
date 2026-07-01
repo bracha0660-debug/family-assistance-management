@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { FormEvent } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
 import type { UserDto } from '../api/auth';
 import { listAssistanceTypes, type AssistanceTypeDto } from '../api/assistanceTypes';
 import {
@@ -12,7 +12,6 @@ import {
   submitCommitteeDecision,
   updateAssistanceItem,
   updateCommitteeDecision,
-  PAYMENT_METHODS,
   PAYMENT_TARGETS,
   type AssistanceItemDto,
   type CommitteeDecisionDto,
@@ -32,6 +31,24 @@ import { FieldValidationTooltip } from '../components/FieldValidation';
 import { ModalShell } from '../components/ModalShell';
 import { focusFirstInvalidField } from '../utils/formValidation';
 import { partitionSuppliersForAssistanceType } from '../utils/relatedSuppliers';
+import { type BankFields } from '../validation/bankFields';
+import {
+  applyPaymentMethodChange,
+  applyPaymentTargetChange,
+  createEmptyItemRowState,
+  PAYEE_NAME_REQUIRED_MESSAGE,
+  D8_CONFIRM_MESSAGE,
+  formatTransferDetailsSummary,
+  getAllowedPaymentMethods,
+  hasMeaningfulPaymentData,
+  isTransferBankComplete,
+  needsTransferBankModal,
+  onAssistanceTypeChange,
+  revalidateAfterBeneficiaryChange,
+  type CommitteeItemRowState,
+  validateCommitteeItemRow,
+} from '../validation/committeeItemPayment';
+import { firstBankFieldError, validateBankFieldErrors } from '../validation/bankFields';
 
 interface CommitteeDecisionsPageProps {
   user: UserDto;
@@ -81,20 +98,127 @@ function translatePaymentMethod(m: string): string {
   }
 }
 
-function formatPayeeTransfer(item: AssistanceItemDto): string {
-  const base = item.supplierName ?? item.payeeName ?? '—';
+function formatBeneficiaryName(item: AssistanceItemDto): string {
+  if (item.paymentTarget === 'supplier') return item.supplierName ?? '—';
+  return item.payeeName ?? '—';
+}
+
+function formatPaymentMethodCell(item: AssistanceItemDto): string {
+  const base = translatePaymentMethod(item.paymentMethod);
   if (item.paymentMethod === 'vouchers' && item.voucherType) {
-    return base === '—' ? item.voucherType : `${base} (${item.voucherType})`;
+    return `${base} (${item.voucherType})`;
   }
   return base;
 }
 
-const ITEM_FOCUS_ORDER = [
+function toBankFields(source: {
+  bankNumber: string | null;
+  branchNumber: string | null;
+  accountNumber: string | null;
+  accountHolderName: string | null;
+}): BankFields {
+  return {
+    bankNumber: source.bankNumber,
+    branchNumber: source.branchNumber,
+    accountNumber: source.accountNumber,
+    accountHolderName: source.accountHolderName,
+  };
+}
+
+function itemToRowState(item: AssistanceItemDto): CommitteeItemRowState {
+  return {
+    assistanceTypeId: item.assistanceTypeId,
+    description: item.description ?? '',
+    amount: String(item.amount),
+    paymentTarget: item.paymentTarget as PaymentTarget,
+    paymentMethod: item.paymentMethod as PaymentMethod,
+    supplierId: item.supplierId ?? '',
+    payeeName: item.payeeName ?? '',
+    transferBankNumber: item.transferBankNumber ?? '',
+    transferBranchNumber: item.transferBranchNumber ?? '',
+    transferAccountNumber: item.transferAccountNumber ?? '',
+    voucherType: item.voucherType ?? '',
+    isUrgent: item.isUrgent,
+  };
+}
+
+function buildCreatePayload(state: CommitteeItemRowState): CreateAssistanceItemPayload {
+  const payload: CreateAssistanceItemPayload = {
+    assistanceTypeId: state.assistanceTypeId,
+    description: state.description.trim() || null,
+    amount: Number(state.amount),
+    paymentTarget: state.paymentTarget as PaymentTarget,
+    paymentMethod: state.paymentMethod as PaymentMethod,
+    supplierId: state.paymentTarget === 'supplier' ? state.supplierId : null,
+    payeeName: (state.paymentTarget === 'family' || state.paymentTarget === 'other')
+      ? state.payeeName.trim()
+      : null,
+    voucherType: state.paymentMethod === 'vouchers' ? state.voucherType.trim() || null : null,
+    isUrgent: state.isUrgent,
+  };
+
+  if (state.paymentTarget === 'other' && state.paymentMethod === 'bank_transfer') {
+    payload.transferBankNumber = state.transferBankNumber.trim();
+    payload.transferBranchNumber = state.transferBranchNumber.trim();
+    payload.transferAccountNumber = state.transferAccountNumber.trim();
+  }
+
+  return payload;
+}
+
+function buildUpdatePayload(
+  state: CommitteeItemRowState,
+  previousSupplierId: string | null,
+): UpdateAssistanceItemPayload {
+  const payload: UpdateAssistanceItemPayload = {
+    assistanceTypeId: state.assistanceTypeId,
+    description: state.description.trim() || null,
+    amount: Number(state.amount),
+    paymentTarget: state.paymentTarget as PaymentTarget,
+    paymentMethod: state.paymentMethod as PaymentMethod,
+    isUrgent: state.isUrgent,
+    voucherType: state.paymentMethod === 'vouchers' ? state.voucherType.trim() || null : null,
+  };
+
+  if (state.paymentTarget === 'supplier') {
+    payload.supplierId = state.supplierId;
+  } else if (previousSupplierId) {
+    payload.clearSupplierId = true;
+  }
+
+  if (state.paymentTarget === 'family' || state.paymentTarget === 'other') {
+    payload.payeeName = state.payeeName.trim();
+  }
+
+  if (state.paymentTarget === 'other' && state.paymentMethod === 'bank_transfer') {
+    payload.transferBankNumber = state.transferBankNumber.trim();
+    payload.transferBranchNumber = state.transferBranchNumber.trim();
+    payload.transferAccountNumber = state.transferAccountNumber.trim();
+  } else {
+    payload.clearTransferBank = true;
+  }
+
+  return payload;
+}
+
+const ADD_ITEM_FOCUS_ORDER = [
   'item-assistance-type',
+  'item-description',
   'item-payment-target',
+  'item-payee-name',
   'item-payment-method',
-  'item-payee-transfer',
+  'item-voucher-type',
   'item-amount',
+];
+
+const EDIT_ITEM_FOCUS_ORDER = [
+  'edit-item-assistance-type',
+  'edit-item-description',
+  'edit-item-payment-target',
+  'edit-item-payee-name',
+  'edit-item-payment-method',
+  'edit-item-voucher-type',
+  'edit-item-amount',
 ];
 
 function SupplierSelectOptions({
@@ -130,23 +254,349 @@ function SupplierSelectOptions({
   );
 }
 
-function validateItemFields(
-  assistanceTypeId: string,
-  amount: string,
-  paymentTarget: PaymentTarget | '',
-  paymentMethod: PaymentMethod | '',
-  supplierId: string,
-  payeeName: string,
-): string | null {
-  const parsedAmount = Number(amount);
-  if (!assistanceTypeId || !Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-    return 'יש לבחור סוג סיוע ולהזין סכום חיובי';
+function TransferBankModal({
+  initial,
+  payeeName,
+  onSave,
+  onClose,
+}: {
+  initial: Pick<CommitteeItemRowState, 'transferBankNumber' | 'transferBranchNumber' | 'transferAccountNumber'>;
+  payeeName: string;
+  onSave: (values: Pick<CommitteeItemRowState, 'transferBankNumber' | 'transferBranchNumber' | 'transferAccountNumber'>) => void;
+  onClose: () => void;
+}) {
+  const [bankNumber, setBankNumber] = useState(initial.transferBankNumber);
+  const [branchNumber, setBranchNumber] = useState(initial.transferBranchNumber);
+  const [accountNumber, setAccountNumber] = useState(initial.transferAccountNumber);
+  const [error, setError] = useState('');
+
+  function handleSave(e: FormEvent) {
+    e.preventDefault();
+    const validationError = firstBankFieldError(validateBankFieldErrors(
+      bankNumber,
+      branchNumber,
+      accountNumber,
+      payeeName,
+    ));
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    onSave({
+      transferBankNumber: bankNumber.trim(),
+      transferBranchNumber: branchNumber.trim(),
+      transferAccountNumber: accountNumber.trim(),
+    });
   }
-  if (!paymentTarget) return 'יש לבחור יעד תשלום';
-  if (!paymentMethod) return 'יש לבחור אופן תשלום';
-  if (paymentTarget === 'supplier' && !supplierId) return 'יש לבחור ספק';
-  if (paymentTarget === 'other' && !payeeName.trim()) return 'יש להזין שם מוטב';
-  return null;
+
+  return (
+    <ModalShell
+      title="פרטי העברה בנקאית"
+      onClose={onClose}
+      onSubmit={handleSave}
+      formError={error}
+      footer={(
+        <>
+          <button type="button" className="btn-secondary" onClick={onClose}>ביטול</button>
+          <button type="submit">שמור</button>
+        </>
+      )}
+    >
+      <p className="hint-text">שם בעל החשבון: <strong>{payeeName.trim() || '—'}</strong></p>
+      <label htmlFor="transfer-bank-number">קוד בנק <span className="field-required">*</span></label>
+      <input
+        id="transfer-bank-number"
+        type="text"
+        inputMode="numeric"
+        value={bankNumber}
+        onChange={(e) => setBankNumber(e.target.value)}
+      />
+      <label htmlFor="transfer-branch-number">סניף <span className="field-required">*</span></label>
+      <input
+        id="transfer-branch-number"
+        type="text"
+        inputMode="numeric"
+        value={branchNumber}
+        onChange={(e) => setBranchNumber(e.target.value)}
+      />
+      <label htmlFor="transfer-account-number">מספר חשבון <span className="field-required">*</span></label>
+      <input
+        id="transfer-account-number"
+        type="text"
+        inputMode="numeric"
+        value={accountNumber}
+        onChange={(e) => setAccountNumber(e.target.value)}
+      />
+    </ModalShell>
+  );
+}
+
+function CommitteeItemFormFields({
+  idPrefix,
+  state,
+  onStateChange,
+  types,
+  suppliers,
+  familyLastName,
+  familyBank,
+  disabled,
+  payeeNameManuallyEdited,
+  setPayeeNameManuallyEdited,
+  onValidationMessage,
+  showActions,
+  onAdd,
+  addLoading,
+  addError,
+  onOpenTransferModal,
+}: {
+  idPrefix: 'item' | 'edit-item';
+  state: CommitteeItemRowState;
+  onStateChange: (next: CommitteeItemRowState) => void;
+  types: AssistanceTypeDto[];
+  suppliers: SupplierDto[];
+  familyLastName: string;
+  familyBank: BankFields | null;
+  disabled: boolean;
+  payeeNameManuallyEdited: boolean;
+  setPayeeNameManuallyEdited: (value: boolean) => void;
+  onValidationMessage?: (message: string | null) => void;
+  showActions?: boolean;
+  onAdd?: () => void;
+  addLoading?: boolean;
+  addError?: string;
+  onOpenTransferModal: () => void;
+}) {
+  const fieldId = (name: string) => `${idPrefix}-${name}`;
+  const { recommended: recommendedSuppliers, other: otherSuppliers } = partitionSuppliersForAssistanceType(
+    types,
+    suppliers,
+    state.assistanceTypeId,
+  );
+  const allowedMethods = getAllowedPaymentMethods(state.paymentTarget);
+  const transferSummary = formatTransferDetailsSummary(
+    state.paymentTarget,
+    state.paymentMethod,
+    state.transferBankNumber,
+    state.transferBranchNumber,
+    state.transferAccountNumber,
+  );
+  const showTransferColumn = state.paymentTarget === 'other' && state.paymentMethod === 'bank_transfer';
+
+  function handleTargetChange(e: ChangeEvent<HTMLSelectElement>) {
+    const newTarget = e.target.value as PaymentTarget | '';
+    if (!newTarget || newTarget === state.paymentTarget) return;
+
+    if (hasMeaningfulPaymentData(state) && !window.confirm(D8_CONFIRM_MESSAGE)) {
+      e.target.value = state.paymentTarget;
+      return;
+    }
+
+    setPayeeNameManuallyEdited(false);
+    onStateChange(applyPaymentTargetChange(newTarget, state, familyLastName));
+    onValidationMessage?.(null);
+  }
+
+  function handleAssistanceTypeChange(e: ChangeEvent<HTMLSelectElement>) {
+    onStateChange(onAssistanceTypeChange({ ...state, assistanceTypeId: e.target.value }));
+  }
+
+  function handlePayeeNameChange(value: string) {
+    setPayeeNameManuallyEdited(true);
+    onStateChange({ ...state, payeeName: value });
+  }
+
+  function handleSupplierChange(supplierId: string) {
+    const next = { ...state, supplierId };
+    const bank = supplierId
+      ? toBankFields(suppliers.find((s) => s.id === supplierId)!)
+      : null;
+    const { state: validated, bankMessage } = revalidateAfterBeneficiaryChange(next, familyBank, bank);
+    onStateChange(validated);
+    onValidationMessage?.(bankMessage);
+  }
+
+  function handlePaymentMethodChange(method: PaymentMethod | '') {
+    const next = applyPaymentMethodChange(method, state);
+    if (needsTransferBankModal(next) && !next.payeeName.trim()) {
+      onValidationMessage?.(PAYEE_NAME_REQUIRED_MESSAGE);
+      onStateChange(applyPaymentMethodChange('', state));
+      return;
+    }
+    onStateChange(next);
+    onValidationMessage?.(null);
+    if (needsTransferBankModal(next)) {
+      onOpenTransferModal();
+    }
+  }
+
+  return (
+    <div className="committee-item-form__grid">
+      <div className="committee-item-form__field">
+        <label htmlFor={fieldId('assistance-type')}>סוג סיוע</label>
+        <select
+          id={fieldId('assistance-type')}
+          value={state.assistanceTypeId}
+          onChange={handleAssistanceTypeChange}
+          disabled={disabled}
+        >
+          {idPrefix === 'item' && <option value="">— בחר —</option>}
+          {types.filter((t) => t.status === 'active').map((t) => (
+            <option key={t.id} value={t.id}>{t.name}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="committee-item-form__field">
+        <label htmlFor={fieldId('description')}>תיאור</label>
+        <input
+          id={fieldId('description')}
+          type="text"
+          placeholder="תיאור"
+          value={state.description}
+          onChange={(e) => onStateChange({ ...state, description: e.target.value })}
+          disabled={disabled}
+        />
+      </div>
+
+      <div className="committee-item-form__field">
+        <label htmlFor={fieldId('payment-target')}>יעד תשלום</label>
+        <select
+          id={fieldId('payment-target')}
+          value={state.paymentTarget}
+          onChange={handleTargetChange}
+          disabled={disabled}
+        >
+          {idPrefix === 'item' && <option value="">— בחר —</option>}
+          {PAYMENT_TARGETS.map((t) => (
+            <option key={t} value={t}>{translatePaymentTarget(t)}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="committee-item-form__field">
+        <label htmlFor={fieldId('payee-name')}>שם מוטב</label>
+        {state.paymentTarget === 'supplier' ? (
+          <select
+            id={fieldId('payee-name')}
+            value={state.supplierId}
+            onChange={(e) => handleSupplierChange(e.target.value)}
+            disabled={disabled || !state.paymentTarget}
+          >
+            <option value="">— בחר ספק —</option>
+            <SupplierSelectOptions recommended={recommendedSuppliers} other={otherSuppliers} />
+          </select>
+        ) : state.paymentTarget === 'family' ? (
+          <>
+            <input
+              id={fieldId('payee-name')}
+              type="text"
+              placeholder="שם מוטב"
+              value={state.payeeName}
+              onChange={(e) => handlePayeeNameChange(e.target.value)}
+              disabled={disabled}
+            />
+            {!payeeNameManuallyEdited && state.payeeName === familyLastName && (
+              <p className="bank-field-hint">ניתן לעריכה במקרה הצורך</p>
+            )}
+          </>
+        ) : state.paymentTarget === 'other' ? (
+          <input
+            id={fieldId('payee-name')}
+            type="text"
+            placeholder="שם מוטב"
+            value={state.payeeName}
+            onChange={(e) => handlePayeeNameChange(e.target.value)}
+            disabled={disabled}
+          />
+        ) : (
+          <input id={fieldId('payee-name')} type="text" disabled placeholder="—" />
+        )}
+      </div>
+
+      <div className="committee-item-form__field committee-item-form__field--method-stack">
+        <label htmlFor={fieldId('payment-method')}>אופן תשלום</label>
+        <select
+          id={fieldId('payment-method')}
+          value={state.paymentMethod}
+          onChange={(e) => handlePaymentMethodChange(e.target.value as PaymentMethod | '')}
+          disabled={disabled || !state.paymentTarget || (state.paymentTarget === 'supplier' && !state.supplierId)}
+        >
+          <option value="">— בחר —</option>
+          {allowedMethods.map((m) => (
+            <option key={m} value={m}>{translatePaymentMethod(m)}</option>
+          ))}
+        </select>
+        {state.paymentMethod === 'vouchers' && (
+          <input
+            id={fieldId('voucher-type')}
+            type="text"
+            placeholder="סוג שובר"
+            value={state.voucherType}
+            onChange={(e) => onStateChange({ ...state, voucherType: e.target.value })}
+            disabled={disabled}
+          />
+        )}
+      </div>
+
+      <div className="committee-item-form__field">
+        <label htmlFor={fieldId('transfer-details')}>פרטי העברה</label>
+        {showTransferColumn ? (
+          <button
+            id={fieldId('transfer-details')}
+            type="button"
+            className="btn-secondary btn-small committee-transfer-summary-btn"
+            onClick={onOpenTransferModal}
+            disabled={disabled}
+            title={transferSummary}
+          >
+            {isTransferBankComplete(state) ? transferSummary : 'הזן פרטים'}
+          </button>
+        ) : (
+          <input id={fieldId('transfer-details')} type="text" disabled value="—" />
+        )}
+      </div>
+
+      <div className="committee-item-form__field">
+        <label htmlFor={fieldId('amount')}>סכום</label>
+        <input
+          id={fieldId('amount')}
+          type="number"
+          placeholder="סכום"
+          value={state.amount}
+          onChange={(e) => onStateChange({ ...state, amount: e.target.value })}
+          disabled={disabled}
+          min={0}
+          step={0.01}
+        />
+      </div>
+
+      <div className="committee-item-form__field committee-item-form__field--urgent">
+        <label className="checkbox-label">
+          <input
+            type="checkbox"
+            checked={state.isUrgent}
+            onChange={(e) => onStateChange({ ...state, isUrgent: e.target.checked })}
+            disabled={disabled}
+          />
+          דחוף
+        </label>
+      </div>
+
+      {showActions ? (
+        <div className="committee-item-form__field committee-item-form__field--actions">
+          <label>פעולות</label>
+          <div className="validated-field-control">
+            <button type="button" className="btn-small" onClick={onAdd} disabled={disabled || addLoading}>
+              הוסף שורה
+            </button>
+            {addError && <FieldValidationTooltip id="item-form-error" message={addError} />}
+          </div>
+        </div>
+      ) : (
+        <div className="committee-item-form__field" aria-hidden="true" />
+      )}
+    </div>
+  );
 }
 
 function CreateDecisionModal({
@@ -218,63 +668,59 @@ function CreateDecisionModal({
 function ItemFormRow({
   types,
   suppliers,
+  familyLastName,
+  familyBank,
   onAdd,
   disabled,
 }: {
   types: AssistanceTypeDto[];
   suppliers: SupplierDto[];
+  familyLastName: string;
+  familyBank: BankFields | null;
   onAdd: (payload: CreateAssistanceItemPayload) => Promise<void>;
   disabled: boolean;
 }) {
-  const [assistanceTypeId, setAssistanceTypeId] = useState('');
-  const [description, setDescription] = useState('');
-  const [amount, setAmount] = useState('');
-  const [paymentTarget, setPaymentTarget] = useState<PaymentTarget | ''>('');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | ''>('');
-  const [supplierId, setSupplierId] = useState('');
-  const [payeeName, setPayeeName] = useState('');
-  const [voucherType, setVoucherType] = useState('');
-  const [isUrgent, setIsUrgent] = useState(false);
+  const [state, setState] = useState<CommitteeItemRowState>(createEmptyItemRowState);
+  const [payeeNameManuallyEdited, setPayeeNameManuallyEdited] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { recommended: recommendedSuppliers, other: otherSuppliers } = partitionSuppliersForAssistanceType(
-    types,
-    suppliers,
-    assistanceTypeId,
-  );
+  const [transferModalOpen, setTransferModalOpen] = useState(false);
+
+  const selectedSupplier = state.supplierId
+    ? suppliers.find((s) => s.id === state.supplierId) ?? null
+    : null;
+  const supplierBank = selectedSupplier ? toBankFields(selectedSupplier) : null;
+
+  function openTransferModal() {
+    if (needsTransferBankModal(state)) {
+      setTransferModalOpen(true);
+    }
+  }
+
+  function handleTransferModalCancel() {
+    setTransferModalOpen(false);
+    setState((prev) => applyPaymentMethodChange('', prev));
+  }
+
+  function handleTransferModalSave(values: Pick<CommitteeItemRowState, 'transferBankNumber' | 'transferBranchNumber' | 'transferAccountNumber'>) {
+    setState((prev) => ({ ...prev, ...values }));
+    setTransferModalOpen(false);
+  }
 
   async function handleAdd() {
     setError('');
-    const validationError = validateItemFields(
-      assistanceTypeId, amount, paymentTarget, paymentMethod, supplierId, payeeName,
-    );
+    const validationError = validateCommitteeItemRow(state, familyBank, supplierBank);
     if (validationError) {
       setError(validationError);
-      focusFirstInvalidField(ITEM_FOCUS_ORDER);
+      focusFirstInvalidField(ADD_ITEM_FOCUS_ORDER);
       return;
     }
-    const parsedAmount = Number(amount);
+
     setLoading(true);
     try {
-      await onAdd({
-        assistanceTypeId,
-        description: description.trim() || null,
-        amount: parsedAmount,
-        paymentTarget: paymentTarget as PaymentTarget,
-        paymentMethod: paymentMethod as PaymentMethod,
-        supplierId: paymentTarget === 'supplier' ? supplierId : null,
-        payeeName: paymentTarget === 'other' ? payeeName.trim() : null,
-        voucherType: paymentMethod === 'vouchers' ? voucherType.trim() || null : null,
-        isUrgent,
-      });
-      setDescription('');
-      setAmount('');
-      setPaymentTarget('');
-      setPaymentMethod('');
-      setSupplierId('');
-      setPayeeName('');
-      setVoucherType('');
-      setIsUrgent(false);
+      await onAdd(buildCreatePayload(state));
+      setState(createEmptyItemRowState());
+      setPayeeNameManuallyEdited(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'שגיאת מערכת');
     } finally {
@@ -283,83 +729,36 @@ function ItemFormRow({
   }
 
   return (
-    <div className="item-form-row">
-      <div className="item-form-field">
-        <label htmlFor="item-assistance-type">סוג סיוע</label>
-        <select id="item-assistance-type" value={assistanceTypeId} onChange={(e) => setAssistanceTypeId(e.target.value)} disabled={disabled || loading}>
-          <option value="">— בחר —</option>
-          {types.filter((t) => t.status === 'active').map((t) => (
-            <option key={t.id} value={t.id}>{t.name}</option>
-          ))}
-        </select>
-      </div>
-      <div className="item-form-field">
-        <label htmlFor="item-description">תיאור</label>
-        <input id="item-description" type="text" placeholder="תיאור" value={description} onChange={(e) => setDescription(e.target.value)} disabled={disabled || loading} />
-      </div>
-      <div className="item-form-field">
-        <label htmlFor="item-payment-target">יעד תשלום</label>
-        <select
-          id="item-payment-target"
-          value={paymentTarget}
-          onChange={(e) => setPaymentTarget(e.target.value as PaymentTarget | '')}
+    <>
+      <div className="committee-item-form">
+        <CommitteeItemFormFields
+          idPrefix="item"
+          state={state}
+          onStateChange={setState}
+          types={types}
+          suppliers={suppliers}
+          familyLastName={familyLastName}
+          familyBank={familyBank}
           disabled={disabled || loading}
-          aria-invalid={error.includes('יעד') ? true : undefined}
-        >
-          <option value="">— בחר —</option>
-          {PAYMENT_TARGETS.map((t) => (
-            <option key={t} value={t}>{translatePaymentTarget(t)}</option>
-          ))}
-        </select>
+          payeeNameManuallyEdited={payeeNameManuallyEdited}
+          setPayeeNameManuallyEdited={setPayeeNameManuallyEdited}
+          onValidationMessage={(msg) => setError(msg ?? '')}
+          showActions
+          onAdd={handleAdd}
+          addLoading={loading}
+          addError={error}
+          onOpenTransferModal={openTransferModal}
+        />
       </div>
-      <div className="item-form-field">
-        <label htmlFor="item-payment-method">אופן תשלום</label>
-        <select
-          id="item-payment-method"
-          value={paymentMethod}
-          onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod | '')}
-          disabled={disabled || loading}
-          aria-invalid={error.includes('אופן') ? true : undefined}
-        >
-          <option value="">— בחר —</option>
-          {PAYMENT_METHODS.map((m) => (
-            <option key={m} value={m}>{translatePaymentMethod(m)}</option>
-          ))}
-        </select>
-      </div>
-      <div className="item-form-field item-form-payee">
-        <label htmlFor="item-payee-transfer">מוטב / העברה</label>
-        {paymentTarget === 'supplier' ? (
-          <>
-            <select id="item-payee-transfer" value={supplierId} onChange={(e) => setSupplierId(e.target.value)} disabled={disabled || loading}>
-              <option value="">— בחר ספק —</option>
-              <SupplierSelectOptions recommended={recommendedSuppliers} other={otherSuppliers} />
-            </select>
-            {paymentMethod === 'vouchers' && (
-              <input type="text" placeholder="סוג שובר" value={voucherType} onChange={(e) => setVoucherType(e.target.value)} disabled={disabled || loading} />
-            )}
-          </>
-        ) : paymentTarget === 'other' ? (
-          <input id="item-payee-transfer" type="text" placeholder="שם מוטב" value={payeeName} onChange={(e) => setPayeeName(e.target.value)} disabled={disabled || loading} />
-        ) : paymentMethod === 'vouchers' ? (
-          <input id="item-payee-transfer" type="text" placeholder="סוג שובר" value={voucherType} onChange={(e) => setVoucherType(e.target.value)} disabled={disabled || loading} />
-        ) : (
-          <input id="item-payee-transfer" type="text" disabled placeholder="—" />
-        )}
-      </div>
-      <div className="item-form-field">
-        <label htmlFor="item-amount">סכום</label>
-        <input id="item-amount" type="number" placeholder="סכום" value={amount} onChange={(e) => setAmount(e.target.value)} disabled={disabled || loading} min={0} step={0.01} />
-      </div>
-      <label className="checkbox-label item-form-urgent">
-        <input type="checkbox" checked={isUrgent} onChange={(e) => setIsUrgent(e.target.checked)} disabled={disabled || loading} />
-        דחוף
-      </label>
-      <div className="item-form-actions validated-field-control">
-        <button type="button" className="btn-small" onClick={handleAdd} disabled={disabled || loading}>הוסף שורה</button>
-        {error && <FieldValidationTooltip id="item-form-error" message={error} />}
-      </div>
-    </div>
+      {transferModalOpen && (
+        <TransferBankModal
+          initial={state}
+          payeeName={state.payeeName}
+          onSave={handleTransferModalSave}
+          onClose={handleTransferModalCancel}
+        />
+      )}
+    </>
   );
 }
 
@@ -367,6 +766,8 @@ function ItemEditModal({
   item,
   types,
   suppliers,
+  familyLastName,
+  familyBank,
   decisionId,
   onClose,
   onSaved,
@@ -374,59 +775,65 @@ function ItemEditModal({
   item: AssistanceItemDto;
   types: AssistanceTypeDto[];
   suppliers: SupplierDto[];
+  familyLastName: string;
+  familyBank: BankFields | null;
   decisionId: string;
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const [assistanceTypeId, setAssistanceTypeId] = useState(item.assistanceTypeId);
-  const [description, setDescription] = useState(item.description ?? '');
-  const [amount, setAmount] = useState(String(item.amount));
-  const [paymentTarget, setPaymentTarget] = useState<PaymentTarget>(item.paymentTarget as PaymentTarget);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(item.paymentMethod as PaymentMethod);
-  const [supplierId, setSupplierId] = useState(item.supplierId ?? '');
-  const [payeeName, setPayeeName] = useState(item.payeeName ?? '');
-  const [voucherType, setVoucherType] = useState(item.voucherType ?? '');
-  const [isUrgent, setIsUrgent] = useState(item.isUrgent);
+  const [state, setState] = useState<CommitteeItemRowState>(() => {
+    const row = itemToRowState(item);
+    if (row.paymentTarget === 'family' && !row.payeeName.trim()) {
+      row.payeeName = familyLastName;
+    }
+    return row;
+  });
+  const [payeeNameManuallyEdited, setPayeeNameManuallyEdited] = useState(
+    item.paymentTarget === 'family' && Boolean(item.payeeName?.trim()) && item.payeeName !== familyLastName,
+  );
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { recommended: recommendedSuppliers, other: otherSuppliers } = partitionSuppliersForAssistanceType(
-    types,
-    suppliers,
-    assistanceTypeId,
-  );
+  const [transferModalOpen, setTransferModalOpen] = useState(false);
+
+  const selectedSupplier = state.supplierId
+    ? suppliers.find((s) => s.id === state.supplierId) ?? null
+    : null;
+  const supplierBank = selectedSupplier ? toBankFields(selectedSupplier) : null;
+
+  function openTransferModal() {
+    if (needsTransferBankModal(state)) {
+      setTransferModalOpen(true);
+    }
+  }
+
+  function handleTransferModalCancel() {
+    setTransferModalOpen(false);
+    setState((prev) => applyPaymentMethodChange('', prev));
+  }
+
+  function handleTransferModalSave(values: Pick<CommitteeItemRowState, 'transferBankNumber' | 'transferBranchNumber' | 'transferAccountNumber'>) {
+    setState((prev) => ({ ...prev, ...values }));
+    setTransferModalOpen(false);
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
-    const validationError = validateItemFields(
-      assistanceTypeId, amount, paymentTarget, paymentMethod, supplierId, payeeName,
-    );
+    const validationError = validateCommitteeItemRow(state, familyBank, supplierBank);
     if (validationError) {
       setError(validationError);
-      focusFirstInvalidField(ITEM_FOCUS_ORDER);
+      focusFirstInvalidField(EDIT_ITEM_FOCUS_ORDER);
       return;
     }
-    const parsedAmount = Number(amount);
-    const payload: UpdateAssistanceItemPayload = {
-      assistanceTypeId,
-      description: description.trim() || null,
-      amount: parsedAmount,
-      paymentTarget,
-      paymentMethod,
-      isUrgent,
-      voucherType: paymentMethod === 'vouchers' ? voucherType.trim() || null : null,
-    };
-    if (paymentTarget === 'supplier') {
-      payload.supplierId = supplierId;
-    } else if (item.supplierId) {
-      payload.clearSupplierId = true;
-    }
-    if (paymentTarget === 'other') {
-      payload.payeeName = payeeName.trim();
-    }
+
     setLoading(true);
     try {
-      await updateAssistanceItem(decisionId, item.id, item.version, payload);
+      await updateAssistanceItem(
+        decisionId,
+        item.id,
+        item.version,
+        buildUpdatePayload(state, item.supplierId),
+      );
       onSaved();
       onClose();
     } catch (err) {
@@ -437,67 +844,48 @@ function ItemEditModal({
   }
 
   return (
-    <ModalShell
-      title={`עריכת פריט #${item.lineNumber}`}
-      loading={loading}
-      onClose={onClose}
-      onSubmit={handleSubmit}
-      formError={error}
-      footer={(
-        <>
-          <button type="button" className="btn-secondary" onClick={onClose} disabled={loading}>ביטול</button>
-          <button type="submit" disabled={loading}>{loading ? 'שומר...' : 'שמור'}</button>
-        </>
+    <>
+      <ModalShell
+        title={`עריכת פריט #${item.lineNumber}`}
+        loading={loading}
+        onClose={onClose}
+        onSubmit={handleSubmit}
+        formError={error}
+        footer={(
+          <>
+            <button type="button" className="btn-secondary" onClick={onClose} disabled={loading}>ביטול</button>
+            <button type="submit" disabled={loading}>{loading ? 'שומר...' : 'שמור'}</button>
+          </>
+        )}
+      >
+        <div className="committee-items-shell">
+          <div className="committee-item-form">
+            <CommitteeItemFormFields
+              idPrefix="edit-item"
+              state={state}
+              onStateChange={setState}
+              types={types}
+              suppliers={suppliers}
+              familyLastName={familyLastName}
+              familyBank={familyBank}
+              disabled={loading}
+              payeeNameManuallyEdited={payeeNameManuallyEdited}
+              setPayeeNameManuallyEdited={setPayeeNameManuallyEdited}
+              onValidationMessage={(msg) => setError(msg ?? '')}
+              onOpenTransferModal={openTransferModal}
+            />
+          </div>
+        </div>
+      </ModalShell>
+      {transferModalOpen && (
+        <TransferBankModal
+          initial={state}
+          payeeName={state.payeeName}
+          onSave={handleTransferModalSave}
+          onClose={handleTransferModalCancel}
+        />
       )}
-    >
-      <label htmlFor="edit-item-type">סוג סיוע <span className="field-required">*</span></label>
-      <select id="edit-item-type" value={assistanceTypeId} onChange={(e) => setAssistanceTypeId(e.target.value)} disabled={loading}>
-        {types.filter((t) => t.status === 'active').map((t) => (
-          <option key={t.id} value={t.id}>{t.name}</option>
-        ))}
-      </select>
-      <label htmlFor="edit-item-description">תיאור</label>
-      <input id="edit-item-description" type="text" value={description} onChange={(e) => setDescription(e.target.value)} disabled={loading} />
-      <label htmlFor="edit-item-target">יעד תשלום <span className="field-required">*</span></label>
-      <select id="edit-item-target" value={paymentTarget} onChange={(e) => setPaymentTarget(e.target.value as PaymentTarget)} disabled={loading}>
-        {PAYMENT_TARGETS.map((t) => (
-          <option key={t} value={t}>{translatePaymentTarget(t)}</option>
-        ))}
-      </select>
-      <label htmlFor="edit-item-method">אופן תשלום <span className="field-required">*</span></label>
-      <select id="edit-item-method" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)} disabled={loading}>
-        {PAYMENT_METHODS.map((m) => (
-          <option key={m} value={m}>{translatePaymentMethod(m)}</option>
-        ))}
-      </select>
-      {paymentTarget === 'supplier' && (
-        <>
-          <label htmlFor="edit-item-supplier">ספק <span className="field-required">*</span></label>
-          <select id="edit-item-supplier" value={supplierId} onChange={(e) => setSupplierId(e.target.value)} disabled={loading}>
-            <option value="">— בחר ספק —</option>
-            <SupplierSelectOptions recommended={recommendedSuppliers} other={otherSuppliers} />
-          </select>
-        </>
-      )}
-      {paymentTarget === 'other' && (
-        <>
-          <label htmlFor="edit-item-payee">שם מוטב <span className="field-required">*</span></label>
-          <input id="edit-item-payee" type="text" value={payeeName} onChange={(e) => setPayeeName(e.target.value)} disabled={loading} />
-        </>
-      )}
-      {paymentMethod === 'vouchers' && (
-        <>
-          <label htmlFor="edit-item-voucher">סוג שובר</label>
-          <input id="edit-item-voucher" type="text" value={voucherType} onChange={(e) => setVoucherType(e.target.value)} disabled={loading} />
-        </>
-      )}
-      <label htmlFor="edit-item-amount">סכום <span className="field-required">*</span></label>
-      <input id="edit-item-amount" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} disabled={loading} min={0} step={0.01} />
-      <label className="checkbox-label">
-        <input type="checkbox" checked={isUrgent} onChange={(e) => setIsUrgent(e.target.checked)} disabled={loading} />
-        דחוף
-      </label>
-    </ModalShell>
+    </>
   );
 }
 
@@ -506,6 +894,7 @@ function DecisionDetailPanel({
   user,
   types,
   suppliers,
+  family,
   onClose,
   onUpdated,
 }: {
@@ -513,6 +902,7 @@ function DecisionDetailPanel({
   user: UserDto;
   types: AssistanceTypeDto[];
   suppliers: SupplierDto[];
+  family: FamilyDto | null;
   onClose: () => void;
   onUpdated: () => void;
 }) {
@@ -522,6 +912,8 @@ function DecisionDetailPanel({
   const [editItem, setEditItem] = useState<AssistanceItemDto | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const familyBank = family ? toBankFields(family) : null;
 
   const editable = ['draft', 'returned_for_revision'].includes(decision.status);
   const canEditDraft = editable && hasPermission(user, PERMISSION_KEYS.committeeDecisionsEditDraft);
@@ -598,8 +990,6 @@ function DecisionDetailPanel({
     }
   }
 
-  const totalColSpan = showActions ? 2 : 1;
-
   return (
     <>
       <ModalShell
@@ -642,40 +1032,53 @@ function DecisionDetailPanel({
         )}
 
         <h3>פריטי סיוע ({decision.items.length})</h3>
-        {canAddItems && (
-          <ItemFormRow types={types} suppliers={suppliers} onAdd={handleAddItem} disabled={loading} />
-        )}
+        <div className="committee-items-shell">
+          {canAddItems && (
+            <ItemFormRow
+              types={types}
+              suppliers={suppliers}
+              familyLastName={decision.familyLastName}
+              familyBank={familyBank}
+              onAdd={handleAddItem}
+              disabled={loading}
+            />
+          )}
 
-        <div className="table-wrap">
-          <table className="org-table items-grid">
+          <table className="org-table committee-items-table">
             <thead>
               <tr>
-                <th>#</th>
                 <th>סוג סיוע</th>
                 <th>תיאור</th>
                 <th>יעד תשלום</th>
+                <th>שם מוטב</th>
                 <th>אופן תשלום</th>
-                <th>מוטב / העברה</th>
+                <th>פרטי העברה</th>
                 <th>סכום</th>
                 <th>דחוף</th>
-                {showActions && <th>פעולות</th>}
+                {showActions ? <th>פעולות</th> : <th aria-hidden="true" />}
               </tr>
             </thead>
             <tbody>
               {decision.items.length === 0 && (
-                <tr><td colSpan={showActions ? 9 : 8} className="empty-row">אין פריטים</td></tr>
+                <tr><td colSpan={9} className="empty-row">אין פריטים</td></tr>
               )}
               {decision.items.map((item) => (
                 <tr key={item.id}>
-                  <td>{item.lineNumber}</td>
                   <td>{item.assistanceTypeName}</td>
                   <td>{item.description ?? '—'}</td>
                   <td>{translatePaymentTarget(item.paymentTarget)}</td>
-                  <td>{translatePaymentMethod(item.paymentMethod)}</td>
-                  <td>{formatPayeeTransfer(item)}</td>
+                  <td>{formatBeneficiaryName(item)}</td>
+                  <td>{formatPaymentMethodCell(item)}</td>
+                  <td>{formatTransferDetailsSummary(
+                    item.paymentTarget,
+                    item.paymentMethod,
+                    item.transferBankNumber,
+                    item.transferBranchNumber,
+                    item.transferAccountNumber,
+                  )}</td>
                   <td>{item.amount.toLocaleString('he-IL')} ₪</td>
                   <td>{item.isUrgent ? 'כן' : '—'}</td>
-                  {showActions && (
+                  {showActions ? (
                     <td className="item-actions-cell">
                       {canEditItems && (
                         <button type="button" className="btn-small" onClick={() => setEditItem(item)} disabled={loading}>ערוך</button>
@@ -684,6 +1087,8 @@ function DecisionDetailPanel({
                         <button type="button" className="btn-small btn-danger" onClick={() => handleRemoveItem(item)} disabled={loading}>הסר</button>
                       )}
                     </td>
+                  ) : (
+                    <td aria-hidden="true">—</td>
                   )}
                 </tr>
               ))}
@@ -692,7 +1097,7 @@ function DecisionDetailPanel({
               <tr>
                 <td colSpan={6}><strong>סה״כ</strong></td>
                 <td><strong>{decision.totalAmount.toLocaleString('he-IL')} ₪</strong></td>
-                <td colSpan={totalColSpan} />
+                <td colSpan={2} />
               </tr>
             </tfoot>
           </table>
@@ -708,6 +1113,8 @@ function DecisionDetailPanel({
           item={editItem}
           types={types}
           suppliers={suppliers}
+          familyLastName={decision.familyLastName}
+          familyBank={familyBank}
           decisionId={decision.id}
           onClose={() => setEditItem(null)}
           onSaved={refresh}
@@ -756,8 +1163,10 @@ export function CommitteeDecisionsPage({ user, initialFilter }: CommitteeDecisio
   }, [initialFilter, load]);
 
   const canCreate = hasPermission(user, PERMISSION_KEYS.committeeDecisionsCreate);
-
   const filterLabel = workflowFilterLabel(activeFilter);
+  const detailFamily = detailTarget
+    ? families.find((f) => f.id === detailTarget.familyId) ?? null
+    : null;
 
   return (
     <div>
@@ -856,6 +1265,7 @@ export function CommitteeDecisionsPage({ user, initialFilter }: CommitteeDecisio
           user={user}
           types={types}
           suppliers={suppliers}
+          family={detailFamily}
           onClose={() => setDetailTarget(null)}
           onUpdated={() => load(activeFilter)}
         />

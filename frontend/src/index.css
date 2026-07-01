@@ -3100,3 +3100,103 @@ body {
   min-width: 0;
 }
 
+/* Committee decision item form (Phase 9 / Milestone 63) */
+.committee-items-shell {
+  --committee-items-cols: 8.5rem 9rem 6.5rem 8.5rem 7.5rem 7rem 5.5rem 3rem 5.5rem;
+  --committee-items-min-width: 68rem;
+  overflow-x: auto;
+  margin-block-end: 0.75rem;
+}
+
+.committee-item-form {
+  margin-block-end: 0.5rem;
+  min-width: var(--committee-items-min-width, 68rem);
+}
+
+.committee-item-form__grid {
+  display: grid;
+  grid-template-columns: var(--committee-items-cols);
+  gap: 0.35rem 0.5rem;
+  align-items: end;
+  min-width: var(--committee-items-min-width, 68rem);
+}
+
+.committee-item-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.committee-item-form__field label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #334155;
+  white-space: nowrap;
+}
+
+.committee-item-form__field input,
+.committee-item-form__field select {
+  width: 100%;
+  min-width: 0;
+}
+
+.committee-item-form__field--method-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.committee-item-form__field--urgent {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-start;
+  min-height: 2.35rem;
+}
+
+.committee-item-form__field--actions {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 0.25rem;
+}
+
+.committee-item-form__field--actions .validated-field-control {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.25rem;
+}
+
+.committee-transfer-summary-btn {
+  width: 100%;
+  padding: 0.35rem 0.45rem;
+  font-size: 0.8rem;
+  text-align: start;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.committee-items-table {
+  min-width: var(--committee-items-min-width, 68rem);
+  table-layout: fixed;
+  width: 100%;
+}
+
+.committee-items-table th,
+.committee-items-table td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bank-field-hint {
+  margin: 0.1rem 0 0;
+  font-size: 0.75rem;
+  color: #4338ca;
+  white-space: normal;
+}
+

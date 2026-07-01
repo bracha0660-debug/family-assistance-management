@@ -203,6 +203,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.PaymentTarget).HasMaxLength(20);
             e.Property(x => x.PaymentMethod).HasMaxLength(20);
             e.Property(x => x.PayeeName).HasMaxLength(200);
+            e.Property(x => x.TransferBankNumber).HasMaxLength(10);
+            e.Property(x => x.TransferBranchNumber).HasMaxLength(10);
+            e.Property(x => x.TransferAccountNumber).HasMaxLength(34);
             e.Property(x => x.VoucherType).HasMaxLength(100);
             e.Property(x => x.ExecutionStatus).HasMaxLength(30);
             e.Property(x => x.ExecutionReference).HasMaxLength(200);

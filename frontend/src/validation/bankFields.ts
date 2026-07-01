@@ -131,3 +131,28 @@ export function validateBankDetails(
     bankName,
   ));
 }
+
+export interface BankFields {
+  bankNumber: string | null;
+  branchNumber: string | null;
+  accountNumber: string | null;
+  accountHolderName: string | null;
+}
+
+export function isBankCompleteForPayment(fields: BankFields): boolean {
+  const bankNumber = fields.bankNumber ?? '';
+  const branchNumber = fields.branchNumber ?? '';
+  const accountNumber = fields.accountNumber ?? '';
+  const accountHolderName = fields.accountHolderName ?? '';
+
+  if (isBankAllEmpty(bankNumber, branchNumber, accountNumber, accountHolderName)) {
+    return false;
+  }
+
+  return firstBankFieldError(validateBankFieldErrors(
+    bankNumber,
+    branchNumber,
+    accountNumber,
+    accountHolderName,
+  )) === null;
+}
