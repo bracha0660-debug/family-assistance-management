@@ -1,5 +1,6 @@
 import type { PaymentMethod, PaymentTarget } from '../api/committeeDecisions';
-import { type BankFields, isBankCompleteForPayment } from './bankFields';
+import { findBankByNumber } from '../data/israeliBanks';
+import { firstBankFieldError, isBankCompleteForPayment, type BankFields, validateBankFieldErrors } from './bankFields';
 
 export const FAMILY_BANK_INCOMPLETE_MESSAGE = 'יש לעדכן פרטי חשבון בנק בכרטיס המשפחה';
 export const SUPPLIER_BANK_INCOMPLETE_MESSAGE = 'יש לעדכן פרטי חשבון בנק במסך הספקים';
@@ -56,12 +57,14 @@ export function clearTransferBankFields(state: CommitteeItemRowState): Committee
 }
 
 export function isTransferBankComplete(state: CommitteeItemRowState): boolean {
-  return isBankCompleteForPayment({
-    bankNumber: state.transferBankNumber,
-    branchNumber: state.transferBranchNumber,
-    accountNumber: state.transferAccountNumber,
-    accountHolderName: state.payeeName,
-  });
+  const bankFromNumber = findBankByNumber(state.transferBankNumber);
+  return firstBankFieldError(validateBankFieldErrors(
+    state.transferBankNumber,
+    state.transferBranchNumber,
+    state.transferAccountNumber,
+    state.payeeName,
+    bankFromNumber?.name ?? '',
+  )) === null;
 }
 
 export function formatTransferDetailsSummary(

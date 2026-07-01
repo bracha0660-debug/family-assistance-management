@@ -1,0 +1,11 @@
+{
+  "name": "phase9-e2e",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "e2e": "node run-e2e.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.52.0"
+  }
+}

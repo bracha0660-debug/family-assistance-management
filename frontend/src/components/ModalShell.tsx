@@ -6,6 +6,8 @@ interface ModalShellProps {
   hint?: string;
   wide?: boolean;
   extraWide?: boolean;
+  sizeClassName?: string;
+  headerActions?: ReactNode;
   bodyClassName?: string;
   loading?: boolean;
   onClose: (e?: MouseEvent) => void;
@@ -21,6 +23,8 @@ export function ModalShell({
   hint,
   wide = false,
   extraWide = false,
+  sizeClassName,
+  headerActions,
   bodyClassName,
   loading = false,
   onClose,
@@ -43,15 +47,25 @@ export function ModalShell({
   const cardClass = [
     'modal-card',
     'modal-scrollable',
-    extraWide ? 'modal-extra-wide' : wide ? 'modal-wide' : '',
+    sizeClassName ?? (extraWide ? 'modal-extra-wide' : wide ? 'modal-wide' : ''),
   ].filter(Boolean).join(' ');
   const bodyClass = ['modal-body', bodyClassName].filter(Boolean).join(' ');
+  const headerClass = headerActions
+    ? 'modal-header modal-header-with-actions'
+    : 'modal-header';
 
   const inner = (
     <>
-      <div className="modal-header">
-        <h2 id="modal-title">{title}</h2>
-        {hint && <p className="hint-text">{hint}</p>}
+      <div className={headerClass}>
+        <div className="modal-header__title-group">
+          <h2 id="modal-title">{title}</h2>
+          {hint && <p className="hint-text">{hint}</p>}
+        </div>
+        {headerActions && (
+          <div className="modal-header__actions">
+            {headerActions}
+          </div>
+        )}
       </div>
       <div className={bodyClass}>
         {children}

@@ -363,6 +363,22 @@ body {
   margin: 0 0 0.75rem;
 }
 
+.modal-header-with-actions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.modal-header-with-actions .modal-header__title-group {
+  flex: 1;
+  min-width: 0;
+}
+
+.modal-header-with-actions .modal-header__actions {
+  flex-shrink: 0;
+}
+
 .modal-form {
   display: flex;
   flex-direction: column;
@@ -3198,5 +3214,23 @@ body {
   font-size: 0.75rem;
   color: #4338ca;
   white-space: normal;
+}
+
+/* Committee decision detail modal width (Phase 9 / Milestone 64) */
+.modal-card.modal-committee-expanded {
+  max-width: min(96vw, 72rem);
+  width: 100%;
+}
+
+.modal-card.modal-committee-compact {
+  max-width: 860px;
+}
+
+.modal-card.modal-committee-expanded .committee-items-shell {
+  overflow-x: visible;
+}
+
+.modal-card.modal-committee-compact .committee-items-shell {
+  overflow-x: auto;
 }
 

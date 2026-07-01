@@ -49,6 +49,7 @@ import {
   validateCommitteeItemRow,
 } from '../validation/committeeItemPayment';
 import { firstBankFieldError, validateBankFieldErrors } from '../validation/bankFields';
+import { findBankByNumber } from '../data/israeliBanks';
 
 interface CommitteeDecisionsPageProps {
   user: UserDto;
@@ -95,6 +96,24 @@ function translatePaymentMethod(m: string): string {
     case 'check': return 'המחאה';
     case 'vouchers': return 'תווים';
     default: return m;
+  }
+}
+
+const COMPACT_STORAGE_KEY = 'committee-decision-modal-compact';
+
+function readCompactPreference(): boolean {
+  try {
+    return sessionStorage.getItem(COMPACT_STORAGE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function writeCompactPreference(compact: boolean): void {
+  try {
+    sessionStorage.setItem(COMPACT_STORAGE_KEY, compact ? 'true' : 'false');
+  } catch {
+    // ignore storage errors
   }
 }
 
@@ -272,11 +291,13 @@ function TransferBankModal({
 
   function handleSave(e: FormEvent) {
     e.preventDefault();
+    const bankFromNumber = findBankByNumber(bankNumber);
     const validationError = firstBankFieldError(validateBankFieldErrors(
       bankNumber,
       branchNumber,
       accountNumber,
       payeeName,
+      bankFromNumber?.name ?? '',
     ));
     if (validationError) {
       setError(validationError);
@@ -692,9 +713,7 @@ function ItemFormRow({
   const supplierBank = selectedSupplier ? toBankFields(selectedSupplier) : null;
 
   function openTransferModal() {
-    if (needsTransferBankModal(state)) {
-      setTransferModalOpen(true);
-    }
+    setTransferModalOpen(true);
   }
 
   function handleTransferModalCancel() {
@@ -801,9 +820,7 @@ function ItemEditModal({
   const supplierBank = selectedSupplier ? toBankFields(selectedSupplier) : null;
 
   function openTransferModal() {
-    if (needsTransferBankModal(state)) {
-      setTransferModalOpen(true);
-    }
+    setTransferModalOpen(true);
   }
 
   function handleTransferModalCancel() {
@@ -912,6 +929,7 @@ function DecisionDetailPanel({
   const [editItem, setEditItem] = useState<AssistanceItemDto | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [compact, setCompact] = useState(readCompactPreference);
 
   const familyBank = family ? toBankFields(family) : null;
 
@@ -990,11 +1008,29 @@ function DecisionDetailPanel({
     }
   }
 
+  function toggleCompactView() {
+    setCompact((prev) => {
+      const next = !prev;
+      writeCompactPreference(next);
+      return next;
+    });
+  }
+
   return (
     <>
       <ModalShell
         title={`החלטה ${decision.decisionCode}`}
-        wide
+        sizeClassName={compact ? 'modal-committee-compact' : 'modal-committee-expanded'}
+        headerActions={(
+          <button
+            type="button"
+            className="btn-secondary btn-small"
+            onClick={toggleCompactView}
+            disabled={loading}
+          >
+            {compact ? 'הרחב תצוגה' : 'הצר תצוגה'}
+          </button>
+        )}
         loading={loading}
         onClose={onClose}
         formError={error}
