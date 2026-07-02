@@ -44,4 +44,5 @@ public static class BusinessEventCodes
     public const string UserPermissionOverrideChange = "AUD-039";
     public const string AssistanceTypeRelatedSupplierAdd = "AUD-040";
     public const string AssistanceTypeRelatedSupplierRemove = "AUD-041";
+    public const string CommitteeDecisionDelete = "AUD-042";
 }

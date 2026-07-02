@@ -3137,6 +3137,7 @@ body {
   gap: 0.35rem 0.5rem;
   align-items: start;
   min-width: var(--committee-items-min-width, 68rem);
+  --committee-item-control-offset: calc(0.8rem * 1.25 + 0.2rem);
 }
 
 .committee-item-form__field {
@@ -3183,8 +3184,22 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  align-items: flex-start;
+  align-items: center;
+}
+
+.committee-item-form__field--urgent .checkbox-label {
+  margin: 0;
+  margin-block-start: var(--committee-item-control-offset);
   min-height: 2.35rem;
+  height: 40px;
+  align-self: stretch;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  vertical-align: top;
+  text-align: center;
+  background-color: #fff;
+  line-height: 25px;
 }
 
 .committee-item-form__field--actions {
@@ -3200,6 +3215,19 @@ body {
   flex-direction: column;
   align-items: stretch;
   gap: 0.25rem;
+  margin-block-start: var(--committee-item-control-offset);
+}
+
+.committee-item-form__field--actions .btn-small {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 100px;
+  height: 40px;
+  padding: 0 0.65rem;
+  overflow: hidden;
+  margin-inline-start: 0;
 }
 
 .committee-transfer-summary-btn {

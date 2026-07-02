@@ -4,8 +4,8 @@ import type { UserDto } from '../api/auth';
 import { listAssistanceTypes, type AssistanceTypeDto } from '../api/assistanceTypes';
 import {
   addAssistanceItem,
-  cancelCommitteeDecision,
   createCommitteeDecision,
+  deleteCommitteeDecision,
   getCommitteeDecision,
   listCommitteeDecisions,
   removeAssistanceItem,
@@ -645,7 +645,6 @@ function CommitteeItemFormFields({
 
       {showActions ? (
         <div className="committee-item-form__field committee-item-form__field--actions">
-          <label>פעולות</label>
           <div className="validated-field-control">
             <button type="button" className="btn-small" onClick={onAdd} disabled={disabled || addLoading || transferPopoverOpen}>
               הוסף שורה
@@ -1002,8 +1001,8 @@ function DecisionDetailPanel({
   const canEditItems = editable && hasPermission(user, PERMISSION_KEYS.assistanceItemsEdit);
   const canRemoveItems = editable && hasPermission(user, PERMISSION_KEYS.assistanceItemsRemoveDraft);
   const canSubmit = editable && hasPermission(user, PERMISSION_KEYS.committeeDecisionsSubmit);
-  const canCancel = hasPermission(user, PERMISSION_KEYS.committeeDecisionsCancel);
   const showActions = canEditItems || canRemoveItems;
+  const canDeleteDraft = canEditDraft && decision.status === 'draft';
 
   async function refresh() {
     const fresh = await getCommitteeDecision(decision.id);
@@ -1057,13 +1056,16 @@ function DecisionDetailPanel({
     }
   }
 
-  async function handleCancel() {
-    const reason = window.prompt('סיבת ביטול:');
-    if (!reason || reason.trim().length < 3) return;
+  async function handleDelete() {
+    if (!canDeleteDraft) return;
+    const confirmed = window.confirm('למחוק לצמיתות את הטיוטה?\nפעולה זו אינה ניתנת לשחזור.');
+    if (!confirmed) return;
     setLoading(true);
+    setError('');
     try {
-      await cancelCommitteeDecision(decision.id, decision.version, reason.trim());
-      await refresh();
+      await deleteCommitteeDecision(decision.id, decision.version);
+      onUpdated();
+      onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'שגיאת מערכת');
     } finally {
@@ -1090,6 +1092,11 @@ function DecisionDetailPanel({
             {canSubmit && decision.items.length > 0 && (
               <button type="button" onClick={handleSubmitDecision} disabled={loading}>
                 {loading ? 'מגיש...' : 'הגש לאישור מנהל'}
+              </button>
+            )}
+            {canDeleteDraft && (
+              <button type="button" className="btn-secondary btn-danger" onClick={handleDelete} disabled={loading}>
+                מחק החלטה
               </button>
             )}
           </>
@@ -1189,10 +1196,6 @@ function DecisionDetailPanel({
             </tfoot>
           </table>
         </div>
-
-        {canCancel && decision.status !== 'cancelled' && (
-          <button type="button" className="btn-secondary btn-danger decision-cancel-btn" onClick={handleCancel} disabled={loading}>בטל החלטה</button>
-        )}
       </ModalShell>
 
       {editItem && (

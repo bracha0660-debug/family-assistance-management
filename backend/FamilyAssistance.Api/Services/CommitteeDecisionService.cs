@@ -650,6 +650,58 @@ public sealed class CommitteeDecisionService(
         return await TransitionStatusAsync(decision, CommitteeDecisionStatuses.Cancelled, auth, _ => { }, reason, cancellationToken);
     }
 
+    public async Task<ServiceResult<bool>> DeleteDraftAsync(
+        Guid organizationId,
+        Guid id,
+        int? expectedVersion,
+        AuthorizationContext auth,
+        CancellationToken cancellationToken = default)
+    {
+        if (expectedVersion is null)
+            return ServiceResult<bool>.Fail(409, "VERSION_CONFLICT",
+                "הרשומה עודכנה על ידי משתמש אחר. יש לטעון מחדש.");
+
+        var decision = await LoadDecisionAsync(organizationId, id, cancellationToken);
+        if (decision is null)
+            return ServiceResult<bool>.Fail(404, "NOT_FOUND", "ההחלטה לא נמצאה");
+
+        if (!ScopeEvaluator.CanAccessCommitteeDecision(auth, decision.Family!, PermissionKeys.CommitteeDecisionsEditDraft))
+            return ServiceResult<bool>.Fail(403, "FORBIDDEN", "אין הרשאה");
+
+        if (decision.Status != CommitteeDecisionStatuses.Draft)
+            return ServiceResult<bool>.Fail(409, "INVALID_STATUS", "ההחלטה אינה בעריכה");
+
+        if (decision.Version != expectedVersion)
+            return ServiceResult<bool>.Fail(409, "VERSION_CONFLICT",
+                "הרשומה עודכנה על ידי משתמש אחר. יש לטעון מחדש.");
+
+        await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            auditService.Stage(new AuditEntry
+            {
+                EventCode = BusinessEventCodes.CommitteeDecisionDelete,
+                OrganizationId = organizationId,
+                ActorUserId = auth.UserId,
+                EntityType = "committee_decision",
+                EntityId = decision.Id,
+                Action = "delete",
+            });
+
+            db.AssistanceItems.RemoveRange(decision.Items);
+            db.CommitteeDecisions.Remove(decision);
+            await db.SaveChangesAsync(cancellationToken);
+            await tx.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return ServiceResult<bool>.Fail(500, "INTERNAL_ERROR", "שגיאת מערכת");
+        }
+
+        return ServiceResult<bool>.Ok(true);
+    }
+
     public async Task<ServiceResult<(AssistanceItemDto Item, int DecisionVersion)>> AddItemAsync(
         Guid organizationId,
         Guid decisionId,

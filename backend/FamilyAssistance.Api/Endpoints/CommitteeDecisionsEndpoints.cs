@@ -16,6 +16,7 @@ public static class CommitteeDecisionsEndpoints
         group.MapPost("/committee-decisions", Create).RequirePermission(PermissionKeys.CommitteeDecisionsCreate);
         group.MapGet("/committee-decisions/{id:guid}", Get).RequirePermission(PermissionKeys.CommitteeDecisionsView);
         group.MapPatch("/committee-decisions/{id:guid}", UpdateDraft).RequirePermission(PermissionKeys.CommitteeDecisionsEditDraft);
+        group.MapDelete("/committee-decisions/{id:guid}", Delete).RequirePermission(PermissionKeys.CommitteeDecisionsEditDraft);
         group.MapPost("/committee-decisions/{id:guid}/submit", Submit).RequireWorkflowPermission(PermissionKeys.CommitteeDecisionsSubmit);
         group.MapPost("/committee-decisions/{id:guid}/approve", Approve).RequireWorkflowPermission(PermissionKeys.CommitteeDecisionsApprove);
         group.MapPost("/committee-decisions/{id:guid}/reject", Reject).RequireWorkflowPermission(PermissionKeys.CommitteeDecisionsReject);
@@ -101,6 +102,19 @@ public static class CommitteeDecisionsEndpoints
         if (!result.IsSuccess)
             return ToError(result);
         return Results.Ok(new CommitteeDecisionResponse { Decision = result.Value! });
+    }
+
+    private static async Task<IResult> Delete(
+        Guid id,
+        HttpContext httpContext,
+        CommitteeDecisionService service,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.DeleteDraftAsync(
+            GetOrgId(httpContext), id, ReadIfMatch(httpContext), GetAuth(httpContext), cancellationToken);
+        if (!result.IsSuccess)
+            return ToError(result);
+        return Results.NoContent();
     }
 
     private static async Task<IResult> Submit(

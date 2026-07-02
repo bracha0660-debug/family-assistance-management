@@ -253,6 +253,15 @@ export async function cancelCommitteeDecision(
   return data.decision;
 }
 
+export async function deleteCommitteeDecision(id: string, version: number): Promise<void> {
+  await apiJson<void>(`/api/v1/org/committee-decisions/${id}`, {
+    method: 'DELETE',
+    headers: {
+      'If-Match': String(version),
+    },
+  });
+}
+
 export async function suspendCommitteeDecision(
   id: string,
   version: number,
