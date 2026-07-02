@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import type { UserDto } from '../api/auth';
 import { listAssistanceTypes, type AssistanceTypeDto } from '../api/assistanceTypes';
@@ -28,10 +28,11 @@ import type { HomeNavigationTarget } from '../api/workflow';
 import { workflowFilterLabel } from './home/workflowStatus';
 import { hasPermission } from '../hooks/usePermissions';
 import { FieldValidationTooltip } from '../components/FieldValidation';
+import { BankSelect } from '../components/BankDetailsFields';
 import { ModalShell } from '../components/ModalShell';
 import { focusFirstInvalidField } from '../utils/formValidation';
 import { partitionSuppliersForAssistanceType } from '../utils/relatedSuppliers';
-import { type BankFields } from '../validation/bankFields';
+import { validateBankFieldsForPayment, type BankFields } from '../validation/bankFields';
 import {
   applyPaymentMethodChange,
   applyPaymentTargetChange,
@@ -45,11 +46,10 @@ import {
   needsTransferBankModal,
   onAssistanceTypeChange,
   revalidateAfterBeneficiaryChange,
+  resolveCommitteeBankDetailsDisplay,
   type CommitteeItemRowState,
   validateCommitteeItemRow,
 } from '../validation/committeeItemPayment';
-import { firstBankFieldError, validateBankFieldErrors } from '../validation/bankFields';
-import { findBankByNumber } from '../data/israeliBanks';
 
 interface CommitteeDecisionsPageProps {
   user: UserDto;
@@ -96,24 +96,6 @@ function translatePaymentMethod(m: string): string {
     case 'check': return 'המחאה';
     case 'vouchers': return 'תווים';
     default: return m;
-  }
-}
-
-const COMPACT_STORAGE_KEY = 'committee-decision-modal-compact';
-
-function readCompactPreference(): boolean {
-  try {
-    return sessionStorage.getItem(COMPACT_STORAGE_KEY) === 'true';
-  } catch {
-    return false;
-  }
-}
-
-function writeCompactPreference(compact: boolean): void {
-  try {
-    sessionStorage.setItem(COMPACT_STORAGE_KEY, compact ? 'true' : 'false');
-  } catch {
-    // ignore storage errors
   }
 }
 
@@ -273,32 +255,31 @@ function SupplierSelectOptions({
   );
 }
 
-function TransferBankModal({
+function TransferBankPopover({
   initial,
   payeeName,
   onSave,
-  onClose,
+  onCancel,
 }: {
   initial: Pick<CommitteeItemRowState, 'transferBankNumber' | 'transferBranchNumber' | 'transferAccountNumber'>;
   payeeName: string;
   onSave: (values: Pick<CommitteeItemRowState, 'transferBankNumber' | 'transferBranchNumber' | 'transferAccountNumber'>) => void;
-  onClose: () => void;
+  onCancel: () => void;
 }) {
   const [bankNumber, setBankNumber] = useState(initial.transferBankNumber);
   const [branchNumber, setBranchNumber] = useState(initial.transferBranchNumber);
   const [accountNumber, setAccountNumber] = useState(initial.transferAccountNumber);
   const [error, setError] = useState('');
+  const bankListId = useId();
 
   function handleSave(e: FormEvent) {
     e.preventDefault();
-    const bankFromNumber = findBankByNumber(bankNumber);
-    const validationError = firstBankFieldError(validateBankFieldErrors(
+    const validationError = validateBankFieldsForPayment(
       bankNumber,
       branchNumber,
       accountNumber,
       payeeName,
-      bankFromNumber?.name ?? '',
-    ));
+    );
     if (validationError) {
       setError(validationError);
       return;
@@ -311,26 +292,26 @@ function TransferBankModal({
   }
 
   return (
-    <ModalShell
-      title="פרטי העברה בנקאית"
-      onClose={onClose}
-      onSubmit={handleSave}
-      formError={error}
-      footer={(
-        <>
-          <button type="button" className="btn-secondary" onClick={onClose}>ביטול</button>
-          <button type="submit">שמור</button>
-        </>
+    <div className="committee-transfer-popover" role="dialog" aria-label="פרטי העברה בנקאית">
+      {error && (
+        <div className="error" role="alert">
+          {error}
+        </div>
       )}
-    >
-      <p className="hint-text">שם בעל החשבון: <strong>{payeeName.trim() || '—'}</strong></p>
-      <label htmlFor="transfer-bank-number">קוד בנק <span className="field-required">*</span></label>
-      <input
+      <p className="hint-text committee-transfer-popover__holder">
+        שם בעל החשבון: <strong>{payeeName.trim() || '—'}</strong>
+      </p>
+      <label htmlFor="transfer-bank-number">בנק <span className="field-required">*</span></label>
+      <BankSelect
         id="transfer-bank-number"
-        type="text"
-        inputMode="numeric"
+        listId={bankListId}
         value={bankNumber}
-        onChange={(e) => setBankNumber(e.target.value)}
+        displayMode="number-name"
+        disabled={false}
+        errorId="transfer-bank-number-error"
+        placeholder="חיפוש לפי מספר או שם"
+        onSelect={(bank) => setBankNumber(bank.number)}
+        onClear={() => setBankNumber('')}
       />
       <label htmlFor="transfer-branch-number">סניף <span className="field-required">*</span></label>
       <input
@@ -338,7 +319,7 @@ function TransferBankModal({
         type="text"
         inputMode="numeric"
         value={branchNumber}
-        onChange={(e) => setBranchNumber(e.target.value)}
+        onChange={(e) => setBranchNumber(e.target.value.replace(/\D/g, '').slice(0, 5))}
       />
       <label htmlFor="transfer-account-number">מספר חשבון <span className="field-required">*</span></label>
       <input
@@ -346,9 +327,13 @@ function TransferBankModal({
         type="text"
         inputMode="numeric"
         value={accountNumber}
-        onChange={(e) => setAccountNumber(e.target.value)}
+        onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, '').slice(0, 20))}
       />
-    </ModalShell>
+      <div className="committee-transfer-popover__actions">
+        <button type="button" className="btn-secondary btn-small" onClick={onCancel}>ביטול</button>
+        <button type="button" className="btn-small" onClick={handleSave}>שמור פרטי העברה</button>
+      </div>
+    </div>
   );
 }
 
@@ -368,7 +353,12 @@ function CommitteeItemFormFields({
   onAdd,
   addLoading,
   addError,
-  onOpenTransferModal,
+  transferPopoverOpen,
+  transferPopoverInitial,
+  transferPopoverSession,
+  onOpenTransferPopover,
+  onTransferPopoverSave,
+  onTransferPopoverCancel,
 }: {
   idPrefix: 'item' | 'edit-item';
   state: CommitteeItemRowState;
@@ -385,7 +375,12 @@ function CommitteeItemFormFields({
   onAdd?: () => void;
   addLoading?: boolean;
   addError?: string;
-  onOpenTransferModal: () => void;
+  transferPopoverOpen: boolean;
+  transferPopoverInitial: Pick<CommitteeItemRowState, 'transferBankNumber' | 'transferBranchNumber' | 'transferAccountNumber'>;
+  transferPopoverSession: number;
+  onOpenTransferPopover: (contextState?: CommitteeItemRowState) => void;
+  onTransferPopoverSave: (values: Pick<CommitteeItemRowState, 'transferBankNumber' | 'transferBranchNumber' | 'transferAccountNumber'>) => void;
+  onTransferPopoverCancel: () => void;
 }) {
   const fieldId = (name: string) => `${idPrefix}-${name}`;
   const { recommended: recommendedSuppliers, other: otherSuppliers } = partitionSuppliersForAssistanceType(
@@ -401,7 +396,23 @@ function CommitteeItemFormFields({
     state.transferBranchNumber,
     state.transferAccountNumber,
   );
-  const showTransferColumn = state.paymentTarget === 'other' && state.paymentMethod === 'bank_transfer';
+  const supplierBankForDisplay = state.supplierId
+    ? toBankFields(suppliers.find((s) => s.id === state.supplierId)!)
+    : null;
+  const showOtherTransferModal = state.paymentTarget === 'other' && state.paymentMethod === 'bank_transfer';
+  const showReadonlyBank = state.paymentMethod === 'bank_transfer'
+    && (state.paymentTarget === 'family' || state.paymentTarget === 'supplier');
+  const bankDetailsSummary = resolveCommitteeBankDetailsDisplay(
+    state.paymentTarget,
+    state.paymentMethod,
+    {
+      familyBank,
+      supplierBank: supplierBankForDisplay,
+      transferBankNumber: state.transferBankNumber,
+      transferBranchNumber: state.transferBranchNumber,
+      transferAccountNumber: state.transferAccountNumber,
+    },
+  );
 
   function handleTargetChange(e: ChangeEvent<HTMLSelectElement>) {
     const newTarget = e.target.value as PaymentTarget | '';
@@ -446,7 +457,7 @@ function CommitteeItemFormFields({
     onStateChange(next);
     onValidationMessage?.(null);
     if (needsTransferBankModal(next)) {
-      onOpenTransferModal();
+      onOpenTransferPopover(next);
     }
   }
 
@@ -494,7 +505,7 @@ function CommitteeItemFormFields({
         </select>
       </div>
 
-      <div className="committee-item-form__field">
+      <div className="committee-item-form__field committee-item-form__field--payee">
         <label htmlFor={fieldId('payee-name')}>שם מוטב</label>
         {state.paymentTarget === 'supplier' ? (
           <select
@@ -559,21 +570,50 @@ function CommitteeItemFormFields({
         )}
       </div>
 
-      <div className="committee-item-form__field">
-        <label htmlFor={fieldId('transfer-details')}>פרטי העברה</label>
-        {showTransferColumn ? (
-          <button
-            id={fieldId('transfer-details')}
-            type="button"
-            className="btn-secondary btn-small committee-transfer-summary-btn"
-            onClick={onOpenTransferModal}
-            disabled={disabled}
-            title={transferSummary}
-          >
-            {isTransferBankComplete(state) ? transferSummary : 'הזן פרטים'}
-          </button>
+      <div className="committee-item-form__field committee-item-form__field--bank-details">
+        <label htmlFor={fieldId('bank-details')}>פרטי בנק</label>
+        {showOtherTransferModal ? (
+          <>
+            <button
+              id={fieldId('bank-details')}
+              type="button"
+              className="btn-secondary btn-small committee-transfer-summary-btn"
+              onClick={() => onOpenTransferPopover()}
+              disabled={disabled}
+              title={transferSummary}
+              aria-expanded={transferPopoverOpen}
+            >
+              {isTransferBankComplete(state) ? transferSummary : 'הזן פרטים'}
+            </button>
+            {transferPopoverOpen && (
+              <TransferBankPopover
+                key={transferPopoverSession}
+                initial={transferPopoverInitial}
+                payeeName={state.payeeName}
+                onSave={onTransferPopoverSave}
+                onCancel={onTransferPopoverCancel}
+              />
+            )}
+          </>
+        ) : showReadonlyBank ? (
+          <input
+            id={fieldId('bank-details')}
+            type="text"
+            className="committee-bank-readonly"
+            disabled
+            readOnly
+            value={bankDetailsSummary}
+            title={bankDetailsSummary}
+          />
         ) : (
-          <input id={fieldId('transfer-details')} type="text" disabled value="—" />
+          <input
+            id={fieldId('bank-details')}
+            type="text"
+            className="committee-bank-readonly"
+            disabled
+            readOnly
+            value="—"
+          />
         )}
       </div>
 
@@ -607,7 +647,7 @@ function CommitteeItemFormFields({
         <div className="committee-item-form__field committee-item-form__field--actions">
           <label>פעולות</label>
           <div className="validated-field-control">
-            <button type="button" className="btn-small" onClick={onAdd} disabled={disabled || addLoading}>
+            <button type="button" className="btn-small" onClick={onAdd} disabled={disabled || addLoading || transferPopoverOpen}>
               הוסף שורה
             </button>
             {addError && <FieldValidationTooltip id="item-form-error" message={addError} />}
@@ -705,25 +745,40 @@ function ItemFormRow({
   const [payeeNameManuallyEdited, setPayeeNameManuallyEdited] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [transferModalOpen, setTransferModalOpen] = useState(false);
+  const [transferPopoverOpen, setTransferPopoverOpen] = useState(false);
+  const [transferPopoverSession, setTransferPopoverSession] = useState(0);
+  const transferPopoverInitialRef = useRef<
+    Pick<CommitteeItemRowState, 'transferBankNumber' | 'transferBranchNumber' | 'transferAccountNumber'>
+  >({
+    transferBankNumber: '',
+    transferBranchNumber: '',
+    transferAccountNumber: '',
+  });
 
   const selectedSupplier = state.supplierId
     ? suppliers.find((s) => s.id === state.supplierId) ?? null
     : null;
   const supplierBank = selectedSupplier ? toBankFields(selectedSupplier) : null;
 
-  function openTransferModal() {
-    setTransferModalOpen(true);
+  function openTransferPopover(contextState?: CommitteeItemRowState) {
+    const source = contextState ?? state;
+    transferPopoverInitialRef.current = {
+      transferBankNumber: source.transferBankNumber,
+      transferBranchNumber: source.transferBranchNumber,
+      transferAccountNumber: source.transferAccountNumber,
+    };
+    setTransferPopoverSession((prev) => prev + 1);
+    setTransferPopoverOpen(true);
   }
 
-  function handleTransferModalCancel() {
-    setTransferModalOpen(false);
-    setState((prev) => applyPaymentMethodChange('', prev));
+  function handleTransferPopoverCancel() {
+    setState((prev) => ({ ...prev, ...transferPopoverInitialRef.current }));
+    setTransferPopoverOpen(false);
   }
 
-  function handleTransferModalSave(values: Pick<CommitteeItemRowState, 'transferBankNumber' | 'transferBranchNumber' | 'transferAccountNumber'>) {
+  function handleTransferPopoverSave(values: Pick<CommitteeItemRowState, 'transferBankNumber' | 'transferBranchNumber' | 'transferAccountNumber'>) {
     setState((prev) => ({ ...prev, ...values }));
-    setTransferModalOpen(false);
+    setTransferPopoverOpen(false);
   }
 
   async function handleAdd() {
@@ -766,17 +821,14 @@ function ItemFormRow({
           onAdd={handleAdd}
           addLoading={loading}
           addError={error}
-          onOpenTransferModal={openTransferModal}
+          transferPopoverOpen={transferPopoverOpen}
+          transferPopoverInitial={transferPopoverInitialRef.current}
+          transferPopoverSession={transferPopoverSession}
+          onOpenTransferPopover={openTransferPopover}
+          onTransferPopoverSave={handleTransferPopoverSave}
+          onTransferPopoverCancel={handleTransferPopoverCancel}
         />
       </div>
-      {transferModalOpen && (
-        <TransferBankModal
-          initial={state}
-          payeeName={state.payeeName}
-          onSave={handleTransferModalSave}
-          onClose={handleTransferModalCancel}
-        />
-      )}
     </>
   );
 }
@@ -812,25 +864,40 @@ function ItemEditModal({
   );
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [transferModalOpen, setTransferModalOpen] = useState(false);
+  const [transferPopoverOpen, setTransferPopoverOpen] = useState(false);
+  const [transferPopoverSession, setTransferPopoverSession] = useState(0);
+  const transferPopoverInitialRef = useRef<
+    Pick<CommitteeItemRowState, 'transferBankNumber' | 'transferBranchNumber' | 'transferAccountNumber'>
+  >({
+    transferBankNumber: '',
+    transferBranchNumber: '',
+    transferAccountNumber: '',
+  });
 
   const selectedSupplier = state.supplierId
     ? suppliers.find((s) => s.id === state.supplierId) ?? null
     : null;
   const supplierBank = selectedSupplier ? toBankFields(selectedSupplier) : null;
 
-  function openTransferModal() {
-    setTransferModalOpen(true);
+  function openTransferPopover(contextState?: CommitteeItemRowState) {
+    const source = contextState ?? state;
+    transferPopoverInitialRef.current = {
+      transferBankNumber: source.transferBankNumber,
+      transferBranchNumber: source.transferBranchNumber,
+      transferAccountNumber: source.transferAccountNumber,
+    };
+    setTransferPopoverSession((prev) => prev + 1);
+    setTransferPopoverOpen(true);
   }
 
-  function handleTransferModalCancel() {
-    setTransferModalOpen(false);
-    setState((prev) => applyPaymentMethodChange('', prev));
+  function handleTransferPopoverCancel() {
+    setState((prev) => ({ ...prev, ...transferPopoverInitialRef.current }));
+    setTransferPopoverOpen(false);
   }
 
-  function handleTransferModalSave(values: Pick<CommitteeItemRowState, 'transferBankNumber' | 'transferBranchNumber' | 'transferAccountNumber'>) {
+  function handleTransferPopoverSave(values: Pick<CommitteeItemRowState, 'transferBankNumber' | 'transferBranchNumber' | 'transferAccountNumber'>) {
     setState((prev) => ({ ...prev, ...values }));
-    setTransferModalOpen(false);
+    setTransferPopoverOpen(false);
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -889,19 +956,16 @@ function ItemEditModal({
               payeeNameManuallyEdited={payeeNameManuallyEdited}
               setPayeeNameManuallyEdited={setPayeeNameManuallyEdited}
               onValidationMessage={(msg) => setError(msg ?? '')}
-              onOpenTransferModal={openTransferModal}
+              transferPopoverOpen={transferPopoverOpen}
+              transferPopoverInitial={transferPopoverInitialRef.current}
+              transferPopoverSession={transferPopoverSession}
+              onOpenTransferPopover={openTransferPopover}
+              onTransferPopoverSave={handleTransferPopoverSave}
+              onTransferPopoverCancel={handleTransferPopoverCancel}
             />
           </div>
         </div>
       </ModalShell>
-      {transferModalOpen && (
-        <TransferBankModal
-          initial={state}
-          payeeName={state.payeeName}
-          onSave={handleTransferModalSave}
-          onClose={handleTransferModalCancel}
-        />
-      )}
     </>
   );
 }
@@ -929,7 +993,6 @@ function DecisionDetailPanel({
   const [editItem, setEditItem] = useState<AssistanceItemDto | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [compact, setCompact] = useState(readCompactPreference);
 
   const familyBank = family ? toBankFields(family) : null;
 
@@ -1008,29 +1071,11 @@ function DecisionDetailPanel({
     }
   }
 
-  function toggleCompactView() {
-    setCompact((prev) => {
-      const next = !prev;
-      writeCompactPreference(next);
-      return next;
-    });
-  }
-
   return (
     <>
       <ModalShell
         title={`החלטה ${decision.decisionCode}`}
-        sizeClassName={compact ? 'modal-committee-compact' : 'modal-committee-expanded'}
-        headerActions={(
-          <button
-            type="button"
-            className="btn-secondary btn-small"
-            onClick={toggleCompactView}
-            disabled={loading}
-          >
-            {compact ? 'הרחב תצוגה' : 'הצר תצוגה'}
-          </button>
-        )}
+        sizeClassName="modal-committee-expanded"
         loading={loading}
         onClose={onClose}
         formError={error}
@@ -1088,7 +1133,7 @@ function DecisionDetailPanel({
                 <th>יעד תשלום</th>
                 <th>שם מוטב</th>
                 <th>אופן תשלום</th>
-                <th>פרטי העברה</th>
+                <th>פרטי בנק</th>
                 <th>סכום</th>
                 <th>דחוף</th>
                 {showActions ? <th>פעולות</th> : <th aria-hidden="true" />}
@@ -1105,12 +1150,18 @@ function DecisionDetailPanel({
                   <td>{translatePaymentTarget(item.paymentTarget)}</td>
                   <td>{formatBeneficiaryName(item)}</td>
                   <td>{formatPaymentMethodCell(item)}</td>
-                  <td>{formatTransferDetailsSummary(
+                  <td>{resolveCommitteeBankDetailsDisplay(
                     item.paymentTarget,
                     item.paymentMethod,
-                    item.transferBankNumber,
-                    item.transferBranchNumber,
-                    item.transferAccountNumber,
+                    {
+                      familyBank,
+                      supplierBank: item.supplierId
+                        ? toBankFields(suppliers.find((s) => s.id === item.supplierId)!)
+                        : null,
+                      transferBankNumber: item.transferBankNumber,
+                      transferBranchNumber: item.transferBranchNumber,
+                      transferAccountNumber: item.transferAccountNumber,
+                    },
                   )}</td>
                   <td>{item.amount.toLocaleString('he-IL')} ₪</td>
                   <td>{item.isUrgent ? 'כן' : '—'}</td>

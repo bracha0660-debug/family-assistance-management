@@ -1,6 +1,6 @@
 import type { PaymentMethod, PaymentTarget } from '../api/committeeDecisions';
 import { findBankByNumber } from '../data/israeliBanks';
-import { firstBankFieldError, isBankCompleteForPayment, type BankFields, validateBankFieldErrors } from './bankFields';
+import { formatBankAccountSummary, firstBankFieldError, isBankCompleteForPayment, type BankFields, validateBankFieldErrors } from './bankFields';
 
 export const FAMILY_BANK_INCOMPLETE_MESSAGE = 'יש לעדכן פרטי חשבון בנק בכרטיס המשפחה';
 export const SUPPLIER_BANK_INCOMPLETE_MESSAGE = 'יש לעדכן פרטי חשבון בנק במסך הספקים';
@@ -79,6 +79,36 @@ export function formatTransferDetailsSummary(
     return `${transferBankNumber.trim()}-${transferBranchNumber.trim()}-${transferAccountNumber.trim()}`;
   }
   return 'לא הוזן';
+}
+
+export function resolveCommitteeBankDetailsDisplay(
+  paymentTarget: PaymentTarget | '' | string,
+  paymentMethod: PaymentMethod | '' | string,
+  options: {
+    familyBank?: BankFields | null;
+    supplierBank?: BankFields | null;
+    transferBankNumber?: string | null;
+    transferBranchNumber?: string | null;
+    transferAccountNumber?: string | null;
+  },
+): string {
+  if (paymentMethod !== 'bank_transfer') return '—';
+  if (paymentTarget === 'family') {
+    return formatBankAccountSummary(options.familyBank ?? null);
+  }
+  if (paymentTarget === 'supplier') {
+    return formatBankAccountSummary(options.supplierBank ?? null);
+  }
+  if (paymentTarget === 'other') {
+    return formatTransferDetailsSummary(
+      paymentTarget,
+      paymentMethod,
+      options.transferBankNumber,
+      options.transferBranchNumber,
+      options.transferAccountNumber,
+    );
+  }
+  return '—';
 }
 
 export function getAllowedPaymentMethods(target: PaymentTarget | ''): PaymentMethod[] {

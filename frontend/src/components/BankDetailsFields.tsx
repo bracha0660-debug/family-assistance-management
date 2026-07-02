@@ -3,6 +3,7 @@ import {
   filterBanks,
   findBankByName,
   findBankByNumber,
+  formatBankOption,
   ISRAELI_BANKS,
   type IsraeliBank,
 } from '../data/israeliBanks';
@@ -39,30 +40,61 @@ interface BankDetailsFieldsProps {
   suggestedAccountHolderParts?: SuggestedAccountHolderParts;
 }
 
-interface BankNameComboboxProps {
+export type BankSelectDisplayMode = 'name' | 'number-name';
+
+export interface BankSelectProps {
   id: string;
   listId: string;
   value: string;
+  displayMode?: BankSelectDisplayMode;
   disabled: boolean;
   error?: string | null;
   errorId: string;
   onSelect: (bank: IsraeliBank) => void;
   onClear: () => void;
-  onBlur: () => void;
+  onBlur?: () => void;
+  placeholder?: string;
 }
 
-function BankNameCombobox({
+function displayValueForBank(value: string, displayMode: BankSelectDisplayMode): string {
+  if (displayMode === 'name') return value;
+  const bank = findBankByNumber(value);
+  return bank ? formatBankOption(bank) : '';
+}
+
+function resolveBankFromQuery(query: string, displayMode: BankSelectDisplayMode): IsraeliBank | undefined {
+  const trimmed = query.trim();
+  if (!trimmed) return undefined;
+  if (displayMode === 'name') {
+    return findBankByName(trimmed);
+  }
+  const byNumber = findBankByNumber(trimmed);
+  if (byNumber) return byNumber;
+  const byName = findBankByName(trimmed);
+  if (byName) return byName;
+  return ISRAELI_BANKS.find((bank) => formatBankOption(bank) === trimmed);
+}
+
+function shouldAutoCommitQuery(query: string, bank: IsraeliBank, displayMode: BankSelectDisplayMode): boolean {
+  if (displayMode === 'name') return true;
+  const trimmed = query.trim();
+  return trimmed === bank.number || formatBankOption(bank) === trimmed;
+}
+
+export function BankSelect({
   id,
   listId,
   value,
+  displayMode = 'name',
   disabled,
   error,
   errorId,
   onSelect,
   onClear,
   onBlur,
-}: BankNameComboboxProps) {
-  const [query, setQuery] = useState(value);
+  placeholder = 'בחרו מהרשימה',
+}: BankSelectProps) {
+  const [query, setQuery] = useState(() => displayValueForBank(value, displayMode));
   const [open, setOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const queryActiveRef = useRef(false);
@@ -70,16 +102,20 @@ function BankNameCombobox({
 
   useEffect(() => {
     if (!queryActiveRef.current) {
-      setQuery(value);
+      setQuery(displayValueForBank(value, displayMode));
     }
-  }, [value]);
+  }, [value, displayMode]);
 
   const filteredBanks = useMemo(() => filterBanks(query), [query]);
   const options = filteredBanks.length > 0 ? filteredBanks : ISRAELI_BANKS;
 
+  function optionLabel(bank: IsraeliBank): string {
+    return displayMode === 'name' ? bank.name : formatBankOption(bank);
+  }
+
   function commitSelection(bank: IsraeliBank) {
     queryActiveRef.current = false;
-    setQuery(bank.name);
+    setQuery(optionLabel(bank));
     setOpen(false);
     onSelect(bank);
   }
@@ -90,8 +126,8 @@ function BankNameCombobox({
     setOpen(true);
     setHighlightedIndex(0);
 
-    const exact = findBankByName(nextQuery);
-    if (exact) {
+    const exact = resolveBankFromQuery(nextQuery, displayMode);
+    if (exact && shouldAutoCommitQuery(nextQuery, exact, displayMode)) {
       commitSelection(exact);
     }
   }
@@ -104,17 +140,17 @@ function BankNameCombobox({
     if (trimmed.length === 0) {
       setQuery('');
       onClear();
-      onBlur();
+      onBlur?.();
       return;
     }
 
-    const bank = findBankByName(trimmed);
+    const bank = resolveBankFromQuery(trimmed, displayMode);
     if (bank) {
       commitSelection(bank);
     } else {
-      setQuery(value);
+      setQuery(displayValueForBank(value, displayMode));
     }
-    onBlur();
+    onBlur?.();
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
@@ -136,7 +172,7 @@ function BankNameCombobox({
       if (bank) commitSelection(bank);
     } else if (e.key === 'Escape') {
       setOpen(false);
-      setQuery(value);
+      setQuery(displayValueForBank(value, displayMode));
       queryActiveRef.current = false;
     }
   }
@@ -158,7 +194,7 @@ function BankNameCombobox({
           onBlur={handleBlur}
           onKeyDown={handleKeyDown}
           disabled={disabled}
-          placeholder="בחרו מהרשימה"
+          placeholder={placeholder}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? errorId : undefined}
         />
@@ -179,13 +215,17 @@ function BankNameCombobox({
                 commitSelection(bank);
               }}
             >
-              {bank.name}
+              {optionLabel(bank)}
             </li>
           ))}
         </ul>
       )}
     </div>
   );
+}
+
+function BankNameCombobox(props: Omit<BankSelectProps, 'displayMode' | 'placeholder'>) {
+  return <BankSelect {...props} displayMode="name" placeholder="בחרו מהרשימה" />;
 }
 
 export function BankDetailsFields({

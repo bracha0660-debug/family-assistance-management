@@ -132,6 +132,34 @@ export function validateBankDetails(
   ));
 }
 
+/** Committee payment / transfer modal — 4 stored fields only; no UI-only bankName. */
+export function validateBankFieldsForPayment(
+  bankNumber: string,
+  branchNumber: string,
+  accountNumber: string,
+  accountHolderName: string,
+): string | null {
+  if (isBankAllEmpty(bankNumber, branchNumber, accountNumber, accountHolderName)) {
+    return PARTIAL_BANK_MESSAGE;
+  }
+  const allCoreFilled = bankNumber.trim().length > 0
+    && branchNumber.trim().length > 0
+    && accountNumber.trim().length > 0
+    && accountHolderName.trim().length > 0;
+  if (!allCoreFilled) return PARTIAL_BANK_MESSAGE;
+
+  const bankNumErr = validateBankNumber(bankNumber);
+  if (bankNumErr) return bankNumErr;
+  const branchErr = validateBankDigits(branchNumber, 'מספר סניף');
+  if (branchErr) return branchErr;
+  const accountErr = validateBankDigits(accountNumber, 'מספר חשבון');
+  if (accountErr) return accountErr;
+  if (accountHolderName.trim().length === 0) {
+    return 'שם בעל החשבון הוא שדה חובה';
+  }
+  return null;
+}
+
 export interface BankFields {
   bankNumber: string | null;
   branchNumber: string | null;
@@ -139,20 +167,22 @@ export interface BankFields {
   accountHolderName: string | null;
 }
 
-export function isBankCompleteForPayment(fields: BankFields): boolean {
-  const bankNumber = fields.bankNumber ?? '';
-  const branchNumber = fields.branchNumber ?? '';
-  const accountNumber = fields.accountNumber ?? '';
-  const accountHolderName = fields.accountHolderName ?? '';
-
-  if (isBankAllEmpty(bankNumber, branchNumber, accountNumber, accountHolderName)) {
-    return false;
+/** Committee display — full bank-branch-account or לא הוזן when bank_transfer target needs card bank. */
+export function formatBankAccountSummary(fields: BankFields | null): string {
+  const bankNumber = fields?.bankNumber?.trim() ?? '';
+  const branchNumber = fields?.branchNumber?.trim() ?? '';
+  const accountNumber = fields?.accountNumber?.trim() ?? '';
+  if (bankNumber && branchNumber && accountNumber) {
+    return `${bankNumber}-${branchNumber}-${accountNumber}`;
   }
+  return 'לא הוזן';
+}
 
-  return firstBankFieldError(validateBankFieldErrors(
-    bankNumber,
-    branchNumber,
-    accountNumber,
-    accountHolderName,
-  )) === null;
+export function isBankCompleteForPayment(fields: BankFields): boolean {
+  return validateBankFieldsForPayment(
+    fields.bankNumber ?? '',
+    fields.branchNumber ?? '',
+    fields.accountNumber ?? '',
+    fields.accountHolderName ?? '',
+  ) === null;
 }

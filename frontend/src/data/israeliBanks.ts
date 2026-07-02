@@ -42,6 +42,11 @@ export function isKnownBankName(bankName: string): boolean {
   return findBankByName(bankName) !== undefined;
 }
 
+/** Display label for searchable bank selectors (UI only). */
+export function formatBankOption(bank: IsraeliBank): string {
+  return `${bank.number} - ${bank.name}`;
+}
+
 export function filterBanks(query: string): IsraeliBank[] {
   const trimmed = query.trim().toLowerCase();
   if (trimmed.length === 0) return [...ISRAELI_BANKS];
