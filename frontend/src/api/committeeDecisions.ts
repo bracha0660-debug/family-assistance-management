@@ -13,6 +13,11 @@ export interface AssistanceItemDto {
   assistanceTypeName: string;
   description: string | null;
   amount: number;
+  originalApprovedAmount?: number | null;
+  previousPaymentAmount?: number | null;
+  amountAdjustmentReason?: string | null;
+  amountAdjustmentExplanation?: string | null;
+  hasAmountAdjustment?: boolean;
   paymentTarget: PaymentTarget | string;
   paymentMethod: PaymentMethod | string;
   supplierId: string | null;
@@ -23,7 +28,10 @@ export interface AssistanceItemDto {
   transferAccountNumber: string | null;
   voucherType: string | null;
   isUrgent: boolean;
+  status: string;
   executionStatus: string;
+  approvedAt?: string | null;
+  availableActions?: string[];
   paymentSummary?: {
     paymentId: string | null;
     status: string | null;

@@ -20,9 +20,10 @@ export function FinancialMetricIcon({ metricKey }: { metricKey: string }) {
         </svg>
       );
     case 'awaiting_execution':
+      // Same glyph as home KPI pending_execution (ממתין לתשלום)
       return (
         <svg {...ICON_PROPS}>
-          <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2zm0 2a8 8 0 1 1 0 16 8 8 0 0 1 0-16zm-.75 3v5.2l4.4 2.6.95-1.6-3.6-2.1V7h-1.75z" />
+          <path d="M20 4.5H4A2.5 2.5 0 0 0 1.5 7v10A2.5 2.5 0 0 0 4 19.5h16a2.5 2.5 0 0 0 2.5-2.5V7A2.5 2.5 0 0 0 20 4.5zM4 7.5h16V9H4V7.5zm0 3.5h16v6.5H4V11z" />
         </svg>
       );
     case 'suspended':

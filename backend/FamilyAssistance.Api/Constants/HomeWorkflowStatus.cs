@@ -12,5 +12,7 @@ public static class HomeWorkflowStatus
     public const string OnHold = "on_hold";
     public const string PendingExecution = "pending_execution";
     public const string Paid = "paid";
+    public const string Approved = "approved";
+    public const string Completed = "completed";
     public const string Rejected = "rejected";
 }

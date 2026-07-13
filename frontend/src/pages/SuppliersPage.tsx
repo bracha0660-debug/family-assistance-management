@@ -288,7 +288,6 @@ function SupplierFormModal({
     'supplier-phone-prefix',
     'supplier-phone-number',
     'supplier-bank-number',
-    'supplier-bank-name',
     'supplier-branch-number',
     'supplier-account-number',
     'supplier-account-holder',
@@ -519,6 +518,7 @@ function SupplierFormModal({
         accountHolderHint="(נלקח אוטומטית משם הספק, ניתן לעריכה במידת הצורך)"
         disabled={loading}
         fieldErrors={bankErrors}
+        unifiedBankSearch
         onChange={handleBankChange}
         onBlurField={(field) => {
           validateBank(false, field === 'bankName' ? 'bankName' : field);

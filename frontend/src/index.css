@@ -175,28 +175,71 @@ body {
 
 .summary-cards {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
   margin-bottom: 1.5rem;
+}
+
+.summary-cards.summary-cards--single {
+  grid-template-columns: minmax(0, 14rem);
+}
+
+/* Compact page-top meters — shared height on Decisions + Payments */
+.summary-cards.summary-cards--page-top {
+  --queue-summary-card-height: 3.15rem;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.1rem;
+  flex-shrink: 0;
+  min-height: var(--queue-summary-card-height);
+}
+
+.summary-cards.summary-cards--page-top .summary-card {
+  flex: 1 1 0;
+  min-width: 5.25rem;
+  min-height: var(--queue-summary-card-height);
+  height: var(--queue-summary-card-height);
+  box-sizing: border-box;
+  padding: 0.28rem 0.5rem;
+  border-radius: 8px;
+  box-shadow: none;
+  gap: 0;
+  justify-content: center;
+}
+
+.summary-cards.summary-cards--page-top .summary-label {
+  font-size: 0.65rem;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.summary-cards.summary-cards--page-top .summary-value {
+  font-size: 1.05rem;
+  line-height: 1.1;
 }
 
 .summary-card {
   background: #fff;
   border-radius: 10px;
-  padding: 1.25rem;
+  padding: 1rem 1.1rem;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  border: 1px solid #eef2f7;
 }
 
 .summary-label {
   color: #666;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
 }
 
 .summary-value {
-  font-size: 2rem;
+  font-size: 1.75rem;
   font-weight: 700;
 }
 
@@ -206,6 +249,181 @@ body {
 
 .summary-suspended .summary-value {
   color: #dc2626;
+}
+
+/* Payments / decisions summary — home status tokens */
+.summary-card.summary-total .summary-value {
+  color: #334155;
+}
+
+.summary-card.summary-approved {
+  background: linear-gradient(
+    135deg,
+    #ffffff 0%,
+    #ffffff 55%,
+    color-mix(in srgb, var(--status-approved) 8%, #ffffff) 100%
+  );
+  border-color: color-mix(in srgb, var(--status-approved) 18%, #ffffff);
+}
+
+.summary-card.summary-approved .summary-value {
+  color: var(--status-approved);
+}
+
+.summary-card.summary-waiting,
+.summary-card.summary-pending-execution {
+  background: linear-gradient(
+    135deg,
+    #ffffff 0%,
+    #ffffff 55%,
+    color-mix(in srgb, var(--status-pending-execution) 8%, #ffffff) 100%
+  );
+  border-color: color-mix(in srgb, var(--status-pending-execution) 18%, #ffffff);
+}
+
+.summary-card.summary-waiting .summary-value,
+.summary-card.summary-pending-execution .summary-value {
+  color: var(--status-pending-execution);
+}
+
+.summary-card.summary-paid {
+  background: linear-gradient(
+    135deg,
+    #ffffff 0%,
+    #ffffff 55%,
+    color-mix(in srgb, var(--status-paid) 8%, #ffffff) 100%
+  );
+  border-color: color-mix(in srgb, var(--status-paid) 18%, #ffffff);
+}
+
+.summary-card.summary-paid .summary-value {
+  color: var(--status-paid);
+}
+
+.summary-card.summary-draft {
+  background: linear-gradient(
+    135deg,
+    #ffffff 0%,
+    #ffffff 55%,
+    color-mix(in srgb, var(--status-draft) 8%, #ffffff) 100%
+  );
+  border-color: color-mix(in srgb, var(--status-draft) 18%, #ffffff);
+}
+
+.summary-card.summary-draft .summary-value {
+  color: var(--status-draft);
+}
+
+.summary-card.summary-status-submitted {
+  background: linear-gradient(
+    135deg,
+    #ffffff 0%,
+    #ffffff 55%,
+    color-mix(in srgb, var(--status-pending-approval) 8%, #ffffff) 100%
+  );
+  border-color: color-mix(in srgb, var(--status-pending-approval) 18%, #ffffff);
+}
+
+.summary-card.summary-status-submitted .summary-value {
+  color: var(--status-pending-approval);
+}
+
+.summary-card.summary-status-returned {
+  background: linear-gradient(
+    135deg,
+    #ffffff 0%,
+    #ffffff 55%,
+    color-mix(in srgb, var(--status-returned) 8%, #ffffff) 100%
+  );
+  border-color: color-mix(in srgb, var(--status-returned) 18%, #ffffff);
+}
+
+.summary-card.summary-status-returned .summary-value {
+  color: var(--status-returned);
+}
+
+.summary-card.summary-status-suspended {
+  background: linear-gradient(
+    135deg,
+    #ffffff 0%,
+    #ffffff 55%,
+    color-mix(in srgb, var(--status-on-hold) 8%, #ffffff) 100%
+  );
+  border-color: color-mix(in srgb, var(--status-on-hold) 18%, #ffffff);
+}
+
+.summary-card.summary-status-suspended .summary-value {
+  color: var(--status-on-hold);
+}
+
+.summary-card.summary-status-approved {
+  background: linear-gradient(
+    135deg,
+    #ffffff 0%,
+    #ffffff 55%,
+    color-mix(in srgb, var(--status-approved) 8%, #ffffff) 100%
+  );
+  border-color: color-mix(in srgb, var(--status-approved) 18%, #ffffff);
+}
+
+.summary-card.summary-status-approved .summary-value {
+  color: var(--status-approved);
+}
+
+.summary-card.summary-status-rejected {
+  background: linear-gradient(
+    135deg,
+    #ffffff 0%,
+    #ffffff 55%,
+    color-mix(in srgb, var(--status-rejected) 8%, #ffffff) 100%
+  );
+  border-color: color-mix(in srgb, var(--status-rejected) 18%, #ffffff);
+}
+
+.summary-card.summary-status-rejected .summary-value {
+  color: var(--status-rejected);
+}
+
+.summary-card.summary-status-waiting_for_reference {
+  background: linear-gradient(
+    135deg,
+    #ffffff 0%,
+    #ffffff 55%,
+    color-mix(in srgb, var(--status-pending-execution) 8%, #ffffff) 100%
+  );
+  border-color: color-mix(in srgb, var(--status-pending-execution) 18%, #ffffff);
+}
+
+.summary-card.summary-status-waiting_for_reference .summary-value {
+  color: var(--status-pending-execution);
+}
+
+.summary-card.summary-status-paid {
+  background: linear-gradient(
+    135deg,
+    #ffffff 0%,
+    #ffffff 55%,
+    color-mix(in srgb, var(--status-paid) 8%, #ffffff) 100%
+  );
+  border-color: color-mix(in srgb, var(--status-paid) 18%, #ffffff);
+}
+
+.summary-card.summary-status-paid .summary-value {
+  color: var(--status-paid);
+}
+
+.summary-card.summary-status-completed {
+  background: linear-gradient(
+    135deg,
+    #ffffff 0%,
+    #ffffff 55%,
+    color-mix(in srgb, var(--status-completed) 8%, #ffffff) 100%
+  );
+  border-color: color-mix(in srgb, var(--status-completed) 18%, #ffffff);
+}
+
+.summary-card.summary-status-completed .summary-value {
+  color: var(--status-completed);
 }
 
 .toolbar {
@@ -242,6 +460,59 @@ body {
   background: #c2410c !important;
 }
 
+/* Workflow / table action buttons — exact home status tokens (§6.5 / :root --status-*) */
+.btn-action-on-hold {
+  background: var(--status-on-hold) !important;
+  color: #ffffff !important;
+}
+
+.btn-action-returned {
+  background: var(--status-returned) !important;
+  color: #ffffff !important;
+}
+
+.btn-action-rejected {
+  background: var(--status-rejected) !important;
+  color: #ffffff !important;
+}
+
+.btn-action-approved,
+.btn-action-draft {
+  background: var(--status-draft) !important; /* approved = drafts blue */
+  color: #ffffff !important;
+}
+
+.btn-action-paid {
+  background: var(--status-paid) !important;
+  color: #ffffff !important;
+}
+
+.btn-action-completed {
+  background: var(--status-completed) !important;
+  color: #ffffff !important;
+}
+
+.btn-action-pending-execution {
+  background: var(--status-pending-execution) !important;
+  color: #ffffff !important;
+}
+
+.btn-action-pending-approval {
+  background: var(--status-pending-approval) !important;
+  color: #ffffff !important;
+}
+
+.btn-action-cancel {
+  background: #64748b !important;
+  color: #ffffff !important;
+}
+
+/* פתח / פרטים — light gray neutral */
+.btn-action-neutral {
+  background: #e2e8f0 !important;
+  color: #334155 !important;
+}
+
 .btn-small {
   padding: 0.35rem 0.65rem;
   font-size: 0.8rem;
@@ -253,6 +524,126 @@ body {
   border-radius: 10px;
   overflow: hidden;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+/* ── Shared queue layout (Decisions + Payments) ─────────────────── */
+:root {
+  --queue-secondary-pane-height: 8.5rem;
+}
+
+.queue-page {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.queue-page > .toolbar,
+.queue-page > .summary-cards,
+.queue-page > .error {
+  flex-shrink: 0;
+}
+
+.queue-page > .toolbar {
+  margin-bottom: 0.25rem;
+}
+
+.queue-page .table-wrap--scroll {
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.queue-page .table-wrap--scroll .org-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  box-shadow: 0 1px 0 #e5e7eb;
+}
+
+/* Secondary pane: drafts / export batches — same footprint, pinned, internal scroll */
+.queue-page .queue-pane--secondary {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.queue-page .queue-pane--secondary > :is(h2, h3) {
+  margin: 0 0 0.25rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.queue-page .table-wrap--secondary {
+  max-height: var(--queue-secondary-pane-height);
+  height: var(--queue-secondary-pane-height);
+}
+
+.queue-page .table-wrap--secondary .org-table th,
+.queue-page .table-wrap--secondary .org-table td {
+  padding: 0.28rem 0.55rem;
+  font-size: 0.78rem;
+  line-height: 1.2;
+  vertical-align: middle;
+}
+
+.queue-page .table-wrap--secondary .org-table th {
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: #f8fafc;
+  color: #64748b;
+}
+
+.queue-page .table-wrap--secondary .btn-small {
+  padding: 0.15rem 0.4rem;
+  font-size: 0.7rem;
+  margin-inline-start: 0.2rem;
+}
+
+/* Primary pane: assistance items / payment rows — fill remaining viewport */
+.queue-page .queue-pane--primary {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.queue-page .queue-pane--primary > :is(h2, h3) {
+  margin: 0 0 0.35rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #0f172a;
+  flex-shrink: 0;
+}
+
+.queue-page .table-wrap--primary {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+}
+
+.queue-page .table-wrap--primary .org-table th,
+.queue-page .table-wrap--primary .org-table td {
+  padding: 0.35rem 0.65rem;
+  font-size: 0.82rem;
+  line-height: 1.25;
+  vertical-align: middle;
+}
+
+.queue-page .table-wrap--primary .btn-small {
+  padding: 0.2rem 0.45rem;
+  font-size: 0.72rem;
+  margin-inline-start: 0.2rem;
+}
+
+/* Committee decisions uses shared .queue-page layout */
+.committee-decisions-page .committee-table-section {
+  margin: 0;
+  min-height: 0;
 }
 
 .org-table {
@@ -283,6 +674,7 @@ body {
   border-radius: 999px;
   font-size: 0.8rem;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .status-active {
@@ -291,8 +683,8 @@ body {
 }
 
 .status-suspended {
-  background: #fee2e2;
-  color: #991b1b;
+  background: color-mix(in srgb, var(--status-on-hold) 14%, #ffffff);
+  color: var(--status-on-hold);
 }
 
 .actions-cell {
@@ -781,6 +1173,14 @@ body {
   margin-bottom: 0.75rem;
 }
 
+.bank-sync-row:has(.bank-field--unified) {
+  grid-template-columns: 1fr;
+}
+
+.bank-field--unified {
+  min-width: 0;
+}
+
 .bank-sync-field {
   display: flex;
   flex-direction: column;
@@ -878,6 +1278,18 @@ body {
   width: 100%;
   align-items: start;
   margin: 0.25rem 0;
+}
+
+.create-family-codes-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 12px;
+  align-items: start;
+  margin-bottom: 0.35rem;
+}
+
+.create-family-codes-row .form-field {
+  min-width: 0;
 }
 
 .family-details-grid .form-field {
@@ -990,6 +1402,10 @@ body {
   .family-details-grid__col-id,
   .family-details-grid__col-phone {
     grid-column: 1;
+  }
+
+  .create-family-codes-row {
+    grid-template-columns: 1fr;
   }
 
   .bank-fieldset--create-layout .bank-create-row--primary {
@@ -1593,6 +2009,9 @@ body {
 
 .app-shell-main {
   flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
   padding: 2rem;
 }
@@ -1978,7 +2397,20 @@ body {
   --status-returned: #0ea5a4;
   --status-on-hold: #8b5cf6;
   --status-pending-execution: #e11d48;
+  /* §6.5 — approved reuses drafts blue; paid/completed success greens */
+  --status-approved: var(--status-draft);
+  --status-approved-bg: color-mix(in srgb, var(--status-draft) 14%, #ffffff);
+  --status-approved-text: var(--status-draft);
+  --status-approved-chip: var(--status-draft);
   --status-paid: #22c55e;
+  --status-paid-bg: #dcfce7;
+  --status-paid-text: #166534;
+  --status-paid-chip: #15803d;
+  /* Softer than #14532D for badge fill */
+  --status-completed: #166534;
+  --status-completed-bg: #166534;
+  --status-completed-text: #ffffff;
+  --status-completed-accent: #bbf7d0;
   --status-rejected: #ef4444;
 }
 
@@ -2009,7 +2441,9 @@ body {
   --kpi-wash-returned: color-mix(in srgb, var(--status-returned) 14%, #ffffff);
   --kpi-wash-on-hold: color-mix(in srgb, var(--status-on-hold) 15%, #ffffff);
   --kpi-wash-pending-execution: color-mix(in srgb, var(--status-pending-execution) 15%, #ffffff);
-  --kpi-wash-paid: color-mix(in srgb, var(--status-paid) 14%, #ffffff);
+  --kpi-wash-approved: var(--kpi-wash-draft);
+  --kpi-wash-paid: var(--status-paid-bg);
+  --kpi-wash-completed: color-mix(in srgb, var(--status-completed) 14%, #ffffff);
   --kpi-wash-rejected: color-mix(in srgb, var(--status-rejected) 14%, #ffffff);
 
   display: flex;
@@ -2322,6 +2756,56 @@ body {
     inset 0 1px 0 rgba(255, 255, 255, 0.92);
 }
 
+.home-kpi-card.home-status--approved {
+  background: linear-gradient(135deg, #ffffff 0%, #ffffff 58%, color-mix(in srgb, var(--status-approved) 5%, #ffffff) 86%, var(--kpi-wash-approved) 100%);
+  border-color: color-mix(in srgb, var(--status-approved) 11%, #f1f5f9);
+  box-shadow:
+    0 2px 10px rgba(15, 23, 42, 0.04),
+    0 1px 2px rgba(15, 23, 42, 0.03),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+}
+
+.home-kpi-card.home-status--approved .home-kpi-card-icon-wrap {
+  background: linear-gradient(155deg, #ffffff 0%, color-mix(in srgb, var(--status-approved) 16%, #ffffff) 100%);
+  color: var(--status-approved);
+  box-shadow:
+    0 3px 12px color-mix(in srgb, var(--status-approved) 12%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.88);
+}
+
+.home-kpi-card.home-status--approved .home-kpi-card-title {
+  color: #64748b;
+}
+
+.home-kpi-card.home-status--approved .home-kpi-card-count {
+  color: var(--status-approved-text);
+}
+
+.home-kpi-card.home-status--completed {
+  background: linear-gradient(135deg, #ffffff 0%, #ffffff 58%, color-mix(in srgb, var(--status-completed) 5%, #ffffff) 86%, var(--kpi-wash-completed) 100%);
+  border-color: color-mix(in srgb, var(--status-completed) 14%, #f1f5f9);
+  box-shadow:
+    0 2px 10px rgba(15, 23, 42, 0.04),
+    0 1px 2px rgba(15, 23, 42, 0.03),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+}
+
+.home-kpi-card.home-status--completed .home-kpi-card-icon-wrap {
+  background: var(--status-completed-bg);
+  color: var(--status-completed-text);
+  box-shadow:
+    0 3px 12px color-mix(in srgb, var(--status-completed) 22%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.home-kpi-card.home-status--completed .home-kpi-card-title {
+  color: #64748b;
+}
+
+.home-kpi-card.home-status--completed .home-kpi-card-count {
+  color: var(--status-completed);
+}
+
 .home-kpi-card.home-status--paid .home-kpi-card-icon-wrap {
   background: linear-gradient(155deg, #ffffff 0%, color-mix(in srgb, var(--status-paid) 16%, #ffffff) 100%);
   color: var(--status-paid);
@@ -2578,9 +3062,13 @@ body {
 }
 
 .home-status--pending-execution.home-financial-metric-icon-wrap {
-  background: linear-gradient(155deg, #ffffff 0%, color-mix(in srgb, var(--status-pending-execution) 22%, #ffffff) 100%);
-  color: var(--status-pending-execution);
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--status-pending-execution) 12%, transparent);
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--status-pending-execution) 88%, #fff),
+    var(--status-pending-execution)
+  );
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
 }
 
 .home-status--on-hold.home-financial-metric-icon-wrap {
@@ -2637,12 +3125,7 @@ body {
 
 .home-status--pending-execution.home-financial-metric,
 .home-status--pending-execution.home-financial-metric-btn {
-  background: linear-gradient(
-    135deg,
-    #ffffff 0%,
-    #ffffff 55%,
-    color-mix(in srgb, var(--status-pending-execution) 8%, #ffffff) 100%
-  );
+  background: color-mix(in srgb, var(--status-pending-execution) 6%, #fff);
 }
 
 .home-status--on-hold.home-financial-metric,
@@ -3352,5 +3835,514 @@ body {
 
 .modal-card.modal-committee-expanded .committee-items-shell {
   overflow-x: visible;
+}
+
+/* Phase 16 — PaymentsQueuePage (layout via .queue-page) */
+.payments-queue-page .org-table--compact .amount-tracking {
+  font-size: 0.72rem;
+}
+
+.payments-queue-page .org-table--compact .amount-tracking__hint {
+  font-size: 0.65rem;
+}
+
+.payments-toolbar {
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.payments-column-gear {
+  position: relative;
+  margin-inline-start: auto;
+}
+
+.payments-column-panel {
+  position: absolute;
+  inset-inline-end: 0;
+  top: calc(100% + 0.35rem);
+  z-index: 20;
+  min-width: 16rem;
+  padding: 0.75rem;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.payments-column-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.payments-check-col {
+  width: 2.5rem;
+  text-align: center;
+}
+
+.payments-batches-section {
+  margin-top: 0;
+}
+
+.payments-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(8rem, 12rem) 1fr;
+  gap: 0.5rem 1rem;
+  margin: 0;
+}
+
+.payments-detail-grid dt {
+  color: #64748b;
+  font-weight: 600;
+}
+
+.payments-detail-grid dd {
+  margin: 0;
+}
+
+.status-approved {
+  background: var(--status-approved-bg);
+  color: var(--status-approved-text);
+}
+
+/* הוגש לאישור — same hue as home “ממתין לאישור” */
+.status-submitted {
+  background: color-mix(in srgb, var(--status-pending-approval) 14%, #ffffff);
+  color: var(--status-pending-approval);
+}
+
+/* הוחזר לתיקון — approved-style wash, home returned teal */
+.status-returned {
+  background: color-mix(in srgb, var(--status-returned) 14%, #ffffff);
+  color: var(--status-returned);
+}
+
+/* מושהה — same hue as home “בהשהיה” / on-hold */
+.status-suspended {
+  background: color-mix(in srgb, var(--status-on-hold) 14%, #ffffff);
+  color: var(--status-on-hold);
+}
+
+/* בביצוע — same hue as home “ממתין לתשלום” / pending-execution */
+.status-waiting_for_reference {
+  background: color-mix(in srgb, var(--status-pending-execution) 14%, #ffffff);
+  color: var(--status-pending-execution);
+}
+
+/* נדחה — slightly dark red fill, white label */
+.status-rejected {
+  background: #dc2626;
+  color: #ffffff;
+}
+
+.status-paid {
+  background: var(--status-paid-bg);
+  color: var(--status-paid-text);
+}
+
+.status-completed {
+  /* Badge only: softer green fill + white label (not near-black) */
+  background: #16a34a;
+  color: #ffffff;
+  white-space: nowrap;
+}
+
+/* Widen status cells so תהליך הושלם stays on one line */
+/* Amount tracking column — single line, slightly wider / smaller type */
+.amount-tracking {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  line-height: 1.25;
+}
+
+.amount-tracking__primary {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.amount-tracking__primary .history-value-transition {
+  font-variant-numeric: tabular-nums;
+}
+
+.amount-tracking__hint {
+  white-space: nowrap;
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.org-table th.col-amount,
+.org-table td.col-amount {
+  width: 1%;
+  min-width: 7.5rem;
+  max-width: 9.5rem;
+  white-space: nowrap;
+  padding-inline: 0.5rem;
+}
+
+.org-table td:has(.status-badge),
+.org-table th.col-status,
+.org-table td.col-status {
+  min-width: 9.5rem;
+  white-space: nowrap;
+}
+
+.history-event--approved {
+  --history-event-accent: var(--status-approved);
+  --history-event-bg: var(--status-approved-bg);
+  --history-event-text: var(--status-approved-text);
+}
+
+.history-event--paid {
+  --history-event-accent: var(--status-paid-chip);
+  --history-event-bg: var(--status-paid-bg);
+  --history-event-text: var(--status-paid-text);
+}
+
+.history-event--completed {
+  --history-event-accent: var(--status-completed);
+  --history-event-bg: var(--status-completed-bg);
+  --history-event-text: var(--status-completed-text);
+}
+
+.history-event--on-hold {
+  --history-event-accent: var(--status-on-hold);
+  --history-event-bg: color-mix(in srgb, var(--status-on-hold) 14%, #ffffff);
+  --history-event-text: var(--status-on-hold);
+}
+
+.history-event--returned {
+  --history-event-accent: var(--status-returned);
+  --history-event-bg: color-mix(in srgb, var(--status-returned) 14%, #ffffff);
+  --history-event-text: var(--status-returned);
+}
+
+.history-event--rejected {
+  --history-event-accent: #dc2626;
+  --history-event-bg: color-mix(in srgb, #dc2626 12%, #ffffff);
+  --history-event-text: #b91c1c;
+}
+
+.history-event--pending-approval {
+  --history-event-accent: var(--status-pending-approval);
+  --history-event-bg: color-mix(in srgb, var(--status-pending-approval) 14%, #ffffff);
+  --history-event-text: var(--status-pending-approval);
+}
+
+.history-event--pending-execution {
+  --history-event-accent: var(--status-pending-execution);
+  --history-event-bg: color-mix(in srgb, var(--status-pending-execution) 14%, #ffffff);
+  --history-event-text: var(--status-pending-execution);
+}
+
+.history-event--draft {
+  --history-event-accent: var(--status-draft);
+  --history-event-bg: color-mix(in srgb, var(--status-draft) 14%, #ffffff);
+  --history-event-text: var(--status-draft);
+}
+
+.history-event--cancel {
+  --history-event-accent: #dc2626;
+  --history-event-bg: color-mix(in srgb, #dc2626 12%, #ffffff);
+  --history-event-text: #b91c1c;
+}
+
+.history-event--neutral {
+  --history-event-accent: #64748b;
+  --history-event-bg: #f8fafc;
+  --history-event-text: #334155;
+}
+
+.assistance-item-history {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-height: none;
+  overflow: visible;
+  padding-inline-end: 0.15rem;
+}
+
+.assistance-item-history__step {
+  display: flex;
+  flex-direction: column;
+}
+
+.assistance-item-history__connector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  padding-block: 0.15rem;
+  color: #94a3b8;
+}
+
+.assistance-item-history__connector-line {
+  width: 2px;
+  height: 0.65rem;
+  background: #cbd5e1;
+  border-radius: 1px;
+}
+
+.assistance-item-history__connector-arrow {
+  font-size: 0.75rem;
+  line-height: 1;
+  color: #64748b;
+}
+
+.assistance-item-history__station {
+  position: relative;
+  padding: 0.65rem 0.75rem;
+  border-radius: 8px;
+  background: var(--history-event-bg, #f8fafc);
+  color: var(--history-event-text, #334155);
+  border-inline-start: 3px solid var(--history-event-accent, #64748b);
+}
+
+.assistance-item-history__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  opacity: 0.9;
+  margin-bottom: 0.25rem;
+}
+
+.assistance-item-history__icon {
+  display: inline-flex;
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  color: var(--history-event-accent, #64748b);
+}
+
+.assistance-item-history__icon .home-kpi-card-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.assistance-item-history__title {
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+  font-size: 0.9rem;
+}
+
+.assistance-item-history__change {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  margin-top: 0.25rem;
+}
+
+.assistance-item-history__change-label {
+  margin-inline-end: 0.15rem;
+}
+
+/* §20: explicit RTL transition — previous (right) → arrow → new (left) */
+.history-value-transition {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 0.35rem;
+  direction: rtl;
+  unicode-bidi: isolate;
+}
+
+.history-value-transition .assistance-item-history__change-prev,
+.history-value-transition .assistance-item-history__change-new {
+  unicode-bidi: isolate;
+}
+
+.assistance-item-history__change-prev {
+  opacity: 0.75;
+}
+
+.assistance-item-history__change-arrow {
+  opacity: 0.55;
+  flex-shrink: 0;
+}
+
+.assistance-item-history__change-new {
+  font-weight: 600;
+}
+
+.assistance-item-history__empty,
+.assistance-item-history__error {
+  padding: 1rem;
+  color: #475569;
+}
+
+.actions-cell--with-history {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.actions-cell__business {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+/* Pin history to the physical left edge of the row (RTL inline-end), independent of action buttons */
+.actions-cell--with-history > .btn-icon-history {
+  margin-inline-start: auto;
+  flex-shrink: 0;
+}
+
+.btn-icon-history {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  min-width: 2rem;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: transparent;
+  cursor: pointer;
+}
+
+.btn-icon-history:hover:not(:disabled) {
+  background: transparent;
+  box-shadow: none;
+  opacity: 0.85;
+}
+
+.btn-icon-history:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-icon-history__glyph {
+  display: block;
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.modal-history-compact.modal-card {
+  max-width: 28rem;
+}
+
+/* History popover — narrow/tall, anchored beside the history icon */
+.history-popover-root {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  pointer-events: none;
+}
+
+.history-popover-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.12);
+  pointer-events: auto;
+}
+
+.history-popover {
+  position: fixed;
+  width: 300px;
+  max-width: calc(100vw - 16px);
+  max-height: min(80vh, 36rem);
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.18);
+  overflow: hidden;
+  pointer-events: auto;
+  z-index: 1201;
+}
+
+.history-popover__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+  flex-shrink: 0;
+}
+
+.history-popover__header-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+.history-popover__close {
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.1rem 0.35rem;
+  border-radius: 6px;
+}
+
+.history-popover__close:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.history-popover__body {
+  padding: 0.65rem 0.7rem 0.85rem;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.history-popover__more {
+  margin-top: 0.65rem;
+  width: 100%;
+  margin-inline-start: 0 !important;
+}
+
+.payments-export-errors {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fef2f2;
+}
+
+.payments-export-errors__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.payments-export-errors__list {
+  margin: 0;
+  padding-inline-start: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  color: #991b1b;
+  font-size: 0.9rem;
 }
 

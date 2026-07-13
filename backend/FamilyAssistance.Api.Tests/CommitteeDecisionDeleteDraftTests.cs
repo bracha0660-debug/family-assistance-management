@@ -51,6 +51,7 @@ public sealed class CommitteeDecisionDeleteDraftTests : IDisposable
             PaymentTarget = PaymentTargets.Family,
             PaymentMethod = PaymentMethods.Check,
             PayeeName = "כהן",
+            Status = AssistanceItemStatuses.Draft,
             ExecutionStatus = PaymentExecutionStatuses.AwaitingPayment,
             Version = 1,
             CreatedAt = DateTime.UtcNow,

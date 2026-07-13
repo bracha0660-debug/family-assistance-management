@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <title>§20 History UI evidence fixture</title>
+  <style>
+    body { font-family: "Segoe UI", Arial, sans-serif; background: #f8fafc; margin: 0; padding: 1.5rem; color: #0f172a; }
+    h1 { font-size: 1rem; margin: 0 0 1rem; }
+    .row {
+      display: flex; align-items: center; gap: 0.5rem; background: #fff; border: 1px solid #e2e8f0;
+      border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1.25rem;
+    }
+    .actions-business { display: inline-flex; gap: 0.35rem; margin-inline-end: auto; }
+    .btn { border: 1px solid #cbd5e1; background: #f8fafc; border-radius: 6px; padding: 0.25rem 0.6rem; font-size: 0.85rem; }
+    .btn-icon-history {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 2rem; height: 2rem; border: 1px solid #cbd5e1; border-radius: 6px; background: transparent; color: #475569;
+    }
+    .window {
+      max-width: 28rem; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1rem;
+    }
+    .station {
+      background: #f8fafc; border-inline-start: 3px solid #3b82f6; border-radius: 8px; padding: 0.75rem 0.85rem; margin-top: 0.5rem;
+    }
+    .meta { font-size: 0.85rem; opacity: 0.9; margin-bottom: 0.25rem; }
+    .title { font-weight: 600; margin-bottom: 0.35rem; }
+    .change { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem; font-size: 0.9rem; margin-top: 0.25rem; }
+    .history-value-transition {
+      display: inline-flex; flex-direction: row; align-items: baseline; gap: 0.35rem;
+      direction: rtl; unicode-bidi: isolate;
+    }
+    .prev { opacity: 0.75; unicode-bidi: isolate; }
+    .arrow { opacity: 0.55; }
+    .new { font-weight: 600; unicode-bidi: isolate; }
+    .caption { font-size: 0.8rem; color: #64748b; margin: 0.35rem 0 1rem; }
+  </style>
+</head>
+<body>
+  <h1>History icon at end of row (outside business actions)</h1>
+  <div class="row" id="shot-icon-row">
+    <span>החלטה D-100 · משפחת כהן</span>
+    <div class="actions-business">
+      <button class="btn" type="button">פרטים</button>
+      <button class="btn" type="button">עריכה</button>
+    </div>
+    <button class="btn-icon-history" type="button" aria-label="היסטוריה" title="היסטוריה">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
+        <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2zm0 2a8 8 0 1 1 0 16 8 8 0 0 1 0-16zm-.75 3v5.2l4.4 2.6.95-1.6-3.6-2.1V7h-1.75z" />
+      </svg>
+    </button>
+  </div>
+  <p class="caption">Icon-only control at row end; business actions grouped separately.</p>
+
+  <h1>Opened vertical history window (no title)</h1>
+  <div class="window" id="shot-window">
+    <div class="station" id="shot-amount">
+      <div class="meta">12.07.2026 14:35 · רות לוי</div>
+      <div class="title">עריכת פריט</div>
+      <div class="change">
+        <span>סכום לתשלום:</span>
+        <span class="history-value-transition" dir="rtl">
+          <bdi class="prev" dir="ltr">75 ₪</bdi>
+          <span class="arrow" aria-hidden="true">←</span>
+          <bdi class="new" dir="ltr">350 ₪</bdi>
+        </span>
+      </div>
+    </div>
+  </div>
+  <p class="caption">Amount 75 → 350: previous on the right, new on the left (RTL three-element transition).</p>
+</body>
+</html>

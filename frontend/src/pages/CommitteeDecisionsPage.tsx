@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import type { UserDto } from '../api/auth';
 import { listAssistanceTypes, type AssistanceTypeDto } from '../api/assistanceTypes';
 import {
   addAssistanceItem,
+  cancelCommitteeDecision,
   createCommitteeDecision,
   deleteCommitteeDecision,
   getCommitteeDecision,
@@ -21,11 +22,33 @@ import {
   type PaymentTarget,
   type UpdateAssistanceItemPayload,
 } from '../api/committeeDecisions';
+import {
+  approveAssistanceItem,
+  completeAssistanceItem,
+  listAssistanceItems,
+  rejectAssistanceItem,
+  resubmitAssistanceItem,
+  returnAssistanceItem,
+  suspendAssistanceItem,
+  type AssistanceItemListDto,
+} from '../api/assistanceItems';
+import { amountAdjustmentReasonLabel } from '../api/exportBatches';
 import { listFamilies, type FamilyDto } from '../api/families';
 import { PERMISSION_KEYS } from '../api/permissions';
 import { listSuppliers, type SupplierDto } from '../api/suppliers';
 import type { HomeNavigationTarget } from '../api/workflow';
+import { AssistanceItemDetailsModal } from '../components/AssistanceItemDetailsModal';
+import { AssistanceItemHistoryModal } from '../components/AssistanceItemHistoryModal';
+import { HistoryIconButton } from '../components/history/HistoryIconButton';
+import { HistoryValueTransition } from '../components/history/HistoryValueTransition';
 import { workflowFilterLabel } from './home/workflowStatus';
+import {
+  assistanceItemStatusLabel,
+  DECISIONS_ITEM_ACTIONS,
+  decisionsItemActions,
+  workflowActionButtonClass,
+  workflowActionLabel,
+} from './home/workflowLabels';
 import { hasPermission } from '../hooks/usePermissions';
 import { FieldValidationTooltip } from '../components/FieldValidation';
 import { BankSelect } from '../components/BankDetailsFields';
@@ -56,14 +79,105 @@ interface CommitteeDecisionsPageProps {
   initialFilter?: HomeNavigationTarget | null;
 }
 
-function listFilterToOptions(filter: HomeNavigationTarget | null | undefined) {
+/** Decisions Table 2 — payment execution actions live on PaymentsQueuePage (Phase 16 M97). */
+// Action allow-list + filter: decisionsItemActions / DECISIONS_ITEM_ACTIONS in workflowLabels.ts
+
+function formatMoney(amount: number): string {
+  return `${amount.toLocaleString('he-IL')} ₪`;
+}
+
+function formatAmountTracking(
+  amount: number,
+  hasAdjustment?: boolean | null,
+  originalApprovedAmount?: number | null,
+  reason?: string | null,
+  explanation?: string | null,
+): { amount: number; original: number | null; hint: string | null } {
+  if (hasAdjustment && originalApprovedAmount != null) {
+    const hintParts = [`סיבה: ${amountAdjustmentReasonLabel(reason)}`];
+    if (reason === 'other' && explanation) hintParts.push(explanation);
+    return {
+      amount,
+      original: originalApprovedAmount,
+      hint: hintParts.join(' — '),
+    };
+  }
+  return { amount, original: null, hint: null };
+}
+
+function renderAmountTrackingPrimary(amt: { amount: number; original: number | null }) {
+  if (amt.original != null) {
+    return (
+      <HistoryValueTransition
+        previousValue={formatMoney(amt.original)}
+        newValue={formatMoney(amt.amount)}
+      />
+    );
+  }
+  return formatMoney(amt.amount);
+}
+
+function resolveDraftListOptions(filter: HomeNavigationTarget | null | undefined) {
+  if (filter?.targetTab === 'decisions' && filter.listView === 'assistance_items') {
+    return { status: 'draft', ownership: 'mine' as const };
+  }
+  if (filter?.targetTab === 'decisions' && filter.listView === 'draft_decisions') {
+    return {
+      section: filter.section,
+      status: filter.status ?? 'draft',
+      ownership: filter.ownership ?? 'mine',
+      minAgeDays: filter.minAgeDays,
+    };
+  }
+  if (filter?.targetTab === 'decisions' && (filter.section || filter.status || filter.minAgeDays)) {
+    const itemStatuses = new Set([
+      'submitted', 'returned', 'approved', 'suspended', 'rejected',
+      'waiting_for_reference', 'paid', 'completed',
+    ]);
+    if (filter.status && itemStatuses.has(filter.status)) {
+      return { status: 'draft', ownership: 'mine' as const };
+    }
+    return {
+      section: filter.section,
+      status: filter.status ?? 'draft',
+      ownership: filter.ownership ?? 'mine',
+      minAgeDays: filter.minAgeDays,
+    };
+  }
+  return { status: 'draft', ownership: 'mine' as const };
+}
+
+function resolveItemListOptions(filter: HomeNavigationTarget | null | undefined) {
   if (!filter || filter.targetTab !== 'decisions') return undefined;
-  return {
-    section: filter.section,
-    status: filter.status,
-    ownership: filter.ownership,
-    minAgeDays: filter.minAgeDays,
-  };
+  if (filter.listView === 'draft_decisions') return undefined;
+  if (filter.listView === 'assistance_items') {
+    return {
+      section: filter.section,
+      status: filter.status,
+      ownership: filter.ownership,
+      minAgeDays: filter.minAgeDays,
+    };
+  }
+  const itemStatuses = new Set([
+    'submitted', 'returned', 'approved', 'suspended', 'rejected',
+    'waiting_for_reference', 'paid', 'completed',
+  ]);
+  if (filter.status && itemStatuses.has(filter.status)) {
+    return {
+      section: filter.section,
+      status: filter.status,
+      ownership: filter.ownership,
+      minAgeDays: filter.minAgeDays,
+    };
+  }
+  return undefined;
+}
+
+function listViewFocus(
+  filter: HomeNavigationTarget | null | undefined,
+): 'draft_decisions' | 'assistance_items' | null {
+  if (!filter || filter.targetTab !== 'decisions') return null;
+  return filter.listView ?? null;
 }
 
 function translateDecisionStatus(status: string): string {
@@ -746,7 +860,7 @@ function ItemFormRow({
   const [loading, setLoading] = useState(false);
   const [transferPopoverOpen, setTransferPopoverOpen] = useState(false);
   const [transferPopoverSession, setTransferPopoverSession] = useState(0);
-  const transferPopoverInitialRef = useRef<
+  const [transferPopoverInitial, setTransferPopoverInitial] = useState<
     Pick<CommitteeItemRowState, 'transferBankNumber' | 'transferBranchNumber' | 'transferAccountNumber'>
   >({
     transferBankNumber: '',
@@ -761,17 +875,17 @@ function ItemFormRow({
 
   function openTransferPopover(contextState?: CommitteeItemRowState) {
     const source = contextState ?? state;
-    transferPopoverInitialRef.current = {
+    setTransferPopoverInitial({
       transferBankNumber: source.transferBankNumber,
       transferBranchNumber: source.transferBranchNumber,
       transferAccountNumber: source.transferAccountNumber,
-    };
+    });
     setTransferPopoverSession((prev) => prev + 1);
     setTransferPopoverOpen(true);
   }
 
   function handleTransferPopoverCancel() {
-    setState((prev) => ({ ...prev, ...transferPopoverInitialRef.current }));
+    setState((prev) => ({ ...prev, ...transferPopoverInitial }));
     setTransferPopoverOpen(false);
   }
 
@@ -821,7 +935,7 @@ function ItemFormRow({
           addLoading={loading}
           addError={error}
           transferPopoverOpen={transferPopoverOpen}
-          transferPopoverInitial={transferPopoverInitialRef.current}
+          transferPopoverInitial={transferPopoverInitial}
           transferPopoverSession={transferPopoverSession}
           onOpenTransferPopover={openTransferPopover}
           onTransferPopoverSave={handleTransferPopoverSave}
@@ -865,7 +979,7 @@ function ItemEditModal({
   const [loading, setLoading] = useState(false);
   const [transferPopoverOpen, setTransferPopoverOpen] = useState(false);
   const [transferPopoverSession, setTransferPopoverSession] = useState(0);
-  const transferPopoverInitialRef = useRef<
+  const [transferPopoverInitial, setTransferPopoverInitial] = useState<
     Pick<CommitteeItemRowState, 'transferBankNumber' | 'transferBranchNumber' | 'transferAccountNumber'>
   >({
     transferBankNumber: '',
@@ -880,17 +994,17 @@ function ItemEditModal({
 
   function openTransferPopover(contextState?: CommitteeItemRowState) {
     const source = contextState ?? state;
-    transferPopoverInitialRef.current = {
+    setTransferPopoverInitial({
       transferBankNumber: source.transferBankNumber,
       transferBranchNumber: source.transferBranchNumber,
       transferAccountNumber: source.transferAccountNumber,
-    };
+    });
     setTransferPopoverSession((prev) => prev + 1);
     setTransferPopoverOpen(true);
   }
 
   function handleTransferPopoverCancel() {
-    setState((prev) => ({ ...prev, ...transferPopoverInitialRef.current }));
+    setState((prev) => ({ ...prev, ...transferPopoverInitial }));
     setTransferPopoverOpen(false);
   }
 
@@ -956,7 +1070,7 @@ function ItemEditModal({
               setPayeeNameManuallyEdited={setPayeeNameManuallyEdited}
               onValidationMessage={(msg) => setError(msg ?? '')}
               transferPopoverOpen={transferPopoverOpen}
-              transferPopoverInitial={transferPopoverInitialRef.current}
+              transferPopoverInitial={transferPopoverInitial}
               transferPopoverSession={transferPopoverSession}
               onOpenTransferPopover={openTransferPopover}
               onTransferPopoverSave={handleTransferPopoverSave}
@@ -1170,7 +1284,23 @@ function DecisionDetailPanel({
                       transferAccountNumber: item.transferAccountNumber,
                     },
                   )}</td>
-                  <td>{item.amount.toLocaleString('he-IL')} ₪</td>
+                  <td className="col-amount">
+                    {(() => {
+                      const amt = formatAmountTracking(
+                        item.amount,
+                        item.hasAmountAdjustment,
+                        item.originalApprovedAmount,
+                        item.amountAdjustmentReason,
+                        item.amountAdjustmentExplanation,
+                      );
+                      return (
+                        <span className="amount-tracking">
+                          <span className="amount-tracking__primary">{renderAmountTrackingPrimary(amt)}</span>
+                          {amt.hint && <span className="amount-tracking__hint">{amt.hint}</span>}
+                        </span>
+                      );
+                    })()}
+                  </td>
                   <td>{item.isUrgent ? 'כן' : '—'}</td>
                   {showActions ? (
                     <td className="item-actions-cell">
@@ -1214,8 +1344,102 @@ function DecisionDetailPanel({
   );
 }
 
+function ReasonPromptModal({
+  title,
+  onClose,
+  onConfirm,
+}: {
+  title: string;
+  onClose: () => void;
+  onConfirm: (reason: string) => Promise<void>;
+}) {
+  const [reason, setReason] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    const trimmed = reason.trim();
+    if (trimmed.length < 3) {
+      setError('יש לציין סיבה (לפחות 3 תווים)');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      await onConfirm(trimmed);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'שגיאת מערכת');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <ModalShell
+      title={title}
+      loading={loading}
+      onClose={onClose}
+      onSubmit={handleSubmit}
+      formError={error}
+      footer={(
+        <>
+          <button type="button" className="btn-secondary" onClick={onClose} disabled={loading}>ביטול</button>
+          <button type="submit" disabled={loading}>{loading ? 'שולח...' : 'אישור'}</button>
+        </>
+      )}
+    >
+      <label htmlFor="action-reason">סיבה <span className="field-required">*</span></label>
+      <textarea
+        id="action-reason"
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        disabled={loading}
+        rows={3}
+        maxLength={500}
+      />
+    </ModalShell>
+  );
+}
+
+function toAssistanceItemDetails(item: AssistanceItemListDto) {
+  return {
+    decisionCode: item.decisionCode,
+    familyCode: item.familyCode,
+    familyAccountingCode: item.familyAccountingCode,
+    familyLastName: item.familyName,
+    assistanceTypeName: item.assistanceTypeName,
+    assistanceTypeCode: item.assistanceTypeCode,
+    description: item.description,
+    amount: item.amount,
+    originalApprovedAmount: item.originalApprovedAmount,
+    previousPaymentAmount: item.previousPaymentAmount,
+    amountAdjustmentReason: item.amountAdjustmentReason,
+    amountAdjustmentExplanation: item.amountAdjustmentExplanation,
+    hasAmountAdjustment: item.hasAmountAdjustment,
+    paymentTarget: item.paymentTarget,
+    paymentMethod: item.paymentMethod,
+    payeeName: item.payeeName,
+    supplierName: item.supplierName,
+    supplierAccountingCode: item.supplierAccountingCode,
+    transferBankNumber: item.transferBankNumber,
+    transferBranchNumber: item.transferBranchNumber,
+    transferAccountNumber: item.transferAccountNumber,
+    accountHolderName: item.accountHolderName,
+    voucherType: item.voucherType,
+    isUrgent: item.isUrgent,
+    executionReference: item.executionReference,
+    status: item.status,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+    version: item.version,
+  };
+}
+
 export function CommitteeDecisionsPage({ user, initialFilter }: CommitteeDecisionsPageProps) {
-  const [data, setData] = useState<CommitteeDecisionListResponse | null>(null);
+  const [draftData, setDraftData] = useState<CommitteeDecisionListResponse | null>(null);
+  const [items, setItems] = useState<AssistanceItemListDto[]>([]);
   const [families, setFamilies] = useState<FamilyDto[]>([]);
   const [types, setTypes] = useState<AssistanceTypeDto[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierDto[]>([]);
@@ -1223,19 +1447,43 @@ export function CommitteeDecisionsPage({ user, initialFilter }: CommitteeDecisio
   const [error, setError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [detailTarget, setDetailTarget] = useState<CommitteeDecisionDto | null>(null);
+  const [itemTarget, setItemTarget] = useState<AssistanceItemListDto | null>(null);
   const [activeFilter, setActiveFilter] = useState<HomeNavigationTarget | null | undefined>(initialFilter);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [pendingReason, setPendingReason] = useState<{
+    title: string;
+    onConfirm: (reason: string) => Promise<void>;
+  } | null>(null);
+  const [historyItemId, setHistoryItemId] = useState<string | null>(null);
+  const [historyAnchorEl, setHistoryAnchorEl] = useState<HTMLElement | null>(null);
+
+  const draftsTableRef = useRef<HTMLDivElement>(null);
+  const itemsTableRef = useRef<HTMLDivElement>(null);
+  const focusedTable = listViewFocus(activeFilter);
+
+  const loadDrafts = useCallback(async (filter?: HomeNavigationTarget | null) => {
+    const listOptions = resolveDraftListOptions(filter);
+    const decisions = await listCommitteeDecisions(listOptions);
+    setDraftData(decisions);
+    return decisions;
+  }, []);
+
+  const loadItems = useCallback(async (filter?: HomeNavigationTarget | null) => {
+    const listOptions = resolveItemListOptions(filter);
+    const response = await listAssistanceItems(listOptions);
+    setItems(response.items);
+    return response.items;
+  }, []);
 
   const load = useCallback(async (filter?: HomeNavigationTarget | null) => {
     setError('');
     try {
-      const listOptions = listFilterToOptions(filter);
-      const [decisions, familiesRes, typesRes, suppliersRes] = await Promise.all([
-        listCommitteeDecisions(listOptions),
+      const [familiesRes, typesRes, suppliersRes] = await Promise.all([
         listFamilies(),
         listAssistanceTypes(),
         listSuppliers(),
       ]);
-      setData(decisions);
+      await Promise.all([loadDrafts(filter), loadItems(filter)]);
       setFamilies(familiesRes.families);
       setTypes(typesRes.assistanceTypes);
       setSuppliers(suppliersRes.suppliers);
@@ -1244,7 +1492,7 @@ export function CommitteeDecisionsPage({ user, initialFilter }: CommitteeDecisio
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [loadDrafts, loadItems]);
 
   useEffect(() => {
     setActiveFilter(initialFilter);
@@ -1252,14 +1500,216 @@ export function CommitteeDecisionsPage({ user, initialFilter }: CommitteeDecisio
     load(initialFilter);
   }, [initialFilter, load]);
 
+  useEffect(() => {
+    if (focusedTable === 'draft_decisions') {
+      draftsTableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (focusedTable === 'assistance_items') {
+      itemsTableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [focusedTable, loading]);
+
   const canCreate = hasPermission(user, PERMISSION_KEYS.committeeDecisionsCreate);
   const filterLabel = workflowFilterLabel(activeFilter);
   const detailFamily = detailTarget
     ? families.find((f) => f.id === detailTarget.familyId) ?? null
     : null;
 
+  /** Meters from items currently loaded for this user (scoped list). */
+  const itemStatusMeters = useMemo(() => {
+    const order = [
+      'submitted',
+      'returned',
+      'suspended',
+      'approved',
+      'rejected',
+      'waiting_for_reference',
+      'paid',
+      'completed',
+    ] as const;
+    const counts = new Map<string, number>();
+    for (const item of items) {
+      counts.set(item.status, (counts.get(item.status) ?? 0) + 1);
+    }
+    return order
+      .filter((status) => (counts.get(status) ?? 0) > 0)
+      .map((status) => ({
+        status,
+        count: counts.get(status) ?? 0,
+        label: assistanceItemStatusLabel(status),
+        className: `summary-card summary-status-${status}`,
+      }));
+  }, [items]);
+
+  async function openDecisionById(decisionId: string) {
+    const decision = await getCommitteeDecision(decisionId);
+    setDetailTarget(decision);
+  }
+
+  async function runItemTransition(
+    item: AssistanceItemListDto,
+    fn: () => Promise<AssistanceItemListDto>,
+  ) {
+    setActionLoading(item.id);
+    setError('');
+    try {
+      const updated = await fn();
+      await loadItems(activeFilter);
+      if (itemTarget?.id === item.id) {
+        setItemTarget(updated);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'שגיאת מערכת');
+      throw err;
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  function handleItemAction(item: AssistanceItemListDto, action: string) {
+    // Payment execution (send / reference / adjust / export) is PaymentsQueuePage only (M97).
+    if (!DECISIONS_ITEM_ACTIONS.has(action)) return;
+
+    if (action === 'edit') {
+      void openDecisionById(item.decisionId);
+      return;
+    }
+    if (action === 'approve') {
+      void runItemTransition(item, () => approveAssistanceItem(item.id, item.version));
+      return;
+    }
+    if (action === 'resubmit') {
+      void runItemTransition(item, () => resubmitAssistanceItem(item.id, item.version));
+      return;
+    }
+    if (action === 'complete') {
+      // Backend includes `complete` only after paid + permission.
+      if (!item.availableActions.includes('complete') || item.status !== 'paid') return;
+      void runItemTransition(item, () => completeAssistanceItem(item.id, item.version));
+      return;
+    }
+    if (action === 'reject') {
+      setPendingReason({
+        title: workflowActionLabel('reject'),
+        onConfirm: (reason) => runItemTransition(item, () => rejectAssistanceItem(item.id, item.version, reason)),
+      });
+      return;
+    }
+    if (action === 'return') {
+      setPendingReason({
+        title: workflowActionLabel('return'),
+        onConfirm: (reason) => runItemTransition(item, () => returnAssistanceItem(item.id, item.version, reason)),
+      });
+      return;
+    }
+    if (action === 'suspend') {
+      setPendingReason({
+        title: workflowActionLabel('suspend'),
+        onConfirm: (reason) => runItemTransition(item, () => suspendAssistanceItem(item.id, item.version, reason)),
+      });
+    }
+  }
+
+  async function runDecisionAction(decision: CommitteeDecisionDto, action: string) {
+    if (action === 'cancel') {
+      setPendingReason({
+        title: workflowActionLabel('cancel'),
+        onConfirm: async (reason) => {
+          setActionLoading(decision.id);
+          setError('');
+          try {
+            await cancelCommitteeDecision(decision.id, decision.version, reason);
+            await load(activeFilter);
+          } catch (err) {
+            setError(err instanceof Error ? err.message : 'שגיאת מערכת');
+            throw err;
+          } finally {
+            setActionLoading(null);
+          }
+        },
+      });
+      return;
+    }
+
+    setActionLoading(decision.id);
+    setError('');
+    try {
+      if (action === 'edit') {
+        setDetailTarget(decision);
+        return;
+      }
+      if (action === 'submit') {
+        if (!window.confirm('להגיש את ההחלטה לאישור?')) return;
+        await submitCommitteeDecision(decision.id, decision.version);
+        await load(activeFilter);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'שגיאת מערכת');
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  function renderDecisionActions(decision: CommitteeDecisionDto) {
+    const busy = actionLoading === decision.id;
+    return (
+      <td className="actions-cell">
+        {decision.availableActions.map((action) => (
+          <button
+            key={action}
+            type="button"
+            className={workflowActionButtonClass(action)}
+            disabled={busy}
+            onClick={() => { void runDecisionAction(decision, action); }}
+          >
+            {workflowActionLabel(action)}
+          </button>
+        ))}
+      </td>
+    );
+  }
+
+  function renderItemActions(item: AssistanceItemListDto) {
+    const busy = actionLoading === item.id;
+    const actions = decisionsItemActions(item.availableActions);
+    const showHistory = (item.availableActions ?? []).includes('view_history');
+    return (
+      <td className="actions-cell actions-cell--with-history">
+        <div className="actions-cell__business">
+          <button
+            type="button"
+            className="btn-small btn-action-neutral"
+            disabled={busy}
+            onClick={() => setItemTarget(item)}
+          >
+            פרטים
+          </button>
+          {actions.map((action) => (
+            <button
+              key={action}
+              type="button"
+              className={workflowActionButtonClass(action)}
+              disabled={busy}
+              onClick={() => handleItemAction(item, action)}
+            >
+              {workflowActionLabel(action)}
+            </button>
+          ))}
+        </div>
+        {showHistory && (
+          <HistoryIconButton
+            disabled={busy}
+            onClick={(anchor) => {
+              setHistoryAnchorEl(anchor);
+              setHistoryItemId(item.id);
+            }}
+          />
+        )}
+      </td>
+    );
+  }
+
   return (
-    <div>
+    <div className="committee-decisions-page queue-page">
       {filterLabel && (
         <div className="toolbar">
           <span className="filter-chip">סינון: {filterLabel}</span>
@@ -1272,24 +1722,25 @@ export function CommitteeDecisionsPage({ user, initialFilter }: CommitteeDecisio
           </button>
         </div>
       )}
-      {data && (
-        <div className="summary-cards">
-          <div className="summary-card">
-            <span className="summary-label">סה״כ</span>
-            <span className="summary-value">{data.summary.total}</span>
+
+      {!loading && (
+        <div className="summary-cards summary-cards--page-top">
+          <div className="summary-card summary-total">
+            <span className="summary-label">סה״כ פריטים</span>
+            <span className="summary-value">{items.length}</span>
           </div>
-          <div className="summary-card">
-            <span className="summary-label">טיוטות</span>
-            <span className="summary-value">{data.summary.draft}</span>
-          </div>
-          <div className="summary-card summary-active">
-            <span className="summary-label">הוגשו</span>
-            <span className="summary-value">{data.summary.submitted}</span>
-          </div>
-          <div className="summary-card">
-            <span className="summary-label">אושרו</span>
-            <span className="summary-value">{data.summary.approved}</span>
-          </div>
+          {draftData && (
+            <div className="summary-card summary-draft">
+              <span className="summary-label">טיוטות</span>
+              <span className="summary-value">{draftData.summary.draft}</span>
+            </div>
+          )}
+          {itemStatusMeters.map((meter) => (
+            <div key={meter.status} className={meter.className}>
+              <span className="summary-label">{meter.label}</span>
+              <span className="summary-value">{meter.count}</span>
+            </div>
+          ))}
         </div>
       )}
 
@@ -1303,50 +1754,124 @@ export function CommitteeDecisionsPage({ user, initialFilter }: CommitteeDecisio
       {error && <div className="error" role="alert">{error}</div>}
 
       {loading ? (
-        <p>טוען החלטות...</p>
+        <p>טוען...</p>
       ) : (
-        <div className="table-wrap">
-          <table className="org-table">
-            <thead>
-              <tr>
-                <th>קוד</th>
-                <th>משפחה</th>
-                <th>תאריך ישיבה</th>
-                <th>סכום</th>
-                <th>סטטוס</th>
-                <th>נוצר ע״י</th>
-                <th>פעולות</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(data?.decisions ?? []).length === 0 && (
-                <tr><td colSpan={7} className="empty-row">אין החלטות להצגה</td></tr>
-              )}
-              {(data?.decisions ?? []).map((d) => (
-                <tr key={d.id}>
-                  <td><code>{d.decisionCode}</code></td>
-                  <td>{d.familyCode} — {d.familyLastName}</td>
-                  <td>{d.meetingDate}</td>
-                  <td>{d.totalAmount.toLocaleString('he-IL')} ₪</td>
-                  <td>
-                    <span className={`status-badge status-${d.status}`}>{translateDecisionStatus(d.status)}</span>
-                  </td>
-                  <td>{d.createdByUserName}</td>
-                  <td>
-                    <button type="button" className="btn-small" onClick={() => setDetailTarget(d)}>פתח</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <section
+            ref={draftsTableRef}
+            className="committee-table-section committee-table-section--drafts queue-pane--secondary"
+            style={focusedTable === 'draft_decisions' ? { outline: '2px solid #4338ca', borderRadius: '8px', padding: '0.5rem' } : undefined}
+            aria-label="טיוטות החלטות"
+          >
+            <h2>טיוטות החלטות</h2>
+            <div className="table-wrap table-wrap--scroll table-wrap--secondary">
+              <table className="org-table">
+                <thead>
+                  <tr>
+                    <th>קוד החלטה</th>
+                    <th>משפחה</th>
+                    <th>תאריך ישיבה</th>
+                    <th>סכום</th>
+                    <th className="col-status">סטטוס</th>
+                    <th>נוצר ע״י</th>
+                    <th>פעולות</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(draftData?.decisions ?? []).length === 0 && (
+                    <tr><td colSpan={7} className="empty-row">אין טיוטות להצגה</td></tr>
+                  )}
+                  {(draftData?.decisions ?? []).map((d) => (
+                    <tr key={d.id}>
+                      <td><code>{d.decisionCode}</code></td>
+                      <td>{d.familyCode} — {d.familyLastName}</td>
+                      <td>{d.meetingDate}</td>
+                      <td>{d.totalAmount.toLocaleString('he-IL')} ₪</td>
+                      <td className="col-status">
+                        <span className={`status-badge status-${d.status}`}>
+                          {translateDecisionStatus(d.status)}
+                        </span>
+                      </td>
+                      <td>{d.createdByUserName}</td>
+                      {renderDecisionActions(d)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section
+            ref={itemsTableRef}
+            className="committee-table-section committee-table-section--items queue-pane--primary"
+            style={focusedTable === 'assistance_items' ? { outline: '2px solid #4338ca', borderRadius: '8px', padding: '0.5rem' } : undefined}
+            aria-label="פריטי סיוע"
+          >
+            <h2>פריטי סיוע</h2>
+            <div className="table-wrap table-wrap--scroll table-wrap--primary">
+              <table className="org-table">
+                <thead>
+                  <tr>
+                    <th>קוד החלטה</th>
+                    <th>קוד משפחה</th>
+                    <th>שם משפחה</th>
+                    <th>סוג סיוע</th>
+                    <th className="col-amount">סכום</th>
+                    <th>דחוף</th>
+                    <th className="col-status">סטטוס פריט</th>
+                    <th>תאריך הגשה/יצירה</th>
+                    <th>פעולות</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.length === 0 && (
+                    <tr><td colSpan={9} className="empty-row">אין פריטי סיוע להצגה</td></tr>
+                  )}
+                  {items.map((item) => (
+                    <tr key={item.id}>
+                      <td><code>{item.decisionCode}</code></td>
+                      <td>{item.familyCode}</td>
+                      <td>{item.familyName}</td>
+                      <td>{item.assistanceTypeName}</td>
+                      <td className="col-amount">
+                        {(() => {
+                          const amt = formatAmountTracking(
+                            item.amount,
+                            item.hasAmountAdjustment,
+                            item.originalApprovedAmount,
+                            item.amountAdjustmentReason,
+                            item.amountAdjustmentExplanation,
+                          );
+                          return (
+                            <span className="amount-tracking">
+                              <span className="amount-tracking__primary">{renderAmountTrackingPrimary(amt)}</span>
+                              {amt.hint && <span className="amount-tracking__hint">{amt.hint}</span>}
+                            </span>
+                          );
+                        })()}
+                      </td>
+                      <td>{item.isUrgent ? 'כן' : 'לא'}</td>
+                      <td className="col-status">
+                        <span className={`status-badge status-${item.status}`}>
+                          {assistanceItemStatusLabel(item.status)}
+                        </span>
+                      </td>
+                      <td>{(item.submittedAt ?? item.createdAt).slice(0, 10)}</td>
+                      {renderItemActions(item)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </>
       )}
 
       {showCreate && (
         <CreateDecisionModal
           families={families}
           onClose={() => setShowCreate(false)}
-          onCreated={(d) => { load(activeFilter); setDetailTarget(d); }}
+          onCreated={(d) => { void load(activeFilter); setDetailTarget(d); }}
         />
       )}
       {detailTarget && (
@@ -1358,6 +1883,32 @@ export function CommitteeDecisionsPage({ user, initialFilter }: CommitteeDecisio
           family={detailFamily}
           onClose={() => setDetailTarget(null)}
           onUpdated={() => load(activeFilter)}
+        />
+      )}
+      {itemTarget && (
+        <AssistanceItemDetailsModal
+          item={toAssistanceItemDetails(itemTarget)}
+          onClose={() => setItemTarget(null)}
+        />
+      )}
+      {pendingReason && (
+        <ReasonPromptModal
+          title={pendingReason.title}
+          onClose={() => setPendingReason(null)}
+          onConfirm={async (reason) => {
+            await pendingReason.onConfirm(reason);
+            setPendingReason(null);
+          }}
+        />
+      )}
+      {historyItemId && (
+        <AssistanceItemHistoryModal
+          assistanceItemId={historyItemId}
+          anchorEl={historyAnchorEl}
+          onClose={() => {
+            setHistoryItemId(null);
+            setHistoryAnchorEl(null);
+          }}
         />
       )}
     </div>

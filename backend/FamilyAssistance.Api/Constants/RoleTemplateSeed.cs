@@ -27,6 +27,7 @@ public static class RoleTemplateSeed
                 (PermissionKeys.AssistanceItemsCreate, PermissionScopes.Organization),
                 (PermissionKeys.AssistanceItemsEdit, PermissionScopes.MyRecords),
                 (PermissionKeys.AssistanceItemsRemoveDraft, PermissionScopes.MyRecords),
+                (PermissionKeys.AssistanceItemsViewHistory, PermissionScopes.MyRecords),
             ]),
         new(
             FactoryPresetKeys.Manager,
@@ -40,6 +41,7 @@ public static class RoleTemplateSeed
                 (PermissionKeys.CommitteeDecisionsReject, PermissionScopes.Organization),
                 (PermissionKeys.CommitteeDecisionsCancel, PermissionScopes.Organization),
                 (PermissionKeys.AssistanceItemsView, PermissionScopes.Organization),
+                (PermissionKeys.AssistanceItemsViewHistory, PermissionScopes.Organization),
                 (PermissionKeys.SuppliersView, PermissionScopes.Organization),
             ]),
         new(
@@ -57,11 +59,21 @@ public static class RoleTemplateSeed
                 (PermissionKeys.FamiliesView, PermissionScopes.Organization),
                 (PermissionKeys.CommitteeDecisionsView, PermissionScopes.Organization),
                 (PermissionKeys.AssistanceItemsView, PermissionScopes.Organization),
+                (PermissionKeys.AssistanceItemsViewHistory, PermissionScopes.Organization),
                 (PermissionKeys.PaymentsView, PermissionScopes.Organization),
+                // Legacy proof-path execute (kept for coexistence; not export-batch create)
                 (PermissionKeys.PaymentsExecute, PermissionScopes.Organization),
                 (PermissionKeys.PaymentsUploadProof, PermissionScopes.Organization),
                 (PermissionKeys.PaymentsMarkPaid, PermissionScopes.Organization),
                 (PermissionKeys.PaymentsReturnToCoordinator, PermissionScopes.Organization),
+                (PermissionKeys.PaymentsEnterReference, PermissionScopes.Organization),
+                // Phase 16: create and download granted together but remain distinct keys
+                (PermissionKeys.PaymentsExportBatchesCreate, PermissionScopes.Organization),
+                (PermissionKeys.PaymentsExportBatchesDownload, PermissionScopes.Organization),
+                (PermissionKeys.PaymentsExportBatchesCancel, PermissionScopes.Organization),
+                (PermissionKeys.PaymentsExportBatchItemsCancel, PermissionScopes.Organization),
+                (PermissionKeys.PaymentsEditAssistanceItems, PermissionScopes.Organization),
+                (PermissionKeys.AssistanceItemsComplete, PermissionScopes.Organization),
             ]),
     ];
 

@@ -1,7 +1,8 @@
 /**
- * Israeli locality + street registry (UI lookup).
+ * Israeli locality + street registry (optional UI suggestions only).
  *
- * Recommended production data sources:
+ * Not a live official feed — city/street fields accept free text.
+ * Future production sources if wired via backend proxy:
  * - data.gov.il — CBS / Ministry of Interior locality & street open datasets
  * - Israel Post — official but no public free REST API
  *

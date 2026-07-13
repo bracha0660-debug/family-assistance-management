@@ -46,6 +46,18 @@ export function KpiStatusIcon({ semantic }: { semantic: string }) {
           <path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z" />
         </svg>
       );
+    case 'approved':
+      return (
+        <svg {...ICON_PROPS}>
+          <path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z" />
+        </svg>
+      );
+    case 'completed':
+      return (
+        <svg {...ICON_PROPS}>
+          <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2zm-1.1 14.2-3.6-3.6 1.4-1.4 2.2 2.2 4.6-4.6 1.4 1.4-6 6z" />
+        </svg>
+      );
     case 'rejected':
       return (
         <svg {...ICON_PROPS}>

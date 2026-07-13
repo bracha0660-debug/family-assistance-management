@@ -45,4 +45,9 @@ public static class BusinessEventCodes
     public const string AssistanceTypeRelatedSupplierAdd = "AUD-040";
     public const string AssistanceTypeRelatedSupplierRemove = "AUD-041";
     public const string CommitteeDecisionDelete = "AUD-042";
+    public const string AssistanceItemStatusChange = "AUD-043";
+    public const string ExportBatchCreate = "AUD-044";
+    public const string ExportBatchCancel = "AUD-045";
+    public const string ExportBatchItemCancel = "AUD-046";
+    public const string AssistanceItemAmountAdjust = "AUD-047";
 }

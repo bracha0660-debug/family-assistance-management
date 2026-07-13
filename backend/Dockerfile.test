@@ -1,0 +1,9 @@
+FROM mcr.microsoft.com/dotnet/sdk:8.0
+WORKDIR /src
+COPY FamilyAssistance.Api/FamilyAssistance.Api.csproj FamilyAssistance.Api/
+COPY FamilyAssistance.Api.Tests/FamilyAssistance.Api.Tests.csproj FamilyAssistance.Api.Tests/
+RUN dotnet restore FamilyAssistance.Api.Tests/FamilyAssistance.Api.Tests.csproj
+COPY FamilyAssistance.Api/ FamilyAssistance.Api/
+COPY FamilyAssistance.Api.Tests/ FamilyAssistance.Api.Tests/
+WORKDIR /src/FamilyAssistance.Api.Tests
+CMD ["dotnet", "test", "--verbosity", "normal"]

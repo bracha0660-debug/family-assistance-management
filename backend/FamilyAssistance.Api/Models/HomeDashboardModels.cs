@@ -33,6 +33,8 @@ public sealed class HomeNavigationTargetDto
     public string? Status { get; init; }
     public string? Ownership { get; init; }
     public int? MinAgeDays { get; init; }
+    /// <summary>Phase 14 G11 — draft_decisions | assistance_items</summary>
+    public string? ListView { get; init; }
 }
 
 public sealed class HomeKpiCardsDataDto

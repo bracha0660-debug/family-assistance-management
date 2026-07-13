@@ -101,11 +101,19 @@ export const PERMISSION_KEYS = {
   assistanceItemsCreate: 'assistance_items.create',
   assistanceItemsEdit: 'assistance_items.edit',
   assistanceItemsRemoveDraft: 'assistance_items.remove_draft',
+  assistanceItemsComplete: 'assistance_items.complete',
+  assistanceItemsViewHistory: 'assistance_items.view_history',
   paymentsView: 'payments.view',
   paymentsExecute: 'payments.execute',
   paymentsUploadProof: 'payments.upload_proof',
   paymentsMarkPaid: 'payments.mark_paid',
   paymentsReturnToCoordinator: 'payments.return_to_coordinator',
+  paymentsEnterReference: 'payments.enter_reference',
+  paymentsExportBatchesCreate: 'payments.export_batches.create',
+  paymentsExportBatchesDownload: 'payments.export_batches.download',
+  paymentsExportBatchesCancel: 'payments.export_batches.cancel',
+  paymentsExportBatchItemsCancel: 'payments.export_batch_items.cancel',
+  paymentsEditAssistanceItems: 'payments.edit_assistance_items',
 } as const;
 
 export function translatePermissionCategory(category: string): string {

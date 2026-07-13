@@ -2,8 +2,6 @@ import { useMemo } from 'react';
 import {
   filterLocalities,
   filterStreets,
-  isKnownLocality,
-  isKnownStreet,
   localityNames,
 } from '../data/israeliAddressRegistry';
 import type { StructuredAddress } from '../validation/familyAddress';
@@ -24,27 +22,11 @@ interface AddressFieldsProps {
   onErrorsChange?: (errors: AddressFieldErrors) => void;
 }
 
+/** Address is optional free text; registry is suggestions-only (no live official API). */
 export function validateAddressFields(
-  values: StructuredAddress,
+  _values: StructuredAddress,
 ): AddressFieldErrors {
-  const errors: AddressFieldErrors = {};
-  const hasAny = Object.values(values).some((v) => v.trim().length > 0);
-  if (!hasAny) return errors;
-
-  const city = values.city.trim();
-  const street = values.street.trim();
-
-  if (city.length > 0 && !isKnownLocality(city)) {
-    errors.city = 'יש לבחור יישוב מהרשימה';
-  }
-  if (street.length > 0 && city.length > 0 && !isKnownStreet(city, street)) {
-    errors.street = 'יש לבחור רחוב מהרשימה';
-  }
-  if (street.length > 0 && city.length === 0) {
-    errors.city = 'יש לבחור יישוב לפני רחוב';
-  }
-
-  return errors;
+  return {};
 }
 
 export function AddressFields({
@@ -69,13 +51,6 @@ export function AddressFields({
     return filterStreets(values.city, values.street);
   }, [values.city, values.street]);
 
-  function handleCityChange(city: string) {
-    onChange({ city });
-    if (values.street && !isKnownStreet(city, values.street)) {
-      onChange({ street: '' });
-    }
-  }
-
   return (
     <fieldset className="address-fieldset">
       <legend>כתובת (אופציונלי)</legend>
@@ -91,13 +66,14 @@ export function AddressFields({
             type="text"
             list={cityListId}
             value={values.city}
-            onChange={(e) => handleCityChange(e.target.value)}
+            onChange={(e) => onChange({ city: e.target.value })}
             onBlur={() => {
               onBlurField?.('city');
               onErrorsChange?.(validateAddressFields(values));
             }}
             disabled={disabled}
-            placeholder="בחרו מהרשימה"
+            placeholder="הקלידו יישוב (ניתן לבחור מההצעות)"
+            maxLength={100}
             aria-invalid={errors.city ? true : undefined}
             aria-describedby={errors.city ? `${idPrefix}-city-error` : undefined}
           />
@@ -123,8 +99,9 @@ export function AddressFields({
               onBlurField?.('street');
               onErrorsChange?.(validateAddressFields(values));
             }}
-            disabled={disabled || !values.city.trim()}
-            placeholder={values.city.trim() ? 'בחרו מהרשימה' : 'בחרו יישוב תחילה'}
+            disabled={disabled}
+            placeholder="הקלידו רחוב (ניתן לבחור מההצעות)"
+            maxLength={120}
             aria-invalid={errors.street ? true : undefined}
             aria-describedby={errors.street ? `${idPrefix}-street-error` : undefined}
           />

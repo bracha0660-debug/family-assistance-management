@@ -89,6 +89,12 @@ public sealed class AssistanceItemDto
     public string AssistanceTypeName { get; init; } = string.Empty;
     public string? Description { get; init; }
     public decimal Amount { get; init; }
+    public decimal? OriginalApprovedAmount { get; init; }
+    public decimal? PreviousPaymentAmount { get; init; }
+    public string? AmountAdjustmentReason { get; init; }
+    public string? AmountAdjustmentExplanation { get; init; }
+    public bool HasAmountAdjustment =>
+        OriginalApprovedAmount is not null && Amount != OriginalApprovedAmount.Value;
     public string PaymentTarget { get; init; } = string.Empty;
     public string PaymentMethod { get; init; } = string.Empty;
     public Guid? SupplierId { get; init; }
@@ -99,11 +105,82 @@ public sealed class AssistanceItemDto
     public string? TransferAccountNumber { get; init; }
     public string? VoucherType { get; init; }
     public bool IsUrgent { get; init; }
+    public string Status { get; init; } = string.Empty;
     public string ExecutionStatus { get; init; } = string.Empty;
+    public DateTime? ApprovedAt { get; init; }
+    public IReadOnlyList<string> AvailableActions { get; init; } = [];
     public PaymentItemSummaryDto? PaymentSummary { get; init; }
     public int Version { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
+}
+
+public sealed class AssistanceItemListQuery
+{
+    public string? Status { get; set; }
+    public string? Section { get; set; }
+    public string? Ownership { get; set; }
+    public int? MinAgeDays { get; set; }
+    public int Limit { get; set; } = 50;
+    public int Offset { get; set; }
+}
+
+public sealed class AssistanceItemListDto
+{
+    public Guid Id { get; init; }
+    public string Status { get; init; } = string.Empty;
+    public IReadOnlyList<string> AvailableActions { get; init; } = [];
+    public Guid DecisionId { get; init; }
+    public string DecisionCode { get; init; } = string.Empty;
+    public Guid FamilyId { get; init; }
+    public string FamilyCode { get; init; } = string.Empty;
+    public long FamilyAccountingCode { get; init; }
+    public string FamilyName { get; init; } = string.Empty;
+    public Guid AssistanceTypeId { get; init; }
+    public string AssistanceTypeName { get; init; } = string.Empty;
+    public string AssistanceTypeCode { get; init; } = string.Empty;
+    public decimal Amount { get; init; }
+    public decimal? OriginalApprovedAmount { get; init; }
+    public decimal? PreviousPaymentAmount { get; init; }
+    public string? AmountAdjustmentReason { get; init; }
+    public string? AmountAdjustmentExplanation { get; init; }
+    public bool HasAmountAdjustment =>
+        OriginalApprovedAmount is not null && Amount != OriginalApprovedAmount.Value;
+    public string? Description { get; init; }
+    public string PaymentTarget { get; init; } = string.Empty;
+    public string PaymentMethod { get; init; } = string.Empty;
+    public Guid? SupplierId { get; init; }
+    public string? SupplierName { get; init; }
+    public string? SupplierAccountingCode { get; init; }
+    public string? PayeeName { get; init; }
+    public string? TransferBankNumber { get; init; }
+    public string? TransferBranchNumber { get; init; }
+    public string? TransferAccountNumber { get; init; }
+    public string? AccountHolderName { get; init; }
+    public string? VoucherType { get; init; }
+    public bool IsUrgent { get; init; }
+    public DateTime CreatedAt { get; init; }
+    public DateTime UpdatedAt { get; init; }
+    public DateTime? SubmittedAt { get; init; }
+    public DateTime? ApprovedAt { get; init; }
+    public string? ExecutionReference { get; init; }
+    public Guid? PaymentExecutionId { get; init; }
+    public int Version { get; init; }
+}
+
+public sealed class AssistanceItemListResponse
+{
+    public required IReadOnlyList<AssistanceItemListDto> Items { get; init; }
+}
+
+public sealed class AssistanceItemWorkflowResponse
+{
+    public required AssistanceItemListDto Item { get; init; }
+}
+
+public sealed class EnterReferenceRequest
+{
+    public string Reference { get; set; } = string.Empty;
 }
 
 public sealed class PaymentItemSummaryDto

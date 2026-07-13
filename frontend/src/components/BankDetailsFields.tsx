@@ -36,6 +36,8 @@ interface BankDetailsFieldsProps {
   onBlurField?: (field: keyof BankDetailsValues | 'bankName') => void;
   layoutVariant?: 'default' | 'create-family';
   strictBankSelection?: boolean;
+  /** Single BankSelect (number+name search), same as committee transfer popover. */
+  unifiedBankSearch?: boolean;
   accountHolderSuggestOnFocus?: boolean;
   suggestedAccountHolderParts?: SuggestedAccountHolderParts;
 }
@@ -239,6 +241,7 @@ export function BankDetailsFields({
   onBlurField,
   layoutVariant = 'default',
   strictBankSelection = false,
+  unifiedBankSearch = false,
   accountHolderSuggestOnFocus = false,
   suggestedAccountHolderParts,
 }: BankDetailsFieldsProps) {
@@ -348,71 +351,95 @@ export function BankDetailsFields({
       )}
 
       <div className={isCreateLayout ? 'bank-create-row bank-create-row--primary' : 'bank-sync-row'}>
-        <div className="bank-sync-field bank-field--number">
-          <label htmlFor={bankNumberId}>מספר בנק</label>
-          <ValidatedControl error={fieldErrors.bankNumber} errorId={`${bankNumberId}-error`}>
-            <input
+        {unifiedBankSearch ? (
+          <div className="bank-sync-field bank-field--unified">
+            <label htmlFor={bankNumberId}>בנק</label>
+            <BankSelect
               id={bankNumberId}
-              type="text"
-              value={values.bankNumber}
-              onChange={(e) => handleBankNumberChange(e.target.value)}
-              onBlur={() => onBlurField?.('bankNumber')}
-              disabled={disabled}
-              inputMode="numeric"
-              maxLength={3}
-              aria-invalid={fieldErrors.bankNumber ? true : undefined}
-              aria-describedby={fieldErrors.bankNumber ? `${bankNumberId}-error` : undefined}
-            />
-          </ValidatedControl>
-          {syncHint === 'name' && (
-            <span className="bank-sync-hint">ⓘ הוזן לפי שם בנק</span>
-          )}
-        </div>
-
-        {!isCreateLayout && <span className="bank-sync-icon" aria-hidden="true">↔</span>}
-
-        <div className="bank-sync-field bank-field--name">
-          <label htmlFor={bankNameId}>שם הבנק</label>
-          {strictBankSelection ? (
-            <BankNameCombobox
-              id={bankNameId}
               listId={bankListId}
-              value={values.bankName}
+              value={values.bankNumber}
+              displayMode="number-name"
               disabled={disabled}
-              error={fieldErrors.bankName}
-              errorId={`${bankNameId}-error`}
-              onSelect={(bank) => selectBank(bank, 'name')}
+              error={fieldErrors.bankNumber ?? fieldErrors.bankName}
+              errorId={`${bankNumberId}-error`}
+              placeholder="חיפוש לפי מספר או שם"
+              onSelect={(bank) => selectBank(bank, 'number')}
               onClear={() => {
-                onChange({ bankName: '', bankNumber: '' });
+                onChange({ bankNumber: '', bankName: '' });
                 setSyncHint(null);
               }}
-              onBlur={() => onBlurField?.('bankName')}
+              onBlur={() => onBlurField?.('bankNumber')}
             />
-          ) : (
-            <ValidatedControl error={fieldErrors.bankName} errorId={`${bankNameId}-error`}>
-              <input
-                id={bankNameId}
-                type="text"
-                list={`${idPrefix}-bank-name-list`}
-                value={values.bankName}
-                onChange={(e) => handleBankNameChange(e.target.value)}
-                onBlur={() => onBlurField?.('bankName')}
-                disabled={disabled}
-                placeholder="בחרו או הקלידו שם בנק"
-                aria-invalid={fieldErrors.bankName ? true : undefined}
-                aria-describedby={fieldErrors.bankName ? `${bankNameId}-error` : undefined}
-              />
-              <datalist id={`${idPrefix}-bank-name-list`}>
-                {ISRAELI_BANKS.map((bank) => (
-                  <option key={bank.number} value={bank.name} />
-                ))}
-              </datalist>
-            </ValidatedControl>
-          )}
-          {syncHint === 'number' && (
-            <span className="bank-sync-hint">ⓘ הוזן לפי מספר בנק</span>
-          )}
-        </div>
+          </div>
+        ) : (
+          <>
+            <div className="bank-sync-field bank-field--number">
+              <label htmlFor={bankNumberId}>מספר בנק</label>
+              <ValidatedControl error={fieldErrors.bankNumber} errorId={`${bankNumberId}-error`}>
+                <input
+                  id={bankNumberId}
+                  type="text"
+                  value={values.bankNumber}
+                  onChange={(e) => handleBankNumberChange(e.target.value)}
+                  onBlur={() => onBlurField?.('bankNumber')}
+                  disabled={disabled}
+                  inputMode="numeric"
+                  maxLength={3}
+                  aria-invalid={fieldErrors.bankNumber ? true : undefined}
+                  aria-describedby={fieldErrors.bankNumber ? `${bankNumberId}-error` : undefined}
+                />
+              </ValidatedControl>
+              {syncHint === 'name' && (
+                <span className="bank-sync-hint">ⓘ הוזן לפי שם בנק</span>
+              )}
+            </div>
+
+            {!isCreateLayout && <span className="bank-sync-icon" aria-hidden="true">↔</span>}
+
+            <div className="bank-sync-field bank-field--name">
+              <label htmlFor={bankNameId}>שם הבנק</label>
+              {strictBankSelection ? (
+                <BankNameCombobox
+                  id={bankNameId}
+                  listId={bankListId}
+                  value={values.bankName}
+                  disabled={disabled}
+                  error={fieldErrors.bankName}
+                  errorId={`${bankNameId}-error`}
+                  onSelect={(bank) => selectBank(bank, 'name')}
+                  onClear={() => {
+                    onChange({ bankName: '', bankNumber: '' });
+                    setSyncHint(null);
+                  }}
+                  onBlur={() => onBlurField?.('bankName')}
+                />
+              ) : (
+                <ValidatedControl error={fieldErrors.bankName} errorId={`${bankNameId}-error`}>
+                  <input
+                    id={bankNameId}
+                    type="text"
+                    list={`${idPrefix}-bank-name-list`}
+                    value={values.bankName}
+                    onChange={(e) => handleBankNameChange(e.target.value)}
+                    onBlur={() => onBlurField?.('bankName')}
+                    disabled={disabled}
+                    placeholder="בחרו או הקלידו שם בנק"
+                    aria-invalid={fieldErrors.bankName ? true : undefined}
+                    aria-describedby={fieldErrors.bankName ? `${bankNameId}-error` : undefined}
+                  />
+                  <datalist id={`${idPrefix}-bank-name-list`}>
+                    {ISRAELI_BANKS.map((bank) => (
+                      <option key={bank.number} value={bank.name} />
+                    ))}
+                  </datalist>
+                </ValidatedControl>
+              )}
+              {syncHint === 'number' && (
+                <span className="bank-sync-hint">ⓘ הוזן לפי מספר בנק</span>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       <div className={isCreateLayout ? 'bank-create-row bank-create-row--branch' : undefined}>

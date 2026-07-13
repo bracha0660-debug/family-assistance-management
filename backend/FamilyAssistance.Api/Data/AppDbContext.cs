@@ -16,8 +16,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<AssistanceTypeSupplier> AssistanceTypeSuppliers => Set<AssistanceTypeSupplier>();
     public DbSet<CommitteeDecision> CommitteeDecisions => Set<CommitteeDecision>();
     public DbSet<AssistanceItem> AssistanceItems => Set<AssistanceItem>();
+    public DbSet<AssistanceItemHistoryEvent> AssistanceItemHistoryEvents => Set<AssistanceItemHistoryEvent>();
+    public DbSet<AssistanceItemHistoryFieldChange> AssistanceItemHistoryFieldChanges => Set<AssistanceItemHistoryFieldChange>();
     public DbSet<AssistanceItemDocument> AssistanceItemDocuments => Set<AssistanceItemDocument>();
     public DbSet<PaymentExecution> PaymentExecutions => Set<PaymentExecution>();
+    public DbSet<ExportBatch> ExportBatches => Set<ExportBatch>();
+    public DbSet<ExportBatchItem> ExportBatchItems => Set<ExportBatchItem>();
     public DbSet<PermissionCatalog> PermissionCatalog => Set<PermissionCatalog>();
     public DbSet<OrganizationRole> OrganizationRoles => Set<OrganizationRole>();
     public DbSet<OrganizationRoleGrant> OrganizationRoleGrants => Set<OrganizationRoleGrant>();
@@ -206,17 +210,60 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.TransferBankNumber).HasMaxLength(10);
             e.Property(x => x.TransferBranchNumber).HasMaxLength(10);
             e.Property(x => x.TransferAccountNumber).HasMaxLength(34);
+            e.Property(x => x.AccountHolderName).HasMaxLength(200);
             e.Property(x => x.VoucherType).HasMaxLength(100);
+            e.Property(x => x.Status).HasMaxLength(40).HasDefaultValue("draft");
             e.Property(x => x.ExecutionStatus).HasMaxLength(30);
             e.Property(x => x.ExecutionReference).HasMaxLength(200);
+            e.Property(x => x.OriginalApprovedAmount).HasColumnType("numeric(14,2)");
+            e.Property(x => x.PreviousPaymentAmount).HasColumnType("numeric(14,2)");
+            e.Property(x => x.AmountAdjustmentReason).HasMaxLength(40);
+            e.Property(x => x.AmountAdjustmentExplanation).HasMaxLength(500);
             e.HasIndex(x => new { x.CommitteeDecisionId, x.LineNumber }).IsUnique().HasDatabaseName("ux_assistance_items_decision_line");
             e.HasIndex(x => new { x.OrganizationId, x.ExecutionStatus }).HasDatabaseName("ix_assistance_items_org_execution");
+            e.HasIndex(x => new { x.OrganizationId, x.Status }).HasDatabaseName("ix_assistance_items_org_status");
             e.HasOne(x => x.Organization).WithMany().HasForeignKey(x => x.OrganizationId);
             e.HasOne(x => x.CommitteeDecision).WithMany(x => x.Items).HasForeignKey(x => x.CommitteeDecisionId);
             e.HasOne(x => x.AssistanceType).WithMany().HasForeignKey(x => x.AssistanceTypeId);
             e.HasOne(x => x.Supplier).WithMany().HasForeignKey(x => x.SupplierId);
             e.HasOne(x => x.Document).WithOne(x => x.AssistanceItem).HasForeignKey<AssistanceItemDocument>(x => x.AssistanceItemId);
             e.HasOne(x => x.PaymentExecution).WithOne(x => x.AssistanceItem).HasForeignKey<PaymentExecution>(x => x.AssistanceItemId);
+            e.HasOne(x => x.AmountAdjustedByUser).WithMany().HasForeignKey(x => x.AmountAdjustedByUserId);
+        });
+
+        modelBuilder.Entity<AssistanceItemHistoryEvent>(e =>
+        {
+            e.ToTable("assistance_item_history_events");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
+            e.Property(x => x.EventType).HasMaxLength(60);
+            e.Property(x => x.EventDescriptionHe).HasMaxLength(200);
+            e.Property(x => x.ActorDisplayName).HasMaxLength(200);
+            e.Property(x => x.RelatedEntityType).HasMaxLength(50);
+            e.Property(x => x.Reason).HasMaxLength(500);
+            e.HasIndex(x => new { x.OrganizationId, x.AssistanceItemId, x.OccurredAt })
+                .HasDatabaseName("ix_ai_history_events_org_item_time");
+            e.HasIndex(x => new { x.AssistanceItemId, x.OccurredAt, x.Id })
+                .HasDatabaseName("ix_ai_history_events_item_time_id");
+            e.HasOne(x => x.Organization).WithMany().HasForeignKey(x => x.OrganizationId);
+            e.HasOne(x => x.AssistanceItem).WithMany(x => x.HistoryEvents).HasForeignKey(x => x.AssistanceItemId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.ActorUser).WithMany().HasForeignKey(x => x.ActorUserId);
+        });
+
+        modelBuilder.Entity<AssistanceItemHistoryFieldChange>(e =>
+        {
+            e.ToTable("assistance_item_history_field_changes");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
+            e.Property(x => x.FieldKey).HasMaxLength(60);
+            e.Property(x => x.FieldLabelHe).HasMaxLength(100);
+            e.Property(x => x.PreviousValue).HasMaxLength(2000);
+            e.Property(x => x.NewValue).HasMaxLength(2000);
+            e.Property(x => x.ValueType).HasMaxLength(20);
+            e.HasIndex(x => x.HistoryEventId).HasDatabaseName("ix_ai_history_field_changes_event");
+            e.HasOne(x => x.HistoryEvent).WithMany(x => x.FieldChanges).HasForeignKey(x => x.HistoryEventId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<AssistanceItemDocument>(e =>
@@ -245,6 +292,72 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasIndex(x => new { x.OrganizationId, x.Status }).HasDatabaseName("ix_payment_executions_org_status");
             e.HasOne(x => x.Organization).WithMany().HasForeignKey(x => x.OrganizationId);
             e.HasOne(x => x.CommitteeDecision).WithMany().HasForeignKey(x => x.CommitteeDecisionId);
+        });
+
+        modelBuilder.Entity<ExportBatch>(e =>
+        {
+            e.ToTable("export_batches");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
+            e.Property(x => x.BatchNumber).HasMaxLength(40);
+            e.Property(x => x.Status).HasMaxLength(30);
+            e.Property(x => x.FileName).HasMaxLength(255);
+            e.Property(x => x.StoredFileName).HasMaxLength(255);
+            e.Property(x => x.ContentType).HasMaxLength(100);
+            e.HasIndex(x => new { x.OrganizationId, x.BatchNumber })
+                .IsUnique()
+                .HasDatabaseName("ux_export_batches_org_batch_number");
+            e.HasIndex(x => new { x.OrganizationId, x.Status })
+                .HasDatabaseName("ix_export_batches_org_status");
+            e.HasIndex(x => new { x.OrganizationId, x.CreatedAt })
+                .HasDatabaseName("ix_export_batches_org_created");
+            e.HasOne(x => x.Organization).WithMany().HasForeignKey(x => x.OrganizationId);
+            e.HasOne(x => x.CreatedByUser).WithMany().HasForeignKey(x => x.CreatedByUserId);
+        });
+
+        modelBuilder.Entity<ExportBatchItem>(e =>
+        {
+            e.ToTable("export_batch_items");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
+            e.Property(x => x.Status).HasMaxLength(20);
+            e.Property(x => x.ExportedAmount).HasColumnType("numeric(14,2)");
+            e.Property(x => x.CancelReason).HasMaxLength(500);
+            e.Property(x => x.DecisionCode).HasMaxLength(50);
+            e.Property(x => x.FamilyCode).HasMaxLength(50);
+            e.Property(x => x.FamilyName).HasMaxLength(200);
+            e.Property(x => x.AssistanceTypeName).HasMaxLength(200);
+            e.Property(x => x.AssistanceTypeCode).HasMaxLength(50);
+            e.Property(x => x.OriginalApprovedAmount).HasColumnType("numeric(14,2)");
+            e.Property(x => x.AmountAdjustmentReason).HasMaxLength(40);
+            e.Property(x => x.AmountAdjustmentExplanation).HasMaxLength(500);
+            e.Property(x => x.SupplierName).HasMaxLength(200);
+            e.Property(x => x.SupplierAccountingCode).HasMaxLength(50);
+            e.Property(x => x.PaymentTarget).HasMaxLength(20);
+            e.Property(x => x.PaymentMethod).HasMaxLength(20);
+            e.Property(x => x.PayeeName).HasMaxLength(200);
+            e.Property(x => x.TransferBankNumber).HasMaxLength(10);
+            e.Property(x => x.TransferBranchNumber).HasMaxLength(10);
+            e.Property(x => x.TransferAccountNumber).HasMaxLength(34);
+            e.Property(x => x.AccountHolderName).HasMaxLength(200);
+            e.Property(x => x.ExecutionReference).HasMaxLength(200);
+            // Anti-duplicate: one PaymentExecution may have at most one active ExportBatchItem.
+            e.HasIndex(x => x.PaymentExecutionId)
+                .IsUnique()
+                .HasFilter("status = 'active'")
+                .HasDatabaseName("ux_export_batch_items_active_payment_execution");
+            e.HasIndex(x => new { x.ExportBatchId, x.Status })
+                .HasDatabaseName("ix_export_batch_items_batch_status");
+            e.HasIndex(x => new { x.OrganizationId, x.AssistanceItemId })
+                .HasDatabaseName("ix_export_batch_items_org_item");
+            e.HasOne(x => x.Organization).WithMany().HasForeignKey(x => x.OrganizationId);
+            e.HasOne(x => x.ExportBatch).WithMany(x => x.Items).HasForeignKey(x => x.ExportBatchId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.PaymentExecution).WithMany(x => x.ExportBatchItems).HasForeignKey(x => x.PaymentExecutionId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.AssistanceItem).WithMany(x => x.ExportBatchItems).HasForeignKey(x => x.AssistanceItemId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.CancelledByUser).WithMany().HasForeignKey(x => x.CancelledByUserId);
         });
 
         modelBuilder.Entity<AssistanceType>(e =>

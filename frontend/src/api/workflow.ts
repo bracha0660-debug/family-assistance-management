@@ -32,6 +32,7 @@ export type HomeWidgetType =
 
 export interface HomeNavigationTarget {
   targetTab: 'decisions' | 'payments';
+  listView?: 'draft_decisions' | 'assistance_items';
   section?: string;
   status?: string;
   ownership?: 'mine';

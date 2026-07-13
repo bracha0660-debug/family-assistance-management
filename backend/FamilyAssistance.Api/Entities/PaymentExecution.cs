@@ -23,4 +23,5 @@ public class PaymentExecution
     public Organization? Organization { get; set; }
     public CommitteeDecision? CommitteeDecision { get; set; }
     public AssistanceItem? AssistanceItem { get; set; }
+    public ICollection<ExportBatchItem> ExportBatchItems { get; set; } = [];
 }

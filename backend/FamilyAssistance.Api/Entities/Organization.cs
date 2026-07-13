@@ -11,6 +11,7 @@ public class Organization
     public int FamilyCodeCounter { get; set; }
     public int SupplierCodeCounter { get; set; }
     public int DecisionCodeCounter { get; set; }
+    public int ExportBatchCounter { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 

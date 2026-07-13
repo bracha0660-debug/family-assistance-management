@@ -1,6 +1,6 @@
 # Family Assistance Management — UI/UX Architecture Specification
 
-Version 1.0
+Version 1.1
 
 This document is the **design authority** for the Home Dashboard and related UI work. Consistency is preferred over innovation; screen-specific improvements are allowed when they improve usability.
 
@@ -43,8 +43,16 @@ Permission-driven only. Never branch on role names. Adapt when effective permiss
 
 ### Semantic status vs presentation
 
-- **Backend** communicates workflow meaning via `statusSemantic` identifiers.
-- **Frontend** maps semantics to colors, icons, and layout via CSS tokens in `workflowStatus.ts`.
+Business meaning and visual presentation MUST remain decoupled.
+
+| Layer | Responsibility |
+|-------|----------------|
+| **Backend** | Communicates workflow meaning via `statusSemantic` identifiers only. SHALL NOT return color names, CSS classes, hexadecimal values, or icon names. |
+| **Frontend** | Maps `statusSemantic` → centralized design tokens, centralized icons, Hebrew status text, and reusable visual variants. |
+
+Central mapping location: `frontend/src/pages/home/workflowStatus.ts` (or a future shared status-design module only if this architecture document later relocates it).
+
+**Do not create per-screen status color or icon mappings.** All surfaces that render `statusSemantic` reuse the same mapping module.
 
 ## Visual style
 
@@ -58,6 +66,8 @@ Organization logo in sidebar (RTL: top area). Clicking logo navigates to Home Da
 
 ## Status design language
 
+### Non-success semantics
+
 | Semantic | Hex | Meaning |
 |----------|-----|---------|
 | draft | `#3B82F6` | Draft |
@@ -65,10 +75,49 @@ Organization logo in sidebar (RTL: top area). Clicking logo navigates to Home Da
 | returned_for_treatment | `#0EA5A4` | Returned for treatment |
 | on_hold | `#8B5CF6` | On hold |
 | pending_execution | `#6366F1` | Pending execution |
-| paid | `#22C55E` | Paid |
 | rejected | `#EF4444` | Rejected |
 
+### Successful-process family
+
+The statuses `approved`, `paid`, and `completed` belong to the same successful-process color family, but SHALL be visually distinguishable through stronger contrast.
+
+| Status semantic | Hebrew label | Visual role |
+|-----------------|--------------|-------------|
+| `approved` | אושר | Light success |
+| `paid` | שולם | Medium success |
+| `completed` | תהליך הושלם | Dark success |
+
+Exact implementation SHALL use centralized CSS tokens (background + foreground pairs). Do not use the same foreground and background colors for all three statuses. Production hex values for the stepped success family are defined in CSS tokens at implementation time — not as a single shared green for all three.
+
 Status must always include text — do not rely on color alone.
+
+### Successful workflow contrast
+
+Successful workflow states SHALL use distinct contrast levels.
+
+**approved**
+- light success background
+- dark-green text
+- existing approval/check icon
+- visually lighter than paid
+
+**paid**
+- medium success background
+- stronger green foreground
+- existing payment icon
+- visually stronger than approved
+
+**completed**
+- dark success background or dark success badge
+- white or very light foreground
+- existing completion/check-circle icon
+- visually represents the final successful state
+
+Known gap: home-screen cards for approved and paid are currently too visually similar. Future token work MUST fix this via the stepped contrast family above.
+
+### System-wide applicability
+
+This status design language applies to the Home Dashboard and all future workflow surfaces (lists, badges, financial metrics, activity pills) that render `statusSemantic`, always via the single frontend mapping module.
 
 ## Action buttons
 

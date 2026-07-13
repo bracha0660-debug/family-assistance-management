@@ -10,6 +10,7 @@ namespace FamilyAssistance.Api.Services;
 /// <summary>
 /// Single server-side composition point for the Home Dashboard widget list.
 /// Visibility uses effective grants, scope, and FullOrgAccess only — never role names.
+/// Phase 14: KPI counts are item-based (except drafts); navigation includes listView.
 /// </summary>
 public sealed class HomeWidgetComposer
 {
@@ -21,6 +22,9 @@ public sealed class HomeWidgetComposer
     private const int StaleAwaitingPaymentDays = 14;
     public const int RecentActivityQueryLimit = 40;
     private const int RecentActivityLimit = 8;
+
+    public const string ListViewDraftDecisions = "draft_decisions";
+    public const string ListViewAssistanceItems = "assistance_items";
 
     public HomeDashboardDto Compose(
         AuthorizationContext auth,
@@ -39,7 +43,11 @@ public sealed class HomeWidgetComposer
             };
         }
 
-        var kpiCards = BuildKpiCards(auth, scopedDecisions, scopedPayments);
+        var scopedItems = scopedDecisions
+            .SelectMany(d => d.Items.Select(i => (Item: i, Decision: d)))
+            .ToList();
+
+        var kpiCards = BuildKpiCards(auth, scopedDecisions, scopedItems);
         if (kpiCards.Count > 0)
         {
             widgets.Add(new HomeWidgetDto
@@ -51,7 +59,7 @@ public sealed class HomeWidgetComposer
             });
         }
 
-        var financialMetrics = BuildFinancialSummary(auth, scopedDecisions, scopedPayments);
+        var financialMetrics = BuildFinancialSummary(auth, scopedItems, scopedPayments);
         if (financialMetrics.Count > 0)
         {
             widgets.Add(new HomeWidgetDto
@@ -63,7 +71,7 @@ public sealed class HomeWidgetComposer
             });
         }
 
-        var bottlenecks = BuildBottlenecks(auth, scopedDecisions, scopedPayments);
+        var bottlenecks = BuildBottlenecks(auth, scopedItems);
         if (bottlenecks is not null)
         {
             widgets.Add(new HomeWidgetDto
@@ -75,7 +83,7 @@ public sealed class HomeWidgetComposer
             });
         }
 
-        var monthlyTrend = BuildMonthlyTrend(auth, scopedDecisions);
+        var monthlyTrend = BuildMonthlyTrend(auth, scopedItems);
         if (monthlyTrend is not null)
         {
             widgets.Add(new HomeWidgetDto
@@ -109,24 +117,28 @@ public sealed class HomeWidgetComposer
     private static List<HomeKpiCardDto> BuildKpiCards(
         AuthorizationContext auth,
         IReadOnlyList<CommitteeDecision> scopedDecisions,
-        IReadOnlyList<PaymentExecution> scopedPayments)
+        IReadOnlyList<(AssistanceItem Item, CommitteeDecision Decision)> scopedItems)
     {
         var cards = new List<HomeKpiCardDto>();
         var mineScope = UsesMyRecordsCommitteeScope(auth);
-        var hasApprove = auth.FullOrgAccess || auth.HasGrant(PermissionKeys.CommitteeDecisionsApprove);
 
         if (CanShowDraftsKpi(auth))
         {
+            var draftCount = scopedDecisions.Count(d =>
+                d.Status == CommitteeDecisionStatuses.Draft
+                && d.CreatedByUserId == auth.UserId);
+
             cards.Add(new HomeKpiCardDto
             {
                 KpiKey = "drafts",
                 Title = "טיוטות",
                 Subtitle = "החלטות בטיוטה",
-                Count = scopedDecisions.Count(d => d.Status == CommitteeDecisionStatuses.Draft),
+                Count = draftCount,
                 StatusSemantic = HomeWorkflowStatus.Draft,
-                NavigationTarget = mineScope
-                    ? DecisionNav("my_drafts")
-                    : DecisionNav(status: CommitteeDecisionStatuses.Draft)
+                NavigationTarget = DecisionNav(
+                    listView: ListViewDraftDecisions,
+                    status: CommitteeDecisionStatuses.Draft,
+                    ownership: "mine")
             });
         }
 
@@ -136,46 +148,43 @@ public sealed class HomeWidgetComposer
             {
                 KpiKey = "awaiting_approval",
                 Title = "ממתין לאישור",
-                Subtitle = "החלטות שהוגשו",
-                Count = scopedDecisions.Count(d => d.Status == CommitteeDecisionStatuses.Submitted),
+                Subtitle = "פריטים שהוגשו",
+                Count = scopedItems.Count(x => x.Item.Status == AssistanceItemStatuses.Submitted),
                 StatusSemantic = HomeWorkflowStatus.PendingApproval,
-                NavigationTarget = ResolveSubmittedNavigation(mineScope, hasApprove)
+                NavigationTarget = ItemNav(AssistanceItemStatuses.Submitted)
             });
 
             cards.Add(new HomeKpiCardDto
             {
                 KpiKey = "returned_for_revision",
                 Title = "הוחזר לטיפול",
-                Subtitle = "הוחזרו להשלמות",
-                Count = scopedDecisions.Count(d => d.Status == CommitteeDecisionStatuses.ReturnedForRevision),
+                Subtitle = "פריטים שהוחזרו",
+                Count = scopedItems.Count(x => x.Item.Status == AssistanceItemStatuses.Returned),
                 StatusSemantic = HomeWorkflowStatus.ReturnedForTreatment,
-                NavigationTarget = ResolveReturnedNavigation(mineScope, hasApprove)
+                NavigationTarget = ItemNav(AssistanceItemStatuses.Returned)
             });
 
             cards.Add(new HomeKpiCardDto
             {
                 KpiKey = "suspended",
                 Title = "בהשהיה",
-                Subtitle = "החלטות בהשהיה",
-                Count = scopedDecisions.Count(d => d.Status == CommitteeDecisionStatuses.Suspended),
+                Subtitle = "פריטים בהשהיה",
+                Count = scopedItems.Count(x => x.Item.Status == AssistanceItemStatuses.Suspended),
                 StatusSemantic = HomeWorkflowStatus.OnHold,
-                NavigationTarget = ResolveSuspendedNavigation(mineScope, hasApprove)
+                NavigationTarget = ItemNav(AssistanceItemStatuses.Suspended)
             });
         }
 
         if (CanShowAwaitingExecutionKpi(auth))
         {
-            var awaitingCount = scopedPayments.Count(p =>
-                WorkflowSectionRegistry.MatchesPaymentSection(p, "finance_awaiting_execution"));
-
             cards.Add(new HomeKpiCardDto
             {
                 KpiKey = "awaiting_execution",
                 Title = "ממתין לתשלום",
-                Subtitle = "תשלומים ממתינים לתשלום",
-                Count = awaitingCount,
+                Subtitle = "פריטים ממתינים לאסמכתא",
+                Count = scopedItems.Count(x => x.Item.Status == AssistanceItemStatuses.WaitingForReference),
                 StatusSemantic = HomeWorkflowStatus.PendingExecution,
-                NavigationTarget = PaymentNav("finance_awaiting_execution")
+                NavigationTarget = PaymentNav("finance_waiting_for_reference")
             });
         }
 
@@ -184,43 +193,52 @@ public sealed class HomeWidgetComposer
 
     private static List<HomeFinancialMetricDto> BuildFinancialSummary(
         AuthorizationContext auth,
-        IReadOnlyList<CommitteeDecision> scopedDecisions,
+        IReadOnlyList<(AssistanceItem Item, CommitteeDecision Decision)> scopedItems,
         IReadOnlyList<PaymentExecution> scopedPayments)
     {
         if (!CanShowFinancialSummary(auth))
             return [];
 
-        var mineScope = UsesMyRecordsFinancialScope(auth);
         var now = DateTime.UtcNow;
         var monthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
         var monthEnd = monthStart.AddMonths(1);
 
-        var approvedThisMonth = scopedDecisions
-            .Where(d => d.ApprovedAt is not null
-                && d.ApprovedAt.Value >= monthStart
-                && d.ApprovedAt.Value < monthEnd)
-            .Sum(d => d.TotalAmount);
+        var approvedThisMonth = scopedItems
+            .Where(x =>
+                (x.Item.Status is AssistanceItemStatuses.Approved
+                    or AssistanceItemStatuses.WaitingForReference
+                    or AssistanceItemStatuses.Paid
+                    or AssistanceItemStatuses.Completed)
+                && x.Item.ApprovedAt is not null
+                && x.Item.ApprovedAt.Value >= monthStart
+                && x.Item.ApprovedAt.Value < monthEnd)
+            .Sum(x => x.Item.Amount);
 
-        var paidThisMonth = scopedPayments
-            .Where(p => p.PaidAt is not null
-                && p.PaidAt.Value >= monthStart
-                && p.PaidAt.Value < monthEnd)
-            .Sum(p => p.AssistanceItem?.Amount ?? 0m);
+        var paidThisMonth = scopedItems
+            .Where(x =>
+                (x.Item.Status is AssistanceItemStatuses.Paid or AssistanceItemStatuses.Completed)
+                && x.Item.PaymentExecution?.PaidAt is not null
+                && x.Item.PaymentExecution.PaidAt.Value >= monthStart
+                && x.Item.PaymentExecution.PaidAt.Value < monthEnd)
+            .Sum(x => x.Item.Amount);
 
-        var awaitingExecution = scopedPayments
-            .Where(p => WorkflowSectionRegistry.MatchesPaymentSection(p, "finance_awaiting_execution"))
-            .Sum(p => p.AssistanceItem?.Amount ?? 0m);
+        // Fallback for legacy payments without item ApprovedAt path
+        if (paidThisMonth == 0)
+        {
+            paidThisMonth = scopedPayments
+                .Where(p => p.PaidAt is not null
+                    && p.PaidAt.Value >= monthStart
+                    && p.PaidAt.Value < monthEnd)
+                .Sum(p => p.AssistanceItem?.Amount ?? 0m);
+        }
 
-        var suspendedDecisions = scopedDecisions
-            .Where(d => d.Status == CommitteeDecisionStatuses.Suspended)
-            .Sum(d => d.TotalAmount);
+        var awaitingExecution = scopedItems
+            .Where(x => x.Item.Status == AssistanceItemStatuses.WaitingForReference)
+            .Sum(x => x.Item.Amount);
 
-        var onHoldPayments = scopedPayments
-            .Where(p => p.Status == PaymentExecutionStatuses.OnHold
-                && p.CommitteeDecision?.Status != CommitteeDecisionStatuses.Suspended)
-            .Sum(p => p.AssistanceItem?.Amount ?? 0m);
-
-        var onHoldTotal = suspendedDecisions + onHoldPayments;
+        var onHoldTotal = scopedItems
+            .Where(x => x.Item.Status == AssistanceItemStatuses.Suspended)
+            .Sum(x => x.Item.Amount);
 
         return
         [
@@ -230,7 +248,7 @@ public sealed class HomeWidgetComposer
                 Title = "אושר החודש",
                 Amount = approvedThisMonth,
                 StatusSemantic = HomeWorkflowStatus.Paid,
-                NavigationTarget = ResolveApprovedThisMonthNavigation(mineScope)
+                NavigationTarget = ItemNav(AssistanceItemStatuses.Approved)
             },
             new HomeFinancialMetricDto
             {
@@ -238,7 +256,7 @@ public sealed class HomeWidgetComposer
                 Title = "שולם החודש",
                 Amount = paidThisMonth,
                 StatusSemantic = HomeWorkflowStatus.Paid,
-                NavigationTarget = PaymentNav("finance_paid")
+                NavigationTarget = ItemNav(AssistanceItemStatuses.Paid)
             },
             new HomeFinancialMetricDto
             {
@@ -246,7 +264,7 @@ public sealed class HomeWidgetComposer
                 Title = "ממתין לתשלום",
                 Amount = awaitingExecution,
                 StatusSemantic = HomeWorkflowStatus.PendingExecution,
-                NavigationTarget = PaymentNav("finance_awaiting_execution")
+                NavigationTarget = PaymentNav("finance_waiting_for_reference")
             },
             new HomeFinancialMetricDto
             {
@@ -254,14 +272,14 @@ public sealed class HomeWidgetComposer
                 Title = "בהשהיה",
                 Amount = onHoldTotal,
                 StatusSemantic = HomeWorkflowStatus.OnHold,
-                NavigationTarget = ResolveOnHoldNavigation(mineScope)
+                NavigationTarget = ItemNav(AssistanceItemStatuses.Suspended)
             }
         ];
     }
 
     private static HomeMonthlyTrendDataDto? BuildMonthlyTrend(
         AuthorizationContext auth,
-        IReadOnlyList<CommitteeDecision> scopedDecisions)
+        IReadOnlyList<(AssistanceItem Item, CommitteeDecision Decision)> scopedItems)
     {
         if (!CanShowFinancialSummary(auth))
             return null;
@@ -274,11 +292,11 @@ public sealed class HomeWidgetComposer
         {
             var monthStart = currentMonthStart.AddMonths(-offset);
             var monthEnd = monthStart.AddMonths(1);
-            var amount = scopedDecisions
-                .Where(d => d.ApprovedAt is not null
-                    && d.ApprovedAt.Value >= monthStart
-                    && d.ApprovedAt.Value < monthEnd)
-                .Sum(d => d.TotalAmount);
+            var amount = scopedItems
+                .Where(x => x.Item.ApprovedAt is not null
+                    && x.Item.ApprovedAt.Value >= monthStart
+                    && x.Item.ApprovedAt.Value < monthEnd)
+                .Sum(x => x.Item.Amount);
 
             points.Add(new HomeMonthlyTrendPointDto
             {
@@ -297,13 +315,10 @@ public sealed class HomeWidgetComposer
 
     private static HomeBottlenecksDataDto? BuildBottlenecks(
         AuthorizationContext auth,
-        IReadOnlyList<CommitteeDecision> scopedDecisions,
-        IReadOnlyList<PaymentExecution> scopedPayments)
+        IReadOnlyList<(AssistanceItem Item, CommitteeDecision Decision)> scopedItems)
     {
         var alerts = new List<HomeBottleneckAlertDto>();
         var now = DateTime.UtcNow;
-        var mineScope = UsesMyRecordsCommitteeScope(auth);
-        var hasApprove = auth.FullOrgAccess || auth.HasGrant(PermissionKeys.CommitteeDecisionsApprove);
 
         if (HasCommitteeView(auth))
         {
@@ -311,47 +326,48 @@ public sealed class HomeWidgetComposer
             alerts.Add(new HomeBottleneckAlertDto
             {
                 AlertKey = "stale_submitted",
-                Title = "החלטות ממתינות מעל 7 ימים",
-                Description = "החלטות שהוגשו וממתינות לאישור מעל 7 ימים",
-                Count = scopedDecisions.Count(d =>
-                    d.Status == CommitteeDecisionStatuses.Submitted
-                    && d.SubmittedAt is not null
-                    && d.SubmittedAt < submittedCutoff),
+                Title = "פריטים ממתינים מעל 7 ימים",
+                Description = "פריטים שהוגשו וממתינים לאישור מעל 7 ימים",
+                Count = scopedItems.Count(x =>
+                    x.Item.Status == AssistanceItemStatuses.Submitted
+                    && x.Decision.SubmittedAt is not null
+                    && x.Decision.SubmittedAt < submittedCutoff),
                 ThresholdDays = StaleSubmittedDays,
                 StatusSemantic = HomeWorkflowStatus.PendingApproval,
-                NavigationTarget = WithMinAge(ResolveSubmittedNavigation(mineScope, hasApprove), StaleSubmittedDays)
+                NavigationTarget = WithMinAge(ItemNav(AssistanceItemStatuses.Submitted), StaleSubmittedDays)
             });
 
             var suspendedCutoff = now.AddDays(-StaleSuspendedDays);
             alerts.Add(new HomeBottleneckAlertDto
             {
                 AlertKey = "stale_suspended",
-                Title = "החלטות בהשהיה מעל 30 יום",
-                Description = "החלטות בהשהיה מעל 30 יום",
-                Count = scopedDecisions.Count(d =>
-                    d.Status == CommitteeDecisionStatuses.Suspended
-                    && d.SuspendedAt is not null
-                    && d.SuspendedAt < suspendedCutoff),
+                Title = "פריטים בהשהיה מעל 30 יום",
+                Description = "פריטים בהשהיה מעל 30 יום",
+                Count = scopedItems.Count(x =>
+                    x.Item.Status == AssistanceItemStatuses.Suspended
+                    && x.Item.UpdatedAt < suspendedCutoff),
                 ThresholdDays = StaleSuspendedDays,
                 StatusSemantic = HomeWorkflowStatus.OnHold,
-                NavigationTarget = WithMinAge(ResolveSuspendedNavigation(mineScope, hasApprove), StaleSuspendedDays)
+                NavigationTarget = WithMinAge(ItemNav(AssistanceItemStatuses.Suspended), StaleSuspendedDays)
             });
         }
 
-        if (auth.FullOrgAccess || auth.HasGrant(PermissionKeys.PaymentsView))
+        if (auth.FullOrgAccess || auth.HasGrant(PermissionKeys.PaymentsView)
+            || auth.HasGrant(PermissionKeys.PaymentsExportBatchesCreate)
+            || auth.HasGrant(PermissionKeys.PaymentsExecute))
         {
             var paymentCutoff = now.AddDays(-StaleAwaitingPaymentDays);
             alerts.Add(new HomeBottleneckAlertDto
             {
                 AlertKey = "stale_awaiting_payment",
-                Title = "תשלומים ממתינים לתשלום מעל 14 יום",
-                Description = "תשלומים ממתינים לתשלום מעל 14 יום",
-                Count = scopedPayments.Count(p =>
-                    WorkflowSectionRegistry.MatchesPaymentSection(p, "finance_awaiting_execution")
-                    && p.CreatedAt < paymentCutoff),
+                Title = "פריטים ממתינים לאסמכתא מעל 14 יום",
+                Description = "פריטים ממתינים לאסמכתא מעל 14 יום",
+                Count = scopedItems.Count(x =>
+                    x.Item.Status == AssistanceItemStatuses.WaitingForReference
+                    && x.Item.UpdatedAt < paymentCutoff),
                 ThresholdDays = StaleAwaitingPaymentDays,
                 StatusSemantic = HomeWorkflowStatus.PendingExecution,
-                NavigationTarget = PaymentNav("finance_awaiting_execution", StaleAwaitingPaymentDays)
+                NavigationTarget = WithMinAge(PaymentNav("finance_waiting_for_reference"), StaleAwaitingPaymentDays)
             });
         }
 
@@ -435,28 +451,27 @@ public sealed class HomeWidgetComposer
         string status) =>
         status switch
         {
-            CommitteeDecisionStatuses.Draft => mineScope
-                ? DecisionNav("my_drafts")
-                : DecisionNav(status: CommitteeDecisionStatuses.Draft),
-            CommitteeDecisionStatuses.Submitted => ResolveSubmittedNavigation(mineScope, hasApprove),
-            CommitteeDecisionStatuses.ReturnedForRevision => ResolveReturnedNavigation(mineScope, hasApprove),
-            CommitteeDecisionStatuses.Suspended => ResolveSuspendedNavigation(mineScope, hasApprove),
+            CommitteeDecisionStatuses.Draft => DecisionNav(
+                listView: ListViewDraftDecisions,
+                status: CommitteeDecisionStatuses.Draft,
+                ownership: mineScope ? "mine" : null),
+            CommitteeDecisionStatuses.Submitted => ItemNav(AssistanceItemStatuses.Submitted),
+            CommitteeDecisionStatuses.ReturnedForRevision => ItemNav(AssistanceItemStatuses.Returned),
+            CommitteeDecisionStatuses.Suspended => ItemNav(AssistanceItemStatuses.Suspended),
             CommitteeDecisionStatuses.Approved or CommitteeDecisionStatuses.PartiallyPaid
-                or CommitteeDecisionStatuses.FullyPaid => mineScope
-                    ? DecisionNav("my_in_finance_execution")
-                    : DecisionNav("approved"),
-            CommitteeDecisionStatuses.Rejected => DecisionNav(status: CommitteeDecisionStatuses.Rejected),
-            CommitteeDecisionStatuses.Cancelled => DecisionNav(status: CommitteeDecisionStatuses.Cancelled),
+                or CommitteeDecisionStatuses.FullyPaid => ItemNav(AssistanceItemStatuses.Approved),
+            CommitteeDecisionStatuses.Rejected => ItemNav(AssistanceItemStatuses.Rejected),
             _ => DecisionNav(status: status)
         };
 
     private static HomeNavigationTargetDto? ResolvePaymentActivityNavigation(string status) =>
         status switch
         {
-            PaymentExecutionStatuses.AwaitingPayment => PaymentNav("finance_awaiting_execution"),
+            PaymentExecutionStatuses.AwaitingPayment or PaymentExecutionStatuses.WaitingForReference =>
+                PaymentNav("finance_waiting_for_reference"),
             PaymentExecutionStatuses.Executing => PaymentNav("finance_executing"),
             PaymentExecutionStatuses.ProofUploaded => PaymentNav("finance_proof_uploaded"),
-            PaymentExecutionStatuses.Paid => PaymentNav("finance_paid"),
+            PaymentExecutionStatuses.Paid => ItemNav(AssistanceItemStatuses.Paid),
             PaymentExecutionStatuses.ReturnedToCoordinator => PaymentNav("finance_returned"),
             PaymentExecutionStatuses.OnHold => PaymentNav("finance_on_hold"),
             _ => null
@@ -474,7 +489,8 @@ public sealed class HomeWidgetComposer
             Section = nav.Section,
             Status = nav.Status,
             Ownership = nav.Ownership,
-            MinAgeDays = days
+            MinAgeDays = days,
+            ListView = nav.ListView
         };
 
     private static string FormatHebrewMonthLabel(DateTime monthStart)
@@ -483,62 +499,34 @@ public sealed class HomeWidgetComposer
         return $"{monthName} {monthStart.Year}";
     }
 
-    private static HomeNavigationTargetDto ResolveApprovedThisMonthNavigation(bool mineScope) =>
-        mineScope
-            ? DecisionNav("my_in_finance_execution")
-            : DecisionNav("approved");
-
-    private static HomeNavigationTargetDto ResolveOnHoldNavigation(bool mineScope) =>
-        mineScope
-            ? DecisionNav("my_suspended")
-            : PaymentNav("finance_on_hold");
-
     private static bool CanShowFinancialSummary(AuthorizationContext auth) =>
         auth.FullOrgAccess
         || auth.HasGrant(PermissionKeys.PaymentsView)
         || auth.HasGrant(PermissionKeys.CommitteeDecisionsView);
 
-    private static bool UsesMyRecordsFinancialScope(AuthorizationContext auth)
-    {
-        if (auth.FullOrgAccess)
-            return false;
+    private static HomeNavigationTargetDto ItemNav(string status, int? minAgeDays = null) =>
+        new()
+        {
+            TargetTab = "decisions",
+            Status = status,
+            MinAgeDays = minAgeDays,
+            ListView = ListViewAssistanceItems
+        };
 
-        var committeeGrant = auth.GetGrant(PermissionKeys.CommitteeDecisionsView);
-        if (committeeGrant?.Scope == PermissionScopes.MyRecords)
-            return true;
-
-        var paymentsGrant = auth.GetGrant(PermissionKeys.PaymentsView);
-        return paymentsGrant?.Scope == PermissionScopes.MyRecords;
-    }
-
-    private static HomeNavigationTargetDto ResolveSubmittedNavigation(bool mineScope, bool hasApprove) =>
-        mineScope
-            ? DecisionNav("my_waiting_manager_approval")
-            : hasApprove
-                ? DecisionNav("waiting_my_approval")
-                : DecisionNav(status: CommitteeDecisionStatuses.Submitted);
-
-    private static HomeNavigationTargetDto ResolveReturnedNavigation(bool mineScope, bool hasApprove) =>
-        mineScope
-            ? DecisionNav("my_returned_for_revision")
-            : hasApprove
-                ? DecisionNav("manager_returned")
-                : DecisionNav(status: CommitteeDecisionStatuses.ReturnedForRevision);
-
-    private static HomeNavigationTargetDto ResolveSuspendedNavigation(bool mineScope, bool hasApprove) =>
-        mineScope
-            ? DecisionNav("my_suspended")
-            : hasApprove
-                ? DecisionNav("manager_suspended")
-                : DecisionNav(status: CommitteeDecisionStatuses.Suspended);
-
-    private static HomeNavigationTargetDto DecisionNav(string? section = null, string? status = null, int? minAgeDays = null) =>
+    private static HomeNavigationTargetDto DecisionNav(
+        string? section = null,
+        string? status = null,
+        int? minAgeDays = null,
+        string? listView = null,
+        string? ownership = null) =>
         new()
         {
             TargetTab = "decisions",
             Section = section,
             Status = status,
-            MinAgeDays = minAgeDays
+            Ownership = ownership,
+            MinAgeDays = minAgeDays,
+            ListView = listView ?? ListViewDraftDecisions
         };
 
     private static HomeNavigationTargetDto PaymentNav(string section, int? minAgeDays = null) =>
@@ -559,7 +547,10 @@ public sealed class HomeWidgetComposer
         HasCommitteeView(auth);
 
     private static bool CanShowAwaitingExecutionKpi(AuthorizationContext auth) =>
-        PermissionService.HasWorkflowGrant(auth, PermissionKeys.PaymentsExecute);
+        PermissionService.HasWorkflowGrant(auth, PermissionKeys.PaymentsExportBatchesCreate)
+        || PermissionService.HasWorkflowGrant(auth, PermissionKeys.PaymentsExecute)
+        || auth.FullOrgAccess
+        || auth.HasGrant(PermissionKeys.PaymentsView);
 
     private static bool HasCommitteeView(AuthorizationContext auth) =>
         auth.FullOrgAccess || auth.HasGrant(PermissionKeys.CommitteeDecisionsView);

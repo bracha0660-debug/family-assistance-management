@@ -34,11 +34,19 @@ public static class PermissionCatalogSeed
         Row(PermissionKeys.AssistanceItemsCreate, "assistance_items", "הוספת פריט סיוע", "הוספת פריט סיוע לטיוטה", 20, false, false),
         Row(PermissionKeys.AssistanceItemsEdit, "assistance_items", "עריכת פריט סיוע", "עריכת פריט סיוע בטיוטה", 30, true, true),
         Row(PermissionKeys.AssistanceItemsRemoveDraft, "assistance_items", "הסרת פריט מטיוטה", "הסרת פריט סיוע מטיוטה", 40, true, true),
-        Row(PermissionKeys.PaymentsView, "payments", "צפייה בתשלומים", "צפייה בתור תשלומים, בסטטוס ביצוע ובפרטי תשלום", 10, false, true),
-        Row(PermissionKeys.PaymentsExecute, "payments", "ביצוע תשלום", "ייזום/רישום ביצוע תשלום לפריט מאושר", 20, false, true),
+        Row(PermissionKeys.AssistanceItemsComplete, "assistance_items", "סיום תהליך פריט", "סיים תהליך — סגירת פריט ששולם (תהליך הושלם) — organization scope only", 50, false, true),
+        Row(PermissionKeys.AssistanceItemsViewHistory, "assistance_items", "צפייה בהיסטוריית פריט", "צפייה בחלון היסטוריית פריט סיוע — לא מוענק אוטומטית מצפייה או עריכה", 60, true, true),
+        Row(PermissionKeys.PaymentsView, "payments", "צפייה בתשלומים", "צפייה בתור תשלומים, בסטטוס ביצוע ובפרטי תשלום — לא מעניק עריכת פרטי פריט", 10, false, true),
+        Row(PermissionKeys.PaymentsExecute, "payments", "ביצוע תשלום (מסלול ישן)", "מסלול הוכחת תשלום ישן בלבד — לא ליצירת גליון ייצוא", 20, false, true),
         Row(PermissionKeys.PaymentsUploadProof, "payments", "העלאת אישור ביצוע", "העלאת מסמך אישור ביצוע (קבלה, אישור בנק וכו')", 30, false, true),
         Row(PermissionKeys.PaymentsMarkPaid, "payments", "סימון כשולם", "סימון תשלום כשולם — מעבר לסטטוס סופי", 40, false, true),
         Row(PermissionKeys.PaymentsReturnToCoordinator, "payments", "החזרה לרכז", "החזרת פריט תשלום לרכז לתיקון/השלמה", 50, false, true),
+        Row(PermissionKeys.PaymentsEnterReference, "payments", "הזנת אסמכתא", "הזנת אסמכתת תשלום טקסטואלית — organization scope only", 60, false, true),
+        Row(PermissionKeys.PaymentsExportBatchesCreate, "payments", "יצירת גליון ייצוא", "בחירת פריטים מאושרים והעברה לביצוע — יצירת ExportBatch", 70, false, true),
+        Row(PermissionKeys.PaymentsExportBatchesDownload, "payments", "הורדת גליון ייצוא", "הורדה / הורדה מחדש של גליון ייצוא קיים — נפרד מיצירה", 80, false, true),
+        Row(PermissionKeys.PaymentsExportBatchesCancel, "payments", "ביטול גליון ייצוא", "ביטול רך של גליון ייצוא שלם", 90, false, true),
+        Row(PermissionKeys.PaymentsExportBatchItemsCancel, "payments", "ביטול ייצוא לפריט", "ביטול רך של פריט בודד בגליון ייצוא", 100, false, true),
+        Row(PermissionKeys.PaymentsEditAssistanceItems, "payments", "עריכת פרטי פריט בתשלומים", "עריכת פרטי סיוע/תשלום במסך תשלומים — נפרד מצפייה ומפעולות ייצוא", 110, false, true),
     ];
 
     private static PermissionCatalog Row(

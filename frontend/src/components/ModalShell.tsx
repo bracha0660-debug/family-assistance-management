@@ -3,6 +3,10 @@ import { ValidatedControl } from './FieldValidation';
 
 interface ModalShellProps {
   title: string;
+  /** When true, omit the visible title (history window §5.2). Provide ariaLabel. */
+  hideTitle?: boolean;
+  /** Accessible name when hideTitle is set. */
+  ariaLabel?: string;
   hint?: string;
   wide?: boolean;
   extraWide?: boolean;
@@ -20,6 +24,8 @@ interface ModalShellProps {
 
 export function ModalShell({
   title,
+  hideTitle = false,
+  ariaLabel,
   hint,
   wide = false,
   extraWide = false,
@@ -53,20 +59,23 @@ export function ModalShell({
   const headerClass = headerActions
     ? 'modal-header modal-header-with-actions'
     : 'modal-header';
+  const showHeader = !hideTitle || Boolean(headerActions) || Boolean(hint);
 
   const inner = (
     <>
-      <div className={headerClass}>
-        <div className="modal-header__title-group">
-          <h2 id="modal-title">{title}</h2>
-          {hint && <p className="hint-text">{hint}</p>}
-        </div>
-        {headerActions && (
-          <div className="modal-header__actions">
-            {headerActions}
+      {showHeader && (
+        <div className={headerClass}>
+          <div className="modal-header__title-group">
+            {!hideTitle && <h2 id="modal-title">{title}</h2>}
+            {hint && <p className="hint-text">{hint}</p>}
           </div>
-        )}
-      </div>
+          {headerActions && (
+            <div className="modal-header__actions">
+              {headerActions}
+            </div>
+          )}
+        </div>
+      )}
       <div className={bodyClass}>
         {children}
         {formError && <div className="error" role="alert">{formError}</div>}
@@ -77,9 +86,19 @@ export function ModalShell({
     </>
   );
 
+  const labelledBy = hideTitle ? undefined : 'modal-title';
+  const label = hideTitle ? (ariaLabel || title || 'דיאלוג') : undefined;
+
   return (
     <div className="modal-overlay" onClick={handleOverlayClick}>
-      <div className={cardClass} onClick={handleCardClick} role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div
+        className={cardClass}
+        onClick={handleCardClick}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={labelledBy}
+        aria-label={label}
+      >
         {onSubmit ? (
           <form className="modal-form" onSubmit={onSubmit} noValidate={formNoValidate}>
             {inner}

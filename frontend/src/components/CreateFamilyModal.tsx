@@ -45,6 +45,7 @@ function validateOptionalId(value: string): string | null {
 }
 
 const FOCUS_FIELD_ORDER = [
+  `${ID_PREFIX}-accounting-code`,
   `${ID_PREFIX}-family-last-name`,
   `${ID_PREFIX}-father-id`,
   `${ID_PREFIX}-father-phone-prefix`,
@@ -59,7 +60,6 @@ const FOCUS_FIELD_ORDER = [
   `${ID_PREFIX}-branch-number`,
   `${ID_PREFIX}-account-number`,
   `${ID_PREFIX}-account-holder`,
-  `${ID_PREFIX}-accounting-code`,
 ];
 
 export function CreateFamilyModal({ user, onClose, onCreated }: CreateFamilyModalProps) {
@@ -303,30 +303,13 @@ export function CreateFamilyModal({ user, onClose, onCreated }: CreateFamilyModa
         </>
       )}
     >
-      <FormField id={`${ID_PREFIX}-code`} label="קוד משפחה">
-        <input id={`${ID_PREFIX}-code`} type="text" value="יוקצה אוטומטית" disabled readOnly />
-      </FormField>
-
-      {showCoordinatorSelect && (
-        <FormField id={`${ID_PREFIX}-coordinator`} label={<>רכז/ת <span className="field-required">*</span></>}>
-          <select
-            id={`${ID_PREFIX}-coordinator`}
-            value={coordinatorId}
-            onChange={(e) => handleCoordinatorChange(e.target.value)}
-            disabled={loading}
-          >
-            {coordinators.map((c) => (
-              <option key={c.id} value={c.id}>{c.fullName}</option>
-            ))}
-          </select>
+      <div className="create-family-codes-row">
+        <FormField id={`${ID_PREFIX}-code`} label="קוד משפחה">
+          <input id={`${ID_PREFIX}-code`} type="text" value="יוקצה אוטומטית" disabled readOnly />
         </FormField>
-      )}
-
-      <div className="family-details-grid">
         <FormField
           id={`${ID_PREFIX}-accounting-code`}
           label="מספר חשבונאי"
-          className="family-details-grid__col-name"
           error={accountingError}
           helperText="ניתן לערוך במידת הצורך"
         >
@@ -346,11 +329,28 @@ export function CreateFamilyModal({ user, onClose, onCreated }: CreateFamilyModa
             aria-invalid={accountingError ? true : undefined}
           />
         </FormField>
+      </div>
 
+      {showCoordinatorSelect && (
+        <FormField id={`${ID_PREFIX}-coordinator`} label={<>רכז/ת <span className="field-required">*</span></>}>
+          <select
+            id={`${ID_PREFIX}-coordinator`}
+            value={coordinatorId}
+            onChange={(e) => handleCoordinatorChange(e.target.value)}
+            disabled={loading}
+          >
+            {coordinators.map((c) => (
+              <option key={c.id} value={c.id}>{c.fullName}</option>
+            ))}
+          </select>
+        </FormField>
+      )}
+
+      <div className="family-details-grid">
         <FormField
           id={`${ID_PREFIX}-family-last-name`}
           label={<>שם משפחה <span className="field-required">*</span></>}
-          className="family-details-grid__col-phone"
+          className="family-details-grid__col-name"
           error={lastNameError}
         >
           <input

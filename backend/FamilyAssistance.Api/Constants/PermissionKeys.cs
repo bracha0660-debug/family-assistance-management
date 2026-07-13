@@ -34,12 +34,23 @@ public static class PermissionKeys
     public const string AssistanceItemsCreate = "assistance_items.create";
     public const string AssistanceItemsEdit = "assistance_items.edit";
     public const string AssistanceItemsRemoveDraft = "assistance_items.remove_draft";
+    public const string AssistanceItemsComplete = "assistance_items.complete";
+    public const string AssistanceItemsViewHistory = "assistance_items.view_history";
 
     public const string PaymentsView = "payments.view";
+    /// <summary>Legacy proof-path PE execute only. New export send uses <see cref="PaymentsExportBatchesCreate"/> (C10).</summary>
     public const string PaymentsExecute = "payments.execute";
     public const string PaymentsUploadProof = "payments.upload_proof";
     public const string PaymentsMarkPaid = "payments.mark_paid";
     public const string PaymentsReturnToCoordinator = "payments.return_to_coordinator";
+    public const string PaymentsEnterReference = "payments.enter_reference";
+
+    // Phase 16 export-batch permissions (distinct create vs download)
+    public const string PaymentsExportBatchesCreate = "payments.export_batches.create";
+    public const string PaymentsExportBatchesDownload = "payments.export_batches.download";
+    public const string PaymentsExportBatchesCancel = "payments.export_batches.cancel";
+    public const string PaymentsExportBatchItemsCancel = "payments.export_batch_items.cancel";
+    public const string PaymentsEditAssistanceItems = "payments.edit_assistance_items";
 
     public static readonly string[] All =
     [
@@ -48,8 +59,12 @@ public static class PermissionKeys
         AssistanceTypesView, AssistanceTypesCreate, AssistanceTypesEdit, AssistanceTypesDeactivate, AssistanceTypesRestore,
         CommitteeDecisionsView, CommitteeDecisionsCreate, CommitteeDecisionsEditDraft, CommitteeDecisionsSubmit,
         CommitteeDecisionsApprove, CommitteeDecisionsReject, CommitteeDecisionsCancel,
-        AssistanceItemsView, AssistanceItemsCreate, AssistanceItemsEdit, AssistanceItemsRemoveDraft,
+        AssistanceItemsView, AssistanceItemsCreate, AssistanceItemsEdit, AssistanceItemsRemoveDraft, AssistanceItemsComplete,
+        AssistanceItemsViewHistory,
         PaymentsView, PaymentsExecute, PaymentsUploadProof, PaymentsMarkPaid, PaymentsReturnToCoordinator,
+        PaymentsEnterReference,
+        PaymentsExportBatchesCreate, PaymentsExportBatchesDownload, PaymentsExportBatchesCancel,
+        PaymentsExportBatchItemsCancel, PaymentsEditAssistanceItems,
     ];
 
     public static readonly string[] OrganizationScopeOnly =
@@ -61,6 +76,14 @@ public static class PermissionKeys
         PaymentsUploadProof,
         PaymentsMarkPaid,
         PaymentsReturnToCoordinator,
+        PaymentsEnterReference,
+        PaymentsExportBatchesCreate,
+        PaymentsExportBatchesDownload,
+        PaymentsExportBatchesCancel,
+        PaymentsExportBatchItemsCancel,
+        PaymentsEditAssistanceItems,
+        AssistanceItemsComplete,
+        AssistanceItemsViewHistory,
     ];
 
     public static readonly string[] BinaryCreateKeys =
