@@ -32,6 +32,8 @@ public sealed class AssistanceItemService(
                 .Include(i => i.PaymentExecution)
                 .Include(i => i.CommitteeDecision)!
                     .ThenInclude(d => d!.Family)
+                .Include(i => i.CommitteeDecision)!
+                    .ThenInclude(d => d!.CreatedByUser)
                 .Where(i => i.OrganizationId == organizationId
                     && i.Status != AssistanceItemStatuses.Draft),
             auth,
@@ -350,6 +352,8 @@ public sealed class AssistanceItemService(
             .Include(i => i.CommitteeDecision)!
                 .ThenInclude(d => d!.Family)
             .Include(i => i.CommitteeDecision)!
+                .ThenInclude(d => d!.CreatedByUser)
+            .Include(i => i.CommitteeDecision)!
                 .ThenInclude(d => d!.Items)
             .FirstOrDefaultAsync(i => i.Id == id && i.OrganizationId == organizationId, cancellationToken);
 
@@ -388,6 +392,7 @@ public sealed class AssistanceItemService(
             AvailableActions = WorkflowHelpers.AvailableAssistanceItemActions(i, decision, auth),
             DecisionId = decision.Id,
             DecisionCode = decision.DecisionCode,
+            LineNumber = i.LineNumber,
             FamilyId = decision.FamilyId,
             FamilyCode = decision.Family?.FamilyCode ?? string.Empty,
             FamilyAccountingCode = decision.Family?.AccountingCode ?? 0,
@@ -419,6 +424,8 @@ public sealed class AssistanceItemService(
             ApprovedAt = i.ApprovedAt,
             ExecutionReference = i.ExecutionReference ?? i.PaymentExecution?.ExecutionReference,
             PaymentExecutionId = i.PaymentExecution?.Id,
+            CreatedByUserId = decision.CreatedByUserId,
+            CreatedByUserName = decision.CreatedByUser?.FullName ?? string.Empty,
             Version = i.Version
         };
     }

@@ -3,6 +3,7 @@ import { HistoryValueTransition } from './history/HistoryValueTransition';
 import { amountAdjustmentReasonLabel } from '../api/exportBatches';
 import { findBankByNumber, formatBankOption } from '../data/israeliBanks';
 import { assistanceItemStatusLabel } from '../pages/home/workflowLabels';
+import { translatePaymentMethod, translatePaymentTarget } from './assistanceItem';
 
 /** Shared detail fields for payments queue and committee decisions item views. */
 export type AssistanceItemDetailsFields = {
@@ -40,24 +41,6 @@ export type AssistanceItemDetailsFields = {
 
 function formatMoney(amount: number): string {
   return `${amount.toLocaleString('he-IL')} ₪`;
-}
-
-function translatePaymentTarget(t: string): string {
-  switch (t) {
-    case 'family': return 'משפחה';
-    case 'supplier': return 'ספק';
-    case 'other': return 'אחר';
-    default: return t || '—';
-  }
-}
-
-function translatePaymentMethod(m: string): string {
-  switch (m) {
-    case 'bank_transfer': return 'העברה בנקאית';
-    case 'check': return 'צ׳ק';
-    case 'vouchers': return 'תווים';
-    default: return m || '—';
-  }
 }
 
 function formatBankLabel(bankNumber: string | null | undefined): string {

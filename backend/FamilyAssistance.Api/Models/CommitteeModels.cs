@@ -132,6 +132,7 @@ public sealed class AssistanceItemListDto
     public IReadOnlyList<string> AvailableActions { get; init; } = [];
     public Guid DecisionId { get; init; }
     public string DecisionCode { get; init; } = string.Empty;
+    public int LineNumber { get; init; }
     public Guid FamilyId { get; init; }
     public string FamilyCode { get; init; } = string.Empty;
     public long FamilyAccountingCode { get; init; }
@@ -165,6 +166,8 @@ public sealed class AssistanceItemListDto
     public DateTime? ApprovedAt { get; init; }
     public string? ExecutionReference { get; init; }
     public Guid? PaymentExecutionId { get; init; }
+    public Guid CreatedByUserId { get; init; }
+    public string CreatedByUserName { get; init; } = string.Empty;
     public int Version { get; init; }
 }
 

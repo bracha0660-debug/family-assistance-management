@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import type { ChangeEvent, FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { FormEvent } from 'react';
 import type { UserDto } from '../api/auth';
 import { listAssistanceTypes, type AssistanceTypeDto } from '../api/assistanceTypes';
 import {
@@ -11,16 +11,11 @@ import {
   listCommitteeDecisions,
   removeAssistanceItem,
   submitCommitteeDecision,
-  updateAssistanceItem,
   updateCommitteeDecision,
-  PAYMENT_TARGETS,
   type AssistanceItemDto,
   type CommitteeDecisionDto,
   type CommitteeDecisionListResponse,
   type CreateAssistanceItemPayload,
-  type PaymentMethod,
-  type PaymentTarget,
-  type UpdateAssistanceItemPayload,
 } from '../api/committeeDecisions';
 import {
   approveAssistanceItem,
@@ -50,25 +45,20 @@ import {
   workflowActionLabel,
 } from './home/workflowLabels';
 import { hasPermission } from '../hooks/usePermissions';
-import { FieldValidationTooltip } from '../components/FieldValidation';
-import { BankSelect } from '../components/BankDetailsFields';
 import { ModalShell } from '../components/ModalShell';
-import { focusFirstInvalidField } from '../utils/formValidation';
-import { partitionSuppliersForAssistanceType } from '../utils/relatedSuppliers';
-import { validateBankFieldsForPayment, type BankFields } from '../validation/bankFields';
 import {
-  applyPaymentMethodChange,
-  applyPaymentTargetChange,
+  AssistanceItemEditModal,
+  ADD_ITEM_FOCUS_ORDER,
+  buildCreatePayload,
+  CommitteeItemFormFields,
+  toBankFields,
+  translatePaymentMethod,
+  translatePaymentTarget,
+} from '../components/assistanceItem';
+import { focusFirstInvalidField } from '../utils/formValidation';
+import { type BankFields } from '../validation/bankFields';
+import {
   createEmptyItemRowState,
-  PAYEE_NAME_REQUIRED_MESSAGE,
-  D8_CONFIRM_MESSAGE,
-  formatTransferDetailsSummary,
-  getAllowedPaymentMethods,
-  hasMeaningfulPaymentData,
-  isTransferBankComplete,
-  needsTransferBankModal,
-  onAssistanceTypeChange,
-  revalidateAfterBeneficiaryChange,
   resolveCommitteeBankDetailsDisplay,
   type CommitteeItemRowState,
   validateCommitteeItemRow,
@@ -195,24 +185,6 @@ function translateDecisionStatus(status: string): string {
   }
 }
 
-function translatePaymentTarget(t: string): string {
-  switch (t) {
-    case 'family': return 'משפחה';
-    case 'supplier': return 'ספק';
-    case 'other': return 'אחר';
-    default: return t;
-  }
-}
-
-function translatePaymentMethod(m: string): string {
-  switch (m) {
-    case 'bank_transfer': return 'העברה בנקאית';
-    case 'check': return 'המחאה';
-    case 'vouchers': return 'תווים';
-    default: return m;
-  }
-}
-
 function formatBeneficiaryName(item: AssistanceItemDto): string {
   if (item.paymentTarget === 'supplier') return item.supplierName ?? '—';
   return item.payeeName ?? '—';
@@ -224,553 +196,6 @@ function formatPaymentMethodCell(item: AssistanceItemDto): string {
     return `${base} (${item.voucherType})`;
   }
   return base;
-}
-
-function toBankFields(source: {
-  bankNumber: string | null;
-  branchNumber: string | null;
-  accountNumber: string | null;
-  accountHolderName: string | null;
-}): BankFields {
-  return {
-    bankNumber: source.bankNumber,
-    branchNumber: source.branchNumber,
-    accountNumber: source.accountNumber,
-    accountHolderName: source.accountHolderName,
-  };
-}
-
-function itemToRowState(item: AssistanceItemDto): CommitteeItemRowState {
-  return {
-    assistanceTypeId: item.assistanceTypeId,
-    description: item.description ?? '',
-    amount: String(item.amount),
-    paymentTarget: item.paymentTarget as PaymentTarget,
-    paymentMethod: item.paymentMethod as PaymentMethod,
-    supplierId: item.supplierId ?? '',
-    payeeName: item.payeeName ?? '',
-    transferBankNumber: item.transferBankNumber ?? '',
-    transferBranchNumber: item.transferBranchNumber ?? '',
-    transferAccountNumber: item.transferAccountNumber ?? '',
-    voucherType: item.voucherType ?? '',
-    isUrgent: item.isUrgent,
-  };
-}
-
-function buildCreatePayload(state: CommitteeItemRowState): CreateAssistanceItemPayload {
-  const payload: CreateAssistanceItemPayload = {
-    assistanceTypeId: state.assistanceTypeId,
-    description: state.description.trim() || null,
-    amount: Number(state.amount),
-    paymentTarget: state.paymentTarget as PaymentTarget,
-    paymentMethod: state.paymentMethod as PaymentMethod,
-    supplierId: state.paymentTarget === 'supplier' ? state.supplierId : null,
-    payeeName: (state.paymentTarget === 'family' || state.paymentTarget === 'other')
-      ? state.payeeName.trim()
-      : null,
-    voucherType: state.paymentMethod === 'vouchers' ? state.voucherType.trim() || null : null,
-    isUrgent: state.isUrgent,
-  };
-
-  if (state.paymentTarget === 'other' && state.paymentMethod === 'bank_transfer') {
-    payload.transferBankNumber = state.transferBankNumber.trim();
-    payload.transferBranchNumber = state.transferBranchNumber.trim();
-    payload.transferAccountNumber = state.transferAccountNumber.trim();
-  }
-
-  return payload;
-}
-
-function buildUpdatePayload(
-  state: CommitteeItemRowState,
-  previousSupplierId: string | null,
-): UpdateAssistanceItemPayload {
-  const payload: UpdateAssistanceItemPayload = {
-    assistanceTypeId: state.assistanceTypeId,
-    description: state.description.trim() || null,
-    amount: Number(state.amount),
-    paymentTarget: state.paymentTarget as PaymentTarget,
-    paymentMethod: state.paymentMethod as PaymentMethod,
-    isUrgent: state.isUrgent,
-    voucherType: state.paymentMethod === 'vouchers' ? state.voucherType.trim() || null : null,
-  };
-
-  if (state.paymentTarget === 'supplier') {
-    payload.supplierId = state.supplierId;
-  } else if (previousSupplierId) {
-    payload.clearSupplierId = true;
-  }
-
-  if (state.paymentTarget === 'family' || state.paymentTarget === 'other') {
-    payload.payeeName = state.payeeName.trim();
-  }
-
-  if (state.paymentTarget === 'other' && state.paymentMethod === 'bank_transfer') {
-    payload.transferBankNumber = state.transferBankNumber.trim();
-    payload.transferBranchNumber = state.transferBranchNumber.trim();
-    payload.transferAccountNumber = state.transferAccountNumber.trim();
-  } else {
-    payload.clearTransferBank = true;
-  }
-
-  return payload;
-}
-
-const ADD_ITEM_FOCUS_ORDER = [
-  'item-assistance-type',
-  'item-description',
-  'item-payment-target',
-  'item-payee-name',
-  'item-payment-method',
-  'item-voucher-type',
-  'item-amount',
-];
-
-const EDIT_ITEM_FOCUS_ORDER = [
-  'edit-item-assistance-type',
-  'edit-item-description',
-  'edit-item-payment-target',
-  'edit-item-payee-name',
-  'edit-item-payment-method',
-  'edit-item-voucher-type',
-  'edit-item-amount',
-];
-
-function SupplierSelectOptions({
-  recommended,
-  other,
-}: {
-  recommended: SupplierDto[];
-  other: SupplierDto[];
-}) {
-  if (recommended.length === 0) {
-    return (
-      <>
-        {other.map((s) => (
-          <option key={s.id} value={s.id}>{s.name}</option>
-        ))}
-      </>
-    );
-  }
-
-  return (
-    <>
-      <optgroup label="ספקים מומלצים">
-        {recommended.map((s) => (
-          <option key={s.id} value={s.id}>{s.name}</option>
-        ))}
-      </optgroup>
-      <optgroup label="כל הספקים">
-        {other.map((s) => (
-          <option key={s.id} value={s.id}>{s.name}</option>
-        ))}
-      </optgroup>
-    </>
-  );
-}
-
-function TransferBankPopover({
-  initial,
-  payeeName,
-  onSave,
-  onCancel,
-}: {
-  initial: Pick<CommitteeItemRowState, 'transferBankNumber' | 'transferBranchNumber' | 'transferAccountNumber'>;
-  payeeName: string;
-  onSave: (values: Pick<CommitteeItemRowState, 'transferBankNumber' | 'transferBranchNumber' | 'transferAccountNumber'>) => void;
-  onCancel: () => void;
-}) {
-  const [bankNumber, setBankNumber] = useState(initial.transferBankNumber);
-  const [branchNumber, setBranchNumber] = useState(initial.transferBranchNumber);
-  const [accountNumber, setAccountNumber] = useState(initial.transferAccountNumber);
-  const [error, setError] = useState('');
-  const bankListId = useId();
-
-  function handleSave(e: FormEvent) {
-    e.preventDefault();
-    const validationError = validateBankFieldsForPayment(
-      bankNumber,
-      branchNumber,
-      accountNumber,
-      payeeName,
-    );
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-    onSave({
-      transferBankNumber: bankNumber.trim(),
-      transferBranchNumber: branchNumber.trim(),
-      transferAccountNumber: accountNumber.trim(),
-    });
-  }
-
-  return (
-    <div className="committee-transfer-popover" role="dialog" aria-label="פרטי העברה בנקאית">
-      {error && (
-        <div className="error" role="alert">
-          {error}
-        </div>
-      )}
-      <p className="hint-text committee-transfer-popover__holder">
-        שם בעל החשבון: <strong>{payeeName.trim() || '—'}</strong>
-      </p>
-      <label htmlFor="transfer-bank-number">בנק <span className="field-required">*</span></label>
-      <BankSelect
-        id="transfer-bank-number"
-        listId={bankListId}
-        value={bankNumber}
-        displayMode="number-name"
-        disabled={false}
-        errorId="transfer-bank-number-error"
-        placeholder="חיפוש לפי מספר או שם"
-        onSelect={(bank) => setBankNumber(bank.number)}
-        onClear={() => setBankNumber('')}
-      />
-      <label htmlFor="transfer-branch-number">סניף <span className="field-required">*</span></label>
-      <input
-        id="transfer-branch-number"
-        type="text"
-        inputMode="numeric"
-        value={branchNumber}
-        onChange={(e) => setBranchNumber(e.target.value.replace(/\D/g, '').slice(0, 5))}
-      />
-      <label htmlFor="transfer-account-number">מספר חשבון <span className="field-required">*</span></label>
-      <input
-        id="transfer-account-number"
-        type="text"
-        inputMode="numeric"
-        value={accountNumber}
-        onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, '').slice(0, 20))}
-      />
-      <div className="committee-transfer-popover__actions">
-        <button type="button" className="btn-secondary btn-small" onClick={onCancel}>ביטול</button>
-        <button type="button" className="btn-small" onClick={handleSave}>שמור פרטי העברה</button>
-      </div>
-    </div>
-  );
-}
-
-function CommitteeItemFormFields({
-  idPrefix,
-  state,
-  onStateChange,
-  types,
-  suppliers,
-  familyLastName,
-  familyBank,
-  disabled,
-  payeeNameManuallyEdited,
-  setPayeeNameManuallyEdited,
-  onValidationMessage,
-  showActions,
-  onAdd,
-  addLoading,
-  addError,
-  transferPopoverOpen,
-  transferPopoverInitial,
-  transferPopoverSession,
-  onOpenTransferPopover,
-  onTransferPopoverSave,
-  onTransferPopoverCancel,
-}: {
-  idPrefix: 'item' | 'edit-item';
-  state: CommitteeItemRowState;
-  onStateChange: (next: CommitteeItemRowState) => void;
-  types: AssistanceTypeDto[];
-  suppliers: SupplierDto[];
-  familyLastName: string;
-  familyBank: BankFields | null;
-  disabled: boolean;
-  payeeNameManuallyEdited: boolean;
-  setPayeeNameManuallyEdited: (value: boolean) => void;
-  onValidationMessage?: (message: string | null) => void;
-  showActions?: boolean;
-  onAdd?: () => void;
-  addLoading?: boolean;
-  addError?: string;
-  transferPopoverOpen: boolean;
-  transferPopoverInitial: Pick<CommitteeItemRowState, 'transferBankNumber' | 'transferBranchNumber' | 'transferAccountNumber'>;
-  transferPopoverSession: number;
-  onOpenTransferPopover: (contextState?: CommitteeItemRowState) => void;
-  onTransferPopoverSave: (values: Pick<CommitteeItemRowState, 'transferBankNumber' | 'transferBranchNumber' | 'transferAccountNumber'>) => void;
-  onTransferPopoverCancel: () => void;
-}) {
-  const fieldId = (name: string) => `${idPrefix}-${name}`;
-  const { recommended: recommendedSuppliers, other: otherSuppliers } = partitionSuppliersForAssistanceType(
-    types,
-    suppliers,
-    state.assistanceTypeId,
-  );
-  const allowedMethods = getAllowedPaymentMethods(state.paymentTarget);
-  const transferSummary = formatTransferDetailsSummary(
-    state.paymentTarget,
-    state.paymentMethod,
-    state.transferBankNumber,
-    state.transferBranchNumber,
-    state.transferAccountNumber,
-  );
-  const supplierBankForDisplay = state.supplierId
-    ? toBankFields(suppliers.find((s) => s.id === state.supplierId)!)
-    : null;
-  const showOtherTransferModal = state.paymentTarget === 'other' && state.paymentMethod === 'bank_transfer';
-  const showReadonlyBank = state.paymentMethod === 'bank_transfer'
-    && (state.paymentTarget === 'family' || state.paymentTarget === 'supplier');
-  const bankDetailsSummary = resolveCommitteeBankDetailsDisplay(
-    state.paymentTarget,
-    state.paymentMethod,
-    {
-      familyBank,
-      supplierBank: supplierBankForDisplay,
-      transferBankNumber: state.transferBankNumber,
-      transferBranchNumber: state.transferBranchNumber,
-      transferAccountNumber: state.transferAccountNumber,
-    },
-  );
-
-  function handleTargetChange(e: ChangeEvent<HTMLSelectElement>) {
-    const newTarget = e.target.value as PaymentTarget | '';
-    if (!newTarget || newTarget === state.paymentTarget) return;
-
-    if (hasMeaningfulPaymentData(state) && !window.confirm(D8_CONFIRM_MESSAGE)) {
-      e.target.value = state.paymentTarget;
-      return;
-    }
-
-    setPayeeNameManuallyEdited(false);
-    onStateChange(applyPaymentTargetChange(newTarget, state, familyLastName));
-    onValidationMessage?.(null);
-  }
-
-  function handleAssistanceTypeChange(e: ChangeEvent<HTMLSelectElement>) {
-    onStateChange(onAssistanceTypeChange({ ...state, assistanceTypeId: e.target.value }));
-  }
-
-  function handlePayeeNameChange(value: string) {
-    setPayeeNameManuallyEdited(true);
-    onStateChange({ ...state, payeeName: value });
-  }
-
-  function handleSupplierChange(supplierId: string) {
-    const next = { ...state, supplierId };
-    const bank = supplierId
-      ? toBankFields(suppliers.find((s) => s.id === supplierId)!)
-      : null;
-    const { state: validated, bankMessage } = revalidateAfterBeneficiaryChange(next, familyBank, bank);
-    onStateChange(validated);
-    onValidationMessage?.(bankMessage);
-  }
-
-  function handlePaymentMethodChange(method: PaymentMethod | '') {
-    const next = applyPaymentMethodChange(method, state);
-    if (needsTransferBankModal(next) && !next.payeeName.trim()) {
-      onValidationMessage?.(PAYEE_NAME_REQUIRED_MESSAGE);
-      onStateChange(applyPaymentMethodChange('', state));
-      return;
-    }
-    onStateChange(next);
-    onValidationMessage?.(null);
-    if (needsTransferBankModal(next)) {
-      onOpenTransferPopover(next);
-    }
-  }
-
-  return (
-    <div className="committee-item-form__grid">
-      <div className="committee-item-form__field">
-        <label htmlFor={fieldId('assistance-type')}>סוג סיוע</label>
-        <select
-          id={fieldId('assistance-type')}
-          value={state.assistanceTypeId}
-          onChange={handleAssistanceTypeChange}
-          disabled={disabled}
-        >
-          {idPrefix === 'item' && <option value="">— בחר —</option>}
-          {types.filter((t) => t.status === 'active').map((t) => (
-            <option key={t.id} value={t.id}>{t.name}</option>
-          ))}
-        </select>
-      </div>
-
-      <div className="committee-item-form__field">
-        <label htmlFor={fieldId('description')}>תיאור</label>
-        <input
-          id={fieldId('description')}
-          type="text"
-          placeholder="תיאור"
-          value={state.description}
-          onChange={(e) => onStateChange({ ...state, description: e.target.value })}
-          disabled={disabled}
-        />
-      </div>
-
-      <div className="committee-item-form__field">
-        <label htmlFor={fieldId('payment-target')}>יעד תשלום</label>
-        <select
-          id={fieldId('payment-target')}
-          value={state.paymentTarget}
-          onChange={handleTargetChange}
-          disabled={disabled}
-        >
-          {idPrefix === 'item' && <option value="">— בחר —</option>}
-          {PAYMENT_TARGETS.map((t) => (
-            <option key={t} value={t}>{translatePaymentTarget(t)}</option>
-          ))}
-        </select>
-      </div>
-
-      <div className="committee-item-form__field committee-item-form__field--payee">
-        <label htmlFor={fieldId('payee-name')}>שם מוטב</label>
-        {state.paymentTarget === 'supplier' ? (
-          <select
-            id={fieldId('payee-name')}
-            value={state.supplierId}
-            onChange={(e) => handleSupplierChange(e.target.value)}
-            disabled={disabled || !state.paymentTarget}
-          >
-            <option value="">— בחר ספק —</option>
-            <SupplierSelectOptions recommended={recommendedSuppliers} other={otherSuppliers} />
-          </select>
-        ) : state.paymentTarget === 'family' ? (
-          <>
-            <input
-              id={fieldId('payee-name')}
-              type="text"
-              placeholder="שם מוטב"
-              value={state.payeeName}
-              onChange={(e) => handlePayeeNameChange(e.target.value)}
-              disabled={disabled}
-            />
-            {!payeeNameManuallyEdited && state.payeeName === familyLastName && (
-              <p className="bank-field-hint">ניתן לעריכה במקרה הצורך</p>
-            )}
-          </>
-        ) : state.paymentTarget === 'other' ? (
-          <input
-            id={fieldId('payee-name')}
-            type="text"
-            placeholder="שם מוטב"
-            value={state.payeeName}
-            onChange={(e) => handlePayeeNameChange(e.target.value)}
-            disabled={disabled}
-          />
-        ) : (
-          <input id={fieldId('payee-name')} type="text" disabled placeholder="—" />
-        )}
-      </div>
-
-      <div className="committee-item-form__field committee-item-form__field--method-stack">
-        <label htmlFor={fieldId('payment-method')}>אופן תשלום</label>
-        <select
-          id={fieldId('payment-method')}
-          value={state.paymentMethod}
-          onChange={(e) => handlePaymentMethodChange(e.target.value as PaymentMethod | '')}
-          disabled={disabled || !state.paymentTarget || (state.paymentTarget === 'supplier' && !state.supplierId)}
-        >
-          <option value="">— בחר —</option>
-          {allowedMethods.map((m) => (
-            <option key={m} value={m}>{translatePaymentMethod(m)}</option>
-          ))}
-        </select>
-        {state.paymentMethod === 'vouchers' && (
-          <input
-            id={fieldId('voucher-type')}
-            type="text"
-            placeholder="סוג שובר"
-            value={state.voucherType}
-            onChange={(e) => onStateChange({ ...state, voucherType: e.target.value })}
-            disabled={disabled}
-          />
-        )}
-      </div>
-
-      <div className="committee-item-form__field committee-item-form__field--bank-details">
-        <label htmlFor={fieldId('bank-details')}>פרטי בנק</label>
-        {showOtherTransferModal ? (
-          <>
-            <button
-              id={fieldId('bank-details')}
-              type="button"
-              className="btn-secondary btn-small committee-transfer-summary-btn"
-              onClick={() => onOpenTransferPopover()}
-              disabled={disabled}
-              title={transferSummary}
-              aria-expanded={transferPopoverOpen}
-            >
-              {isTransferBankComplete(state) ? transferSummary : 'הזן פרטים'}
-            </button>
-            {transferPopoverOpen && (
-              <TransferBankPopover
-                key={transferPopoverSession}
-                initial={transferPopoverInitial}
-                payeeName={state.payeeName}
-                onSave={onTransferPopoverSave}
-                onCancel={onTransferPopoverCancel}
-              />
-            )}
-          </>
-        ) : showReadonlyBank ? (
-          <input
-            id={fieldId('bank-details')}
-            type="text"
-            className="committee-bank-readonly"
-            disabled
-            readOnly
-            value={bankDetailsSummary}
-            title={bankDetailsSummary}
-          />
-        ) : (
-          <input
-            id={fieldId('bank-details')}
-            type="text"
-            className="committee-bank-readonly"
-            disabled
-            readOnly
-            value="—"
-          />
-        )}
-      </div>
-
-      <div className="committee-item-form__field">
-        <label htmlFor={fieldId('amount')}>סכום</label>
-        <input
-          id={fieldId('amount')}
-          type="number"
-          placeholder="סכום"
-          value={state.amount}
-          onChange={(e) => onStateChange({ ...state, amount: e.target.value })}
-          disabled={disabled}
-          min={0}
-          step={0.01}
-        />
-      </div>
-
-      <div className="committee-item-form__field committee-item-form__field--urgent">
-        <label className="checkbox-label">
-          <input
-            type="checkbox"
-            checked={state.isUrgent}
-            onChange={(e) => onStateChange({ ...state, isUrgent: e.target.checked })}
-            disabled={disabled}
-          />
-          דחוף
-        </label>
-      </div>
-
-      {showActions ? (
-        <div className="committee-item-form__field committee-item-form__field--actions">
-          <div className="validated-field-control">
-            <button type="button" className="btn-small" onClick={onAdd} disabled={disabled || addLoading || transferPopoverOpen}>
-              הוסף שורה
-            </button>
-            {addError && <FieldValidationTooltip id="item-form-error" message={addError} />}
-          </div>
-        </div>
-      ) : (
-        <div className="committee-item-form__field" aria-hidden="true" />
-      )}
-    </div>
-  );
 }
 
 function CreateDecisionModal({
@@ -942,143 +367,6 @@ function ItemFormRow({
           onTransferPopoverCancel={handleTransferPopoverCancel}
         />
       </div>
-    </>
-  );
-}
-
-function ItemEditModal({
-  item,
-  types,
-  suppliers,
-  familyLastName,
-  familyBank,
-  decisionId,
-  onClose,
-  onSaved,
-}: {
-  item: AssistanceItemDto;
-  types: AssistanceTypeDto[];
-  suppliers: SupplierDto[];
-  familyLastName: string;
-  familyBank: BankFields | null;
-  decisionId: string;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const [state, setState] = useState<CommitteeItemRowState>(() => {
-    const row = itemToRowState(item);
-    if (row.paymentTarget === 'family' && !row.payeeName.trim()) {
-      row.payeeName = familyLastName;
-    }
-    return row;
-  });
-  const [payeeNameManuallyEdited, setPayeeNameManuallyEdited] = useState(
-    item.paymentTarget === 'family' && Boolean(item.payeeName?.trim()) && item.payeeName !== familyLastName,
-  );
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [transferPopoverOpen, setTransferPopoverOpen] = useState(false);
-  const [transferPopoverSession, setTransferPopoverSession] = useState(0);
-  const [transferPopoverInitial, setTransferPopoverInitial] = useState<
-    Pick<CommitteeItemRowState, 'transferBankNumber' | 'transferBranchNumber' | 'transferAccountNumber'>
-  >({
-    transferBankNumber: '',
-    transferBranchNumber: '',
-    transferAccountNumber: '',
-  });
-
-  const selectedSupplier = state.supplierId
-    ? suppliers.find((s) => s.id === state.supplierId) ?? null
-    : null;
-  const supplierBank = selectedSupplier ? toBankFields(selectedSupplier) : null;
-
-  function openTransferPopover(contextState?: CommitteeItemRowState) {
-    const source = contextState ?? state;
-    setTransferPopoverInitial({
-      transferBankNumber: source.transferBankNumber,
-      transferBranchNumber: source.transferBranchNumber,
-      transferAccountNumber: source.transferAccountNumber,
-    });
-    setTransferPopoverSession((prev) => prev + 1);
-    setTransferPopoverOpen(true);
-  }
-
-  function handleTransferPopoverCancel() {
-    setState((prev) => ({ ...prev, ...transferPopoverInitial }));
-    setTransferPopoverOpen(false);
-  }
-
-  function handleTransferPopoverSave(values: Pick<CommitteeItemRowState, 'transferBankNumber' | 'transferBranchNumber' | 'transferAccountNumber'>) {
-    setState((prev) => ({ ...prev, ...values }));
-    setTransferPopoverOpen(false);
-  }
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setError('');
-    const validationError = validateCommitteeItemRow(state, familyBank, supplierBank);
-    if (validationError) {
-      setError(validationError);
-      focusFirstInvalidField(EDIT_ITEM_FOCUS_ORDER);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      await updateAssistanceItem(
-        decisionId,
-        item.id,
-        item.version,
-        buildUpdatePayload(state, item.supplierId),
-      );
-      onSaved();
-      onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'שגיאת מערכת');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <>
-      <ModalShell
-        title={`עריכת פריט #${item.lineNumber}`}
-        loading={loading}
-        onClose={onClose}
-        onSubmit={handleSubmit}
-        formError={error}
-        footer={(
-          <>
-            <button type="button" className="btn-secondary" onClick={onClose} disabled={loading}>ביטול</button>
-            <button type="submit" disabled={loading}>{loading ? 'שומר...' : 'שמור'}</button>
-          </>
-        )}
-      >
-        <div className="committee-items-shell">
-          <div className="committee-item-form">
-            <CommitteeItemFormFields
-              idPrefix="edit-item"
-              state={state}
-              onStateChange={setState}
-              types={types}
-              suppliers={suppliers}
-              familyLastName={familyLastName}
-              familyBank={familyBank}
-              disabled={loading}
-              payeeNameManuallyEdited={payeeNameManuallyEdited}
-              setPayeeNameManuallyEdited={setPayeeNameManuallyEdited}
-              onValidationMessage={(msg) => setError(msg ?? '')}
-              transferPopoverOpen={transferPopoverOpen}
-              transferPopoverInitial={transferPopoverInitial}
-              transferPopoverSession={transferPopoverSession}
-              onOpenTransferPopover={openTransferPopover}
-              onTransferPopoverSave={handleTransferPopoverSave}
-              onTransferPopoverCancel={handleTransferPopoverCancel}
-            />
-          </div>
-        </div>
-      </ModalShell>
     </>
   );
 }
@@ -1329,7 +617,7 @@ function DecisionDetailPanel({
       </ModalShell>
 
       {editItem && (
-        <ItemEditModal
+        <AssistanceItemEditModal
           item={editItem}
           types={types}
           suppliers={suppliers}
@@ -1403,6 +691,26 @@ function ReasonPromptModal({
   );
 }
 
+function toAssistanceItemEditFields(item: AssistanceItemListDto) {
+  return {
+    id: item.id,
+    lineNumber: item.lineNumber,
+    assistanceTypeId: item.assistanceTypeId,
+    description: item.description,
+    amount: item.amount,
+    paymentTarget: item.paymentTarget,
+    paymentMethod: item.paymentMethod,
+    supplierId: item.supplierId,
+    payeeName: item.payeeName,
+    transferBankNumber: item.transferBankNumber,
+    transferBranchNumber: item.transferBranchNumber,
+    transferAccountNumber: item.transferAccountNumber,
+    voucherType: item.voucherType,
+    isUrgent: item.isUrgent,
+    version: item.version,
+  };
+}
+
 function toAssistanceItemDetails(item: AssistanceItemListDto) {
   return {
     decisionCode: item.decisionCode,
@@ -1448,6 +756,7 @@ export function CommitteeDecisionsPage({ user, initialFilter }: CommitteeDecisio
   const [showCreate, setShowCreate] = useState(false);
   const [detailTarget, setDetailTarget] = useState<CommitteeDecisionDto | null>(null);
   const [itemTarget, setItemTarget] = useState<AssistanceItemListDto | null>(null);
+  const [listEditItem, setListEditItem] = useState<AssistanceItemListDto | null>(null);
   const [activeFilter, setActiveFilter] = useState<HomeNavigationTarget | null | undefined>(initialFilter);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [pendingReason, setPendingReason] = useState<{
@@ -1540,11 +849,6 @@ export function CommitteeDecisionsPage({ user, initialFilter }: CommitteeDecisio
       }));
   }, [items]);
 
-  async function openDecisionById(decisionId: string) {
-    const decision = await getCommitteeDecision(decisionId);
-    setDetailTarget(decision);
-  }
-
   async function runItemTransition(
     item: AssistanceItemListDto,
     fn: () => Promise<AssistanceItemListDto>,
@@ -1570,7 +874,9 @@ export function CommitteeDecisionsPage({ user, initialFilter }: CommitteeDecisio
     if (!DECISIONS_ITEM_ACTIONS.has(action)) return;
 
     if (action === 'edit') {
-      void openDecisionById(item.decisionId);
+      // Single-item mode: reuse committee item form; do not open full decision aggregate.
+      if (!item.availableActions.includes('edit')) return;
+      setListEditItem(item);
       return;
     }
     if (action === 'approve') {
@@ -1820,12 +1126,13 @@ export function CommitteeDecisionsPage({ user, initialFilter }: CommitteeDecisio
                     <th>דחוף</th>
                     <th className="col-status">סטטוס פריט</th>
                     <th>תאריך הגשה/יצירה</th>
+                    <th>נוצר ע״י</th>
                     <th>פעולות</th>
                   </tr>
                 </thead>
                 <tbody>
                   {items.length === 0 && (
-                    <tr><td colSpan={9} className="empty-row">אין פריטי סיוע להצגה</td></tr>
+                    <tr><td colSpan={10} className="empty-row">אין פריטי סיוע להצגה</td></tr>
                   )}
                   {items.map((item) => (
                     <tr key={item.id}>
@@ -1857,6 +1164,7 @@ export function CommitteeDecisionsPage({ user, initialFilter }: CommitteeDecisio
                         </span>
                       </td>
                       <td>{(item.submittedAt ?? item.createdAt).slice(0, 10)}</td>
+                      <td>{item.createdByUserName || '—'}</td>
                       {renderItemActions(item)}
                     </tr>
                   ))}
@@ -1889,6 +1197,24 @@ export function CommitteeDecisionsPage({ user, initialFilter }: CommitteeDecisio
         <AssistanceItemDetailsModal
           item={toAssistanceItemDetails(itemTarget)}
           onClose={() => setItemTarget(null)}
+        />
+      )}
+      {listEditItem && (
+        <AssistanceItemEditModal
+          item={toAssistanceItemEditFields(listEditItem)}
+          types={types}
+          suppliers={suppliers}
+          familyLastName={listEditItem.familyName}
+          familyBank={(() => {
+            const family = families.find((f) => f.id === listEditItem.familyId);
+            return family ? toBankFields(family) : null;
+          })()}
+          decisionId={listEditItem.decisionId}
+          saveMode="committee"
+          onClose={() => setListEditItem(null)}
+          onSaved={() => {
+            void loadItems(activeFilter);
+          }}
         />
       )}
       {pendingReason && (

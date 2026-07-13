@@ -6,6 +6,7 @@ export interface AssistanceItemListDto {
   availableActions: string[];
   decisionId: string;
   decisionCode: string;
+  lineNumber: number;
   familyId: string;
   familyCode: string;
   familyAccountingCode: number;
@@ -38,6 +39,8 @@ export interface AssistanceItemListDto {
   approvedAt: string | null;
   executionReference: string | null;
   paymentExecutionId: string | null;
+  createdByUserId: string;
+  createdByUserName: string;
   version: number;
 }
 

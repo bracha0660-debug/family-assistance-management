@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import type { UserDto } from '../api/auth';
 import {
-  AMOUNT_ADJUSTMENT_REASONS,
   amountAdjustmentReasonLabel,
   cancelExportBatch,
   cancelExportBatchItem,
@@ -22,9 +21,11 @@ import type { HomeNavigationTarget } from '../api/workflow';
 import { ModalShell, FormField } from '../components/ModalShell';
 import { AssistanceItemDetailsModal } from '../components/AssistanceItemDetailsModal';
 import { AssistanceItemHistoryModal } from '../components/AssistanceItemHistoryModal';
+import { AssistanceItemEditModal, toBankFields, translatePaymentMethod, translatePaymentTarget } from '../components/assistanceItem';
 import { HistoryIconButton } from '../components/history/HistoryIconButton';
 import { HistoryValueTransition } from '../components/history/HistoryValueTransition';
 import { listAssistanceTypes, type AssistanceTypeDto } from '../api/assistanceTypes';
+import { listFamilies, type FamilyDto } from '../api/families';
 import { listSuppliers, type SupplierDto } from '../api/suppliers';
 import { isPendingPaymentFilter, workflowFilterLabel } from './home/workflowStatus';
 import {
@@ -94,24 +95,6 @@ function saveVisibleColumns(cols: Set<ColumnId>) {
   localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify([...cols]));
 }
 
-function translatePaymentTarget(t: string): string {
-  switch (t) {
-    case 'family': return 'משפחה';
-    case 'supplier': return 'ספק';
-    case 'other': return 'אחר';
-    default: return t;
-  }
-}
-
-function translatePaymentMethod(m: string): string {
-  switch (m) {
-    case 'bank_transfer': return 'העברה בנקאית';
-    case 'check': return 'צ׳ק';
-    case 'vouchers': return 'שוברים';
-    default: return m;
-  }
-}
-
 function translateBatchStatus(status: string): string {
   switch (status) {
     case 'open': return 'פתוח';
@@ -165,6 +148,9 @@ export function PaymentsQueuePage({ initialFilter }: PaymentsQueuePageProps) {
   const [modalError, setModalError] = useState('');
   const [exportRowErrors, setExportRowErrors] = useState<ExportBatchRowValidationError[]>([]);
   const [showExportErrorDetails, setShowExportErrorDetails] = useState(true);
+  const [types, setTypes] = useState<AssistanceTypeDto[]>([]);
+  const [suppliers, setSuppliers] = useState<SupplierDto[]>([]);
+  const [families, setFamilies] = useState<FamilyDto[]>([]);
 
   const load = useCallback(async (filter?: HomeNavigationTarget | null) => {
     setError('');
@@ -199,6 +185,23 @@ export function PaymentsQueuePage({ initialFilter }: PaymentsQueuePageProps) {
     setLoading(true);
     void load(initialFilter);
   }, [initialFilter, load]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const [typeRes, supplierRes, familyRes] = await Promise.all([
+          listAssistanceTypes(),
+          listSuppliers(),
+          listFamilies(),
+        ]);
+        setTypes(typeRes.assistanceTypes.filter((t) => t.status === 'active'));
+        setSuppliers(supplierRes.suppliers.filter((s) => s.status === 'active'));
+        setFamilies(familyRes.families);
+      } catch {
+        /* dropdowns may fail without view permission; edit still opens with row data */
+      }
+    })();
+  }, []);
 
   const rows = useMemo(() => data?.items ?? [], [data]);
   const eligibleRows = useMemo(() => rows.filter((r) => r.eligibleForExport), [rows]);
@@ -672,21 +675,46 @@ export function PaymentsQueuePage({ initialFilter }: PaymentsQueuePageProps) {
       )}
 
       {modal?.type === 'edit' && (
-        <EditPaymentModal
-          row={modal.row}
-          busy={busy}
-          error={modalError}
+        <AssistanceItemEditModal
+          item={{
+            id: modal.row.assistanceItemId,
+            assistanceTypeId: modal.row.assistanceTypeId,
+            description: modal.row.description,
+            amount: modal.row.amount,
+            paymentTarget: modal.row.paymentTarget,
+            paymentMethod: modal.row.paymentMethod,
+            supplierId: modal.row.supplierId,
+            payeeName: modal.row.payeeName,
+            transferBankNumber: modal.row.transferBankNumber,
+            transferBranchNumber: modal.row.transferBranchNumber,
+            transferAccountNumber: modal.row.transferAccountNumber,
+            voucherType: modal.row.voucherType,
+            isUrgent: modal.row.isUrgent,
+            version: modal.row.version,
+          }}
+          types={types}
+          suppliers={suppliers}
+          familyLastName={modal.row.familyLastName}
+          familyBank={(() => {
+            const family = families.find((f) => f.id === modal.row.familyId);
+            return family ? toBankFields(family) : null;
+          })()}
+          decisionId={modal.row.committeeDecisionId}
+          saveMode="payment"
+          initialAmount={modal.row.amount}
           onClose={() => !busy && setModal(null)}
-          onSubmit={(fields, amountReason, amountExplanation) => {
-            void runAction(modal.row.assistanceItemId, async () => {
-              await editPaymentRow(
-                modal.row.assistanceItemId,
-                modal.row.version,
-                fields,
-                amountReason,
-                amountExplanation,
-              );
-            });
+          onSaved={() => {
+            setModal(null);
+            void load(activeFilter);
+          }}
+          onPaymentSave={async (fields, amountReason, amountExplanation) => {
+            await editPaymentRow(
+              modal.row.assistanceItemId,
+              modal.row.version,
+              fields,
+              amountReason,
+              amountExplanation,
+            );
           }}
         />
       )}
@@ -817,197 +845,6 @@ function ReferenceModal({
           required
           autoFocus
         />
-      </FormField>
-    </ModalShell>
-  );
-}
-
-function EditPaymentModal({
-  row,
-  busy,
-  error,
-  onClose,
-  onSubmit,
-}: {
-  row: PaymentRowDto;
-  busy: boolean;
-  error: string;
-  onClose: () => void;
-  onSubmit: (
-    fields: Record<string, string | null>,
-    amountReason: string | null,
-    amountExplanation: string | null,
-  ) => void;
-}) {
-  const [types, setTypes] = useState<AssistanceTypeDto[]>([]);
-  const [suppliers, setSuppliers] = useState<SupplierDto[]>([]);
-  const [assistanceTypeId, setAssistanceTypeId] = useState(row.assistanceTypeId);
-  const [description, setDescription] = useState(row.description ?? '');
-  const [amount, setAmount] = useState(String(row.amount));
-  const [paymentTarget, setPaymentTarget] = useState(row.paymentTarget);
-  const [paymentMethod, setPaymentMethod] = useState(row.paymentMethod);
-  const [supplierId, setSupplierId] = useState(row.supplierId ?? '');
-  const [beneficiary, setBeneficiary] = useState(row.payeeName ?? '');
-  const [bankNumber, setBankNumber] = useState(row.transferBankNumber ?? '');
-  const [branchNumber, setBranchNumber] = useState(row.transferBranchNumber ?? '');
-  const [accountNumber, setAccountNumber] = useState(row.transferAccountNumber ?? '');
-  const [accountHolderName, setAccountHolderName] = useState(row.accountHolderName ?? '');
-  const [reason, setReason] = useState('typing_error');
-  const [explanation, setExplanation] = useState('');
-  const [explanationError, setExplanationError] = useState<string | null>(null);
-  const amountChanged = Number(amount) !== Number(row.amount);
-  const needsExplanation = amountChanged && reason === 'other';
-
-  useEffect(() => {
-    void (async () => {
-      try {
-        const [typeRes, supplierRes] = await Promise.all([listAssistanceTypes(), listSuppliers()]);
-        setTypes(typeRes.assistanceTypes.filter((t) => t.status === 'active'));
-        setSuppliers(supplierRes.suppliers.filter((s) => s.status === 'active'));
-      } catch {
-        /* dropdowns may fail without view permission; text fields still work */
-      }
-    })();
-  }, []);
-
-  return (
-    <ModalShell
-      title={workflowActionLabel('edit')}
-      onClose={onClose}
-      loading={busy}
-      formError={error}
-      onSubmit={(e: FormEvent) => {
-        e.preventDefault();
-        const parsed = Number(amount);
-        if (!(parsed > 0)) return;
-        if (needsExplanation) {
-          const trimmed = explanation.trim();
-          if (trimmed.length < 3) {
-            setExplanationError('יש למלא הסבר לשינוי הסכום');
-            document.getElementById('edit-explanation')?.focus();
-            return;
-          }
-          setExplanationError(null);
-        }
-        const fields: Record<string, string | null> = {
-          assistance_type_id: assistanceTypeId,
-          description: description.trim() || null,
-          amount: String(parsed),
-          payment_target: paymentTarget,
-          payment_method: paymentMethod,
-          supplier_id: supplierId || null,
-          beneficiary: beneficiary.trim() || null,
-          bank_number: bankNumber.trim() || null,
-          branch_number: branchNumber.trim() || null,
-          account_number: accountNumber.trim() || null,
-          account_holder_name: accountHolderName.trim() || null,
-        };
-        onSubmit(
-          fields,
-          amountChanged ? reason : null,
-          amountChanged && needsExplanation ? explanation.trim() : null,
-        );
-      }}
-      footer={(
-        <>
-          <button type="button" className="btn-secondary" disabled={busy} onClick={onClose}>ביטול</button>
-          <button type="submit" disabled={busy}>שמירה</button>
-        </>
-      )}
-    >
-      <p className="hint-text">
-        סכום לתשלום: {formatMoney(row.amount)}
-        {row.originalApprovedAmount != null && ` · מקורי: ${formatMoney(row.originalApprovedAmount)}`}
-      </p>
-      <FormField id="edit-type" label="סוג סיוע">
-        <select id="edit-type" value={assistanceTypeId} onChange={(e) => setAssistanceTypeId(e.target.value)}>
-          {types.length === 0 && <option value={row.assistanceTypeId}>{row.assistanceTypeName}</option>}
-          {types.map((t) => (
-            <option key={t.id} value={t.id}>{t.name}</option>
-          ))}
-        </select>
-      </FormField>
-      <FormField id="edit-description" label="תיאור">
-        <textarea id="edit-description" rows={2} value={description} onChange={(e) => setDescription(e.target.value)} />
-      </FormField>
-      <FormField id="edit-amount" label="סכום לתשלום">
-        <input id="edit-amount" type="number" min="0.01" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required />
-      </FormField>
-      {amountChanged && (
-        <>
-          <FormField id="edit-reason" label="סיבת שינוי סכום">
-            <select
-              id="edit-reason"
-              value={reason}
-              onChange={(e) => {
-                setReason(e.target.value);
-                setExplanationError(null);
-              }}
-            >
-              {AMOUNT_ADJUSTMENT_REASONS.map((r) => (
-                <option key={r.value} value={r.value}>{r.label}</option>
-              ))}
-            </select>
-          </FormField>
-          {needsExplanation && (
-            <FormField
-              id="edit-explanation"
-              label={<>הסבר <span className="field-required">*</span></>}
-              error={explanationError}
-            >
-              <textarea
-                id="edit-explanation"
-                rows={3}
-                value={explanation}
-                onChange={(e) => {
-                  setExplanation(e.target.value);
-                  if (explanationError) setExplanationError(null);
-                }}
-                required
-                aria-invalid={explanationError ? true : undefined}
-              />
-            </FormField>
-          )}
-        </>
-      )}
-      <FormField id="edit-target" label="יעד תשלום">
-        <select id="edit-target" value={paymentTarget} onChange={(e) => setPaymentTarget(e.target.value)}>
-          <option value="family">משפחה</option>
-          <option value="supplier">ספק</option>
-          <option value="other">אחר</option>
-        </select>
-      </FormField>
-      <FormField id="edit-method" label="אמצעי תשלום">
-        <select id="edit-method" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
-          <option value="bank_transfer">העברה בנקאית</option>
-          <option value="check">צ׳ק</option>
-          <option value="vouchers">תווים</option>
-        </select>
-      </FormField>
-      {paymentTarget === 'supplier' && (
-        <FormField id="edit-supplier" label="ספק">
-          <select id="edit-supplier" value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
-            <option value="">—</option>
-            {suppliers.map((s) => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
-          </select>
-        </FormField>
-      )}
-      <FormField id="edit-beneficiary" label="מוטב">
-        <input id="edit-beneficiary" value={beneficiary} onChange={(e) => setBeneficiary(e.target.value)} />
-      </FormField>
-      <FormField id="edit-bank" label="מספר בנק">
-        <input id="edit-bank" value={bankNumber} onChange={(e) => setBankNumber(e.target.value)} />
-      </FormField>
-      <FormField id="edit-branch" label="מספר סניף">
-        <input id="edit-branch" value={branchNumber} onChange={(e) => setBranchNumber(e.target.value)} />
-      </FormField>
-      <FormField id="edit-account" label="מספר חשבון">
-        <input id="edit-account" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} />
-      </FormField>
-      <FormField id="edit-holder" label="שם בעל החשבון">
-        <input id="edit-holder" value={accountHolderName} onChange={(e) => setAccountHolderName(e.target.value)} />
       </FormField>
     </ModalShell>
   );
