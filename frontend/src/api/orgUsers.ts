@@ -11,11 +11,14 @@ export interface OrgUserDto {
   username: string;
   fullName: string;
   role: string;
+  organizationRoleId: string | null;
+  organizationRoleName: string | null;
   status: string;
   version: number;
   createdAt: string;
   updatedAt: string;
   isSelf: boolean;
+  overrideCount?: number;
 }
 
 export interface OrgUserListResponse {
@@ -23,20 +26,16 @@ export interface OrgUserListResponse {
   users: OrgUserDto[];
 }
 
-export type AssignableRole = 'Coordinator' | 'Manager' | 'Finance';
-
-export const assignableRoles: AssignableRole[] = ['Coordinator', 'Manager', 'Finance'];
-
 export interface CreateOrgUserPayload {
   username: string;
   password: string;
   fullName: string;
-  role: AssignableRole;
+  organizationRoleId: string;
 }
 
 export interface UpdateOrgUserPayload {
   fullName?: string;
-  role?: AssignableRole;
+  organizationRoleId?: string;
 }
 
 export async function listOrgUsers(): Promise<OrgUserListResponse> {
@@ -80,6 +79,35 @@ export async function disableOrgUser(
       'If-Match': String(version),
     },
     body: JSON.stringify({ reason }),
+  });
+  return data.user;
+}
+
+export async function restoreOrgUser(
+  id: string,
+  version: number,
+  reason: string,
+): Promise<OrgUserDto> {
+  const data = await apiJson<{ user: OrgUserDto }>(`/api/v1/org/users/${id}/restore`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'If-Match': String(version),
+    },
+    body: JSON.stringify({ reason }),
+  });
+  return data.user;
+}
+
+export async function resetOrgUserPassword(
+  id: string,
+  newPassword: string,
+  reason: string,
+): Promise<OrgUserDto> {
+  const data = await apiJson<{ user: OrgUserDto }>(`/api/v1/org/users/${id}/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ newPassword, reason }),
   });
   return data.user;
 }

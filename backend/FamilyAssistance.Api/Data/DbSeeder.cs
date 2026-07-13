@@ -1,5 +1,7 @@
 using FamilyAssistance.Api.Constants;
+using FamilyAssistance.Api.Data;
 using FamilyAssistance.Api.Entities;
+using FamilyAssistance.Api.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -13,17 +15,29 @@ public static class DbSeeder
         "organizations",
         "users",
         "user_sessions",
-        "bank_accounts",
-        "bank_account_history",
         "audit_logs",
         "security_audit_logs",
         "families",
-        "assistance_types"
+        "suppliers",
+        "assistance_types",
+        "committee_decisions",
+        "assistance_items",
+        "assistance_item_documents",
+        "payment_executions",
+        "permission_catalog",
+        "organization_roles",
+        "organization_role_grants",
     ];
 
-    public static async Task SeedAsync(AppDbContext db, IConfiguration configuration, ILogger logger)
+    public static async Task SeedAsync(
+        AppDbContext db,
+        PermissionService permissionService,
+        IConfiguration configuration,
+        ILogger logger)
     {
         await EnsureDatabaseSchemaAsync(db, logger);
+        await permissionService.SeedCatalogAsync();
+        await permissionService.EnsureAllOrganizationsHaveRolesAsync();
 
         if (await db.Users.AnyAsync(u => u.Role == Roles.SuperAdmin))
             return;
@@ -134,12 +148,8 @@ public static class DbSeeder
     private static async Task EnsurePartialIndexesAsync(AppDbContext db)
     {
         await db.Database.ExecuteSqlRawAsync("""
-            CREATE UNIQUE INDEX IF NOT EXISTS ux_bank_accounts_active_owner
-                ON bank_accounts (organization_id, owner_entity_type, owner_entity_id)
-                WHERE is_active = true;
-            CREATE UNIQUE INDEX IF NOT EXISTS ux_bank_accounts_org_full_identity
-                ON bank_accounts (organization_id, bank_number, branch_number, account_number)
-                WHERE is_active = true;
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_families_org_acct_coord_code
+                ON families (organization_id, accounting_coordinator_id, accounting_code);
             """);
     }
 }

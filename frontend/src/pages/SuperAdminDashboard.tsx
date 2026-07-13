@@ -2,17 +2,19 @@ import { useCallback, useEffect, useState } from 'react';
 import { logout } from '../api/auth';
 import type { UserDto } from '../api/auth';
 import type { OrganizationDto, OrganizationListResponse } from '../api/admin';
-import { listOrganizations } from '../api/admin';
+import { listOrganizations, enterOrganization } from '../api/admin';
 import { BootstrapAdminModal } from '../components/BootstrapAdminModal';
 import { CreateOrganizationModal } from '../components/CreateOrganizationModal';
 import { SuspendOrganizationDialog } from '../components/SuspendOrganizationDialog';
+import { AppShell } from '../components/AppShell';
 
 interface SuperAdminDashboardProps {
   user: UserDto;
   onLogout: () => void;
+  onUserUpdated?: (user: UserDto) => void;
 }
 
-export function SuperAdminDashboard({ user, onLogout }: SuperAdminDashboardProps) {
+export function SuperAdminDashboard({ user, onLogout, onUserUpdated }: SuperAdminDashboardProps) {
   const [data, setData] = useState<OrganizationListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -49,18 +51,31 @@ export function SuperAdminDashboard({ user, onLogout }: SuperAdminDashboardProps
     return status === 'active' ? 'פעיל' : status === 'suspended' ? 'מושעה' : status;
   }
 
-  return (
-    <div className="dashboard super-admin">
-      <header className="dashboard-header">
-        <h1>ניהול ארגונים — מנהל מערכת</h1>
-        <div className="header-actions">
-          <span className="user-greeting">שלום, {user.fullName}</span>
-          <button type="button" onClick={handleLogout}>התנתק</button>
-        </div>
-      </header>
+  async function handleEnterOrg(orgId: string) {
+    setError('');
+    try {
+      const updated = await enterOrganization(orgId);
+      if (!updated?.actingOrganizationId) {
+        setError('כניסה לארגון נכשלה');
+        return;
+      }
+      onUserUpdated?.(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'שגיאת מערכת');
+    }
+  }
 
-      <main className="dashboard-main super-admin-main">
-        {data && (
+  return (
+    <AppShell
+      brandTitle="ניהול מערכת"
+      pageTitle="ניהול ארגונים — מנהל מערכת"
+      user={user}
+      tabs={[{ id: 'organizations', label: 'ארגונים' }]}
+      activeTab="organizations"
+      onTabChange={() => {}}
+      onLogout={handleLogout}
+    >
+      {data && (
           <div className="summary-cards">
             <div className="summary-card">
               <span className="summary-label">סה״כ ארגונים</span>
@@ -119,6 +134,13 @@ export function SuperAdminDashboard({ user, onLogout }: SuperAdminDashboardProps
                         <>
                           <button
                             type="button"
+                            className="btn-small"
+                            onClick={() => handleEnterOrg(org.id)}
+                          >
+                            כניסה
+                          </button>
+                          <button
+                            type="button"
                             className="btn-small btn-danger"
                             onClick={() => setSuspendTarget(org)}
                           >
@@ -127,7 +149,7 @@ export function SuperAdminDashboard({ user, onLogout }: SuperAdminDashboardProps
                           {!org.hasOrgAdmin && (
                             <button
                               type="button"
-                              className="btn-small"
+                              className="btn-small btn-warning"
                               onClick={() => setBootstrapTarget(org)}
                             >
                               מנהל ראשון
@@ -142,8 +164,6 @@ export function SuperAdminDashboard({ user, onLogout }: SuperAdminDashboardProps
             </table>
           </div>
         )}
-      </main>
-
       {showCreate && (
         <CreateOrganizationModal
           onClose={() => setShowCreate(false)}
@@ -164,6 +184,6 @@ export function SuperAdminDashboard({ user, onLogout }: SuperAdminDashboardProps
           onBootstrapped={loadOrganizations}
         />
       )}
-    </div>
+    </AppShell>
   );
 }

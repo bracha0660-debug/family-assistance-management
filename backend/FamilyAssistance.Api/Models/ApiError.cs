@@ -4,7 +4,7 @@ public sealed class ApiError
 {
     public required string Error { get; init; }
     public required string Code { get; init; }
-    public IReadOnlyList<string> Details { get; init; } = [];
+    public object? Details { get; init; }
 }
 
 public sealed class LoginRequest
@@ -20,8 +20,16 @@ public sealed class UserDto
     public string FullName { get; init; } = string.Empty;
     public string Role { get; init; } = string.Empty;
     public Guid? OrganizationId { get; init; }
+    public Guid? OrganizationRoleId { get; init; }
+    public Guid? ActingOrganizationId { get; init; }
     public string? OrganizationName { get; init; }
     public string? OrganizationStatus { get; init; }
+    public string? OrganizationLogoUrl { get; init; }
+    public bool FullAccess { get; init; }
+    public IReadOnlyList<UserGrantDto> Grants { get; init; } = [];
+    public IReadOnlyList<UserGrantDto> RoleGrants { get; init; } = [];
+    public IReadOnlyList<UserPermissionOverrideDto> Overrides { get; init; } = [];
+    public IReadOnlyList<string> Permissions { get; init; } = [];
 }
 
 public sealed class LoginResponse

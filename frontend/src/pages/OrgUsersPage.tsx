@@ -8,6 +8,7 @@ import { CreateUserModal } from '../components/CreateUserModal';
 import { DisableUserDialog } from '../components/DisableUserDialog';
 import { EditUserModal } from '../components/EditUserModal';
 import { UserCreatedConfirmation } from '../components/UserCreatedConfirmation';
+import { UserPermissionOverridesModal } from '../components/UserPermissionOverridesModal';
 import { translateRole, translateStatus } from '../components/roleLabel';
 
 export function OrgUsersPage() {
@@ -17,6 +18,7 @@ export function OrgUsersPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [editTarget, setEditTarget] = useState<OrgUserDto | null>(null);
   const [disableTarget, setDisableTarget] = useState<OrgUserDto | null>(null);
+  const [permissionsTarget, setPermissionsTarget] = useState<OrgUserDto | null>(null);
   const [createdUser, setCreatedUser] = useState<OrgUserDto | null>(null);
 
   const loadUsers = useCallback(async () => {
@@ -49,6 +51,11 @@ export function OrgUsersPage() {
   function handleCreateAnother() {
     setCreatedUser(null);
     setShowCreate(true);
+  }
+
+  function displayRole(u: OrgUserDto): string {
+    if (u.role === 'OrganizationAdministrator') return translateRole(u.role);
+    return u.organizationRoleName ?? translateRole(u.role);
   }
 
   if (createdUser) {
@@ -97,6 +104,7 @@ export function OrgUsersPage() {
                 <th>שם מלא</th>
                 <th>שם משתמש</th>
                 <th>תפקיד</th>
+                <th>התאמות</th>
                 <th>סטטוס</th>
                 <th>פעולות</th>
               </tr>
@@ -104,7 +112,7 @@ export function OrgUsersPage() {
             <tbody>
               {data?.users.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="empty-row">אין משתמשים בארגון</td>
+                  <td colSpan={6} className="empty-row">אין משתמשים בארגון</td>
                 </tr>
               )}
               {data?.users.map((u) => (
@@ -114,7 +122,8 @@ export function OrgUsersPage() {
                     {u.isSelf && <span className="hint-text"> (אני)</span>}
                   </td>
                   <td><code>{u.username}</code></td>
-                  <td>{translateRole(u.role)}</td>
+                  <td>{displayRole(u)}</td>
+                  <td>{u.role === 'OrganizationUser' ? (u.overrideCount ?? 0) : '—'}</td>
                   <td>
                     <span className={`status-badge status-${u.status === 'disabled' ? 'suspended' : u.status}`}>
                       {translateStatus(u.status)}
@@ -129,6 +138,13 @@ export function OrgUsersPage() {
                           onClick={() => setEditTarget(u)}
                         >
                           ערוך
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-small"
+                          onClick={() => setPermissionsTarget(u)}
+                        >
+                          הרשאות משתמש
                         </button>
                         <button
                           type="button"
@@ -174,6 +190,13 @@ export function OrgUsersPage() {
           user={disableTarget}
           onClose={() => setDisableTarget(null)}
           onDisabled={loadUsers}
+        />
+      )}
+      {permissionsTarget && (
+        <UserPermissionOverridesModal
+          user={permissionsTarget}
+          onClose={() => setPermissionsTarget(null)}
+          onSaved={loadUsers}
         />
       )}
     </div>

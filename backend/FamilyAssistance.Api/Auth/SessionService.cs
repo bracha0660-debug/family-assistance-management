@@ -58,6 +58,8 @@ public class SessionService(AppDbContext db, FamSessionOptions options)
         var session = await db.UserSessions
             .Include(s => s.User)
             .ThenInclude(u => u.Organization)
+            .Include(s => s.User)
+            .ThenInclude(u => u.OrganizationRole)
             .FirstOrDefaultAsync(s => s.SessionTokenHash == hash, cancellationToken);
 
         if (session is null || session.RevokedAt is not null)
@@ -114,5 +116,18 @@ public class SessionService(AppDbContext db, FamSessionOptions options)
             .ExecuteUpdateAsync(
                 s => s.SetProperty(x => x.RevokedAt, now),
                 cancellationToken);
+    }
+
+    public async Task SetActingOrganizationAsync(
+        Guid sessionId,
+        Guid? organizationId,
+        CancellationToken cancellationToken = default)
+    {
+        var session = await db.UserSessions.FindAsync([sessionId], cancellationToken);
+        if (session is null)
+            return;
+
+        session.ActingOrganizationId = organizationId;
+        await db.SaveChangesAsync(cancellationToken);
     }
 }

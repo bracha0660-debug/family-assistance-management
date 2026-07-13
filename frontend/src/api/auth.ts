@@ -1,14 +1,27 @@
 import { apiFetch, apiJson } from './client';
 import { clearSessionToken, saveSessionToken } from './session';
 
+export interface UserGrantDto {
+  permissionKey: string;
+  scope: string;
+}
+
 export interface UserDto {
   id: string;
   username: string;
   fullName: string;
   role: string;
   organizationId: string | null;
+  organizationRoleId: string | null;
+  actingOrganizationId?: string | null;
   organizationName: string | null;
   organizationStatus: string | null;
+  organizationLogoUrl?: string | null;
+  fullAccess?: boolean;
+  grants?: UserGrantDto[];
+  roleGrants?: UserGrantDto[];
+  overrides?: Array<{ permissionKey: string; effect: string; scope?: string | null }>;
+  permissions?: string[];
 }
 
 export interface ApiError {
@@ -50,3 +63,4 @@ export async function getMe(): Promise<UserDto> {
   const data = await apiJson<{ user: UserDto }>('/api/v1/auth/me');
   return data.user;
 }
+

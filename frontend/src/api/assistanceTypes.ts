@@ -15,6 +15,11 @@ export interface AssistanceTypeSummary {
   inactive: number;
 }
 
+export interface RelatedSupplierDto {
+  id: string;
+  name: string;
+}
+
 export interface AssistanceTypeDto {
   id: string;
   typeCode: string;
@@ -27,6 +32,7 @@ export interface AssistanceTypeDto {
   version: number;
   createdAt: string;
   updatedAt: string;
+  relatedSuppliers: RelatedSupplierDto[];
 }
 
 export interface AssistanceTypeListResponse {
@@ -38,16 +44,13 @@ export interface CreateAssistanceTypePayload {
   typeCode: string;
   name: string;
   description?: string | null;
-  defaultAmount?: number | null;
-  frequency: AssistanceFrequency;
+  relatedSupplierIds?: string[];
 }
 
 export interface UpdateAssistanceTypePayload {
   name?: string;
   description?: string | null;
-  defaultAmount?: number | null;
-  clearDefaultAmount?: boolean;
-  frequency?: AssistanceFrequency;
+  relatedSupplierIds?: string[];
 }
 
 export async function listAssistanceTypes(): Promise<AssistanceTypeListResponse> {

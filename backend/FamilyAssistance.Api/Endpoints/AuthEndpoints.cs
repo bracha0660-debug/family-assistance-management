@@ -5,8 +5,8 @@ using FamilyAssistance.Api.Data;
 using FamilyAssistance.Api.Entities;
 using FamilyAssistance.Api.Models;
 using FamilyAssistance.Api.Policies;
+using FamilyAssistance.Api.Services;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace FamilyAssistance.Api.Endpoints;
@@ -30,6 +30,7 @@ public static class AuthEndpoints
         ISecurityAuditService securityAudit,
         LoginRateLimiter rateLimiter,
         FamSessionOptions sessionOptions,
+        PermissionService permissionService,
         CancellationToken cancellationToken)
     {
         var ip = httpContext.Connection.RemoteIpAddress?.ToString();
@@ -71,6 +72,7 @@ public static class AuthEndpoints
 
         var user = await db.Users
             .Include(u => u.Organization)
+            .Include(u => u.OrganizationRole)
             .FirstOrDefaultAsync(u => u.Username == username, cancellationToken);
 
         var hasher = new PasswordHasher<User>();
@@ -106,7 +108,8 @@ public static class AuthEndpoints
         }
 
         if (user.Status != "active" ||
-            (user.OrganizationId is not null && user.Organization?.Status != "active"))
+            (user.OrganizationId is not null && user.Organization?.Status != "active") ||
+            (user.Role == Roles.OrganizationUser && user.OrganizationRole is { Status: not "active" }))
         {
             try
             {
@@ -159,7 +162,9 @@ public static class AuthEndpoints
         }
 
         SetSessionCookie(httpContext, sessionOptions.CookieName, rawToken, sessionOptions.IdleTimeoutHours, httpContext.Request.IsHttps);
-        return Results.Ok(new LoginResponse { User = MapUser(user), SessionToken = rawToken });
+        var userDtoBuilder = httpContext.RequestServices.GetRequiredService<UserDtoBuilder>();
+        var userDto = await userDtoBuilder.BuildAsync(user, session, cancellationToken);
+        return Results.Ok(new LoginResponse { User = userDto, SessionToken = rawToken });
     }
 
     private static async Task<IResult> Logout(
@@ -204,7 +209,11 @@ public static class AuthEndpoints
         return Results.NoContent();
     }
 
-    private static IResult Me(HttpContext httpContext)
+    private static async Task<IResult> Me(
+        HttpContext httpContext,
+        AppDbContext db,
+        PermissionService permissionService,
+        CancellationToken cancellationToken)
     {
         var currentUser = httpContext.GetCurrentUser();
         if (currentUser is null)
@@ -214,19 +223,16 @@ public static class AuthEndpoints
                 statusCode: StatusCodes.Status401Unauthorized);
         }
 
-        return Results.Ok(new LoginResponse
-        {
-            User = new UserDto
-            {
-                Id = currentUser.UserId,
-                Username = currentUser.Username,
-                FullName = currentUser.FullName,
-                Role = currentUser.Role,
-                OrganizationId = currentUser.OrganizationId,
-                OrganizationName = currentUser.OrganizationName,
-                OrganizationStatus = currentUser.OrganizationStatus
-            }
-        });
+        var user = await db.Users
+            .Include(u => u.Organization)
+            .Include(u => u.OrganizationRole)
+            .FirstAsync(u => u.Id == currentUser.UserId, cancellationToken);
+
+        var session = await db.UserSessions.FindAsync([currentUser.SessionId], cancellationToken);
+        var userDtoBuilder = httpContext.RequestServices.GetRequiredService<UserDtoBuilder>();
+        var userDto = await userDtoBuilder.BuildAsync(user, session, cancellationToken);
+
+        return Results.Ok(new LoginResponse { User = userDto });
     }
 
     private static List<string> ValidateLoginRequest(string username, string password)
@@ -238,17 +244,6 @@ public static class AuthEndpoints
             errors.Add("סיסמה היא שדה חובה");
         return errors;
     }
-
-    private static UserDto MapUser(User user) => new()
-    {
-        Id = user.Id,
-        Username = user.Username,
-        FullName = user.FullName,
-        Role = user.Role,
-        OrganizationId = user.OrganizationId,
-        OrganizationName = user.Organization?.Name,
-        OrganizationStatus = user.Organization?.Status
-    };
 
     private static void SetSessionCookie(HttpContext ctx, string name, string token, int idleHours, bool secure)
     {

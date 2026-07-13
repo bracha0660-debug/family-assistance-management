@@ -1,0 +1,79 @@
+{
+  "passCount": 9,
+  "total": 9,
+  "pass672": 5,
+  "total672": 5,
+  "ok": true,
+  "results": [
+    {
+      "step": "67.2-a",
+      "result": "PASS",
+      "notes": "toggle=0 resize=horizontal minWidth=768px"
+    },
+    {
+      "step": "67.2-b",
+      "result": "PASS",
+      "notes": "alignItems=start"
+    },
+    {
+      "step": "67.2-c",
+      "result": "PASS",
+      "notes": "voucherVisible=true jump=0"
+    },
+    {
+      "step": "67.2-d",
+      "result": "PASS",
+      "notes": "hint=true jump=0"
+    },
+    {
+      "step": 1,
+      "result": "PASS",
+      "notes": "gap=true spacing=true"
+    },
+    {
+      "step": 2,
+      "result": "PASS",
+      "notes": "popover=true overlays=1"
+    },
+    {
+      "step": "67.2-popover-width",
+      "result": "PASS",
+      "notes": "widthPx=384"
+    },
+    {
+      "step": 3,
+      "result": "PASS",
+      "notes": "options=1 selected=\"12 - בנק הפועלים בע\"מ\" rejected99999=true"
+    },
+    {
+      "step": 4,
+      "result": "PASS",
+      "notes": "summary=\"12-655-295455\""
+    },
+    {
+      "step": 5,
+      "result": "PASS",
+      "notes": "summary=\"12-655-295455\""
+    },
+    {
+      "step": 6,
+      "result": "PASS",
+      "notes": "addDisabled=true"
+    },
+    {
+      "step": 7,
+      "result": "PASS",
+      "notes": "readonly=true err=\"\""
+    },
+    {
+      "step": 8,
+      "result": "PASS",
+      "notes": "voucherOptionCount=0"
+    },
+    {
+      "step": 9,
+      "result": "PASS",
+      "notes": "display=\"לא הוזן\" err=\"!יש לעדכן פרטי חשבון בנק בכרטיס המשפחה\""
+    }
+  ]
+}

@@ -2,22 +2,37 @@ namespace FamilyAssistance.Api.Models;
 
 public sealed class CreateFamilyRequest
 {
-    public string HeadOfHouseholdName { get; set; } = string.Empty;
-    public string? HeadIdNumber { get; set; }
+    public string FamilyLastName { get; set; } = string.Empty;
+    public long? AccountingCode { get; set; }
+    public Guid? AssignedCoordinatorId { get; set; }
+    public string? FatherName { get; set; }
+    public string? FatherIsraeliId { get; set; }
+    public string? MotherName { get; set; }
+    public string? MotherIsraeliId { get; set; }
     public string? Phone { get; set; }
     public string? Address { get; set; }
-    public int? HouseholdSize { get; set; }
-    public string? Notes { get; set; }
+    public string? BankNumber { get; set; }
+    public string? BranchNumber { get; set; }
+    public string? AccountNumber { get; set; }
+    public string? AccountHolderName { get; set; }
 }
 
 public sealed class UpdateFamilyRequest
 {
-    public string? HeadOfHouseholdName { get; set; }
-    public string? HeadIdNumber { get; set; }
+    public string? FamilyLastName { get; set; }
+    public long? AccountingCode { get; set; }
+    public string? FatherName { get; set; }
+    public string? FatherIsraeliId { get; set; }
+    public string? MotherName { get; set; }
+    public string? MotherIsraeliId { get; set; }
     public string? Phone { get; set; }
     public string? Address { get; set; }
-    public int? HouseholdSize { get; set; }
-    public string? Notes { get; set; }
+    public string? BankNumber { get; set; }
+    public string? BranchNumber { get; set; }
+    public string? AccountNumber { get; set; }
+    public string? AccountHolderName { get; set; }
+    public Guid? AssignedCoordinatorId { get; set; }
+    public string? Reason { get; set; }
 }
 
 public sealed class DeactivateFamilyRequest
@@ -25,19 +40,37 @@ public sealed class DeactivateFamilyRequest
     public string Reason { get; set; } = string.Empty;
 }
 
+public sealed class RestoreFamilyRequest
+{
+    public string Reason { get; set; } = string.Empty;
+}
+
+public sealed class SuggestedAccountingCodeResponse
+{
+    public Guid AccountingCoordinatorId { get; init; }
+    public long SuggestedAccountingCode { get; init; }
+}
+
 public sealed class FamilyDto
 {
     public Guid Id { get; init; }
     public string FamilyCode { get; init; } = string.Empty;
-    public string HeadOfHouseholdName { get; init; } = string.Empty;
-    public string? HeadIdNumber { get; init; }
+    public long AccountingCode { get; init; }
+    public Guid AccountingCoordinatorId { get; init; }
+    public string FamilyLastName { get; init; } = string.Empty;
+    public string? FatherName { get; init; }
+    public string? FatherIsraeliId { get; init; }
+    public string? MotherName { get; init; }
+    public string? MotherIsraeliId { get; init; }
     public string? Phone { get; init; }
     public string? Address { get; init; }
-    public int HouseholdSize { get; init; }
+    public string? BankNumber { get; init; }
+    public string? BranchNumber { get; init; }
+    public string? AccountNumber { get; init; }
+    public string? AccountHolderName { get; init; }
     public Guid AssignedCoordinatorId { get; init; }
     public string AssignedCoordinatorName { get; init; } = string.Empty;
     public string Status { get; init; } = string.Empty;
-    public string? Notes { get; init; }
     public int Version { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }

@@ -9,15 +9,22 @@ export interface FamilySummary {
 export interface FamilyDto {
   id: string;
   familyCode: string;
-  headOfHouseholdName: string;
-  headIdNumber: string | null;
+  accountingCode: number;
+  accountingCoordinatorId: string;
+  familyLastName: string;
+  fatherName: string | null;
+  fatherIsraeliId: string | null;
+  motherName: string | null;
+  motherIsraeliId: string | null;
   phone: string | null;
   address: string | null;
-  householdSize: number;
+  bankNumber: string | null;
+  branchNumber: string | null;
+  accountNumber: string | null;
+  accountHolderName: string | null;
   assignedCoordinatorId: string;
   assignedCoordinatorName: string;
   status: string;
-  notes: string | null;
   version: number;
   createdAt: string;
   updatedAt: string;
@@ -28,26 +35,54 @@ export interface FamilyListResponse {
   families: FamilyDto[];
 }
 
+export interface SuggestedAccountingCodeResponse {
+  accountingCoordinatorId: string;
+  suggestedAccountingCode: number;
+}
+
 export interface CreateFamilyPayload {
-  headOfHouseholdName: string;
-  headIdNumber?: string | null;
+  familyLastName: string;
+  accountingCode?: number | null;
+  assignedCoordinatorId?: string | null;
+  fatherName?: string | null;
+  fatherIsraeliId?: string | null;
+  motherName?: string | null;
+  motherIsraeliId?: string | null;
   phone?: string | null;
   address?: string | null;
-  householdSize?: number | null;
-  notes?: string | null;
+  bankNumber?: string | null;
+  branchNumber?: string | null;
+  accountNumber?: string | null;
+  accountHolderName?: string | null;
 }
 
 export interface UpdateFamilyPayload {
-  headOfHouseholdName?: string;
-  headIdNumber?: string | null;
+  familyLastName?: string;
+  accountingCode?: number | null;
+  fatherName?: string | null;
+  fatherIsraeliId?: string | null;
+  motherName?: string | null;
+  motherIsraeliId?: string | null;
   phone?: string | null;
   address?: string | null;
-  householdSize?: number | null;
-  notes?: string | null;
+  bankNumber?: string | null;
+  branchNumber?: string | null;
+  accountNumber?: string | null;
+  accountHolderName?: string | null;
+  assignedCoordinatorId?: string | null;
+  reason?: string | null;
 }
 
 export async function listFamilies(): Promise<FamilyListResponse> {
   return apiJson<FamilyListResponse>('/api/v1/org/families');
+}
+
+export async function getSuggestedAccountingCode(
+  coordinatorId: string,
+): Promise<SuggestedAccountingCodeResponse> {
+  return apiJson<SuggestedAccountingCodeResponse>(
+    `/api/v1/org/families/suggested-accounting-code?coordinatorId=${encodeURIComponent(coordinatorId)}`,
+  );
 }
 
 export async function createFamily(payload: CreateFamilyPayload): Promise<FamilyDto> {
@@ -89,4 +124,28 @@ export async function deactivateFamily(
     body: JSON.stringify({ reason }),
   });
   return data.family;
+}
+
+export async function restoreFamily(
+  id: string,
+  version: number,
+  reason: string,
+): Promise<FamilyDto> {
+  const data = await apiJson<{ family: FamilyDto }>(`/api/v1/org/families/${id}/restore`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'If-Match': String(version),
+    },
+    body: JSON.stringify({ reason }),
+  });
+  return data.family;
+}
+
+export function maskBankAccount(family: Pick<FamilyDto, 'bankNumber' | 'branchNumber' | 'accountNumber'>): string {
+  if (!family.accountNumber) return '—';
+  const last4 = family.accountNumber.slice(-4);
+  const bank = family.bankNumber || '**';
+  const branch = family.branchNumber || '***';
+  return `${bank}-${branch}-****${last4}`;
 }

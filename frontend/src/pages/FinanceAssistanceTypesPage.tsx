@@ -1,15 +1,22 @@
 import { useCallback, useEffect, useState } from 'react';
+import type { UserDto } from '../api/auth';
 import {
   listAssistanceTypes,
   type AssistanceTypeDto,
   type AssistanceTypeListResponse,
 } from '../api/assistanceTypes';
+import { PERMISSION_KEYS } from '../api/permissions';
 import { AssistanceTypesTable } from '../components/AssistanceTypesTable';
 import { CreateAssistanceTypeModal } from '../components/CreateAssistanceTypeModal';
 import { DeactivateAssistanceTypeDialog } from '../components/DeactivateAssistanceTypeDialog';
 import { EditAssistanceTypeModal } from '../components/EditAssistanceTypeModal';
+import { hasPermission } from '../hooks/usePermissions';
 
-export function FinanceAssistanceTypesPage() {
+interface FinanceAssistanceTypesPageProps {
+  user: UserDto;
+}
+
+export function FinanceAssistanceTypesPage({ user }: FinanceAssistanceTypesPageProps) {
   const [data, setData] = useState<AssistanceTypeListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -74,7 +81,9 @@ export function FinanceAssistanceTypesPage() {
       )}
 
       <div className="toolbar">
-        <button type="button" onClick={() => setShowCreate(true)}>סוג סיוע חדש</button>
+        {hasPermission(user, PERMISSION_KEYS.assistanceTypesCreate) && (
+          <button type="button" onClick={() => setShowCreate(true)}>סוג סיוע חדש</button>
+        )}
         <button type="button" className="btn-secondary" onClick={loadTypes}>רענן</button>
       </div>
 
@@ -85,9 +94,12 @@ export function FinanceAssistanceTypesPage() {
       ) : (
         <AssistanceTypesTable
           types={data?.assistanceTypes ?? []}
-          canManage={true}
-          onEdit={(t) => setEditTarget(t)}
-          onDeactivate={(t) => setDeactivateTarget(t)}
+          canManage={
+            hasPermission(user, PERMISSION_KEYS.assistanceTypesEdit)
+            || hasPermission(user, PERMISSION_KEYS.assistanceTypesDeactivate)
+          }
+          onEdit={hasPermission(user, PERMISSION_KEYS.assistanceTypesEdit) ? (t) => setEditTarget(t) : undefined}
+          onDeactivate={hasPermission(user, PERMISSION_KEYS.assistanceTypesDeactivate) ? (t) => setDeactivateTarget(t) : undefined}
         />
       )}
 

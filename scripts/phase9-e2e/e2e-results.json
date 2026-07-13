@@ -1,0 +1,157 @@
+{
+  "m60": [
+    {
+      "step": 1,
+      "result": "PASS",
+      "notes": "visible 6/6"
+    },
+    {
+      "step": 2,
+      "result": "PASS",
+      "notes": ""
+    },
+    {
+      "step": 3,
+      "result": "PASS",
+      "notes": "overflowY=auto"
+    },
+    {
+      "step": 4,
+      "result": "PASS",
+      "notes": "Add Row not horizontally over description field"
+    }
+  ],
+  "m61": [
+    {
+      "step": 1,
+      "result": "PASS",
+      "notes": "!יש לעדכן פרטי חשבון בנק בכרטיס המשפחה"
+    },
+    {
+      "step": 2,
+      "result": "PASS",
+      "notes": "!יש לעדכן פרטי חשבון בנק במסך הספקים"
+    },
+    {
+      "step": 3,
+      "result": "PASS",
+      "notes": "— בחר —|העברה בנקאית|המחאה"
+    },
+    {
+      "step": 4,
+      "result": "PASS",
+      "notes": "rows 10->11"
+    },
+    {
+      "step": 5,
+      "result": "PASS",
+      "notes": "יש לעדכן פרטי חשבון בנק בכרטיס המשפחה"
+    }
+  ],
+  "m62": [
+    {
+      "step": 1,
+      "result": "PASS",
+      "notes": ""
+    },
+    {
+      "step": 2,
+      "result": "PASS",
+      "notes": ""
+    },
+    {
+      "step": 3,
+      "result": "PASS",
+      "notes": "f11bc2b9-99f3-46b2-bdbe-3c314dbba5a0"
+    },
+    {
+      "step": 4,
+      "result": "PASS",
+      "notes": "— בחר —|העברה בנקאית|המחאה"
+    },
+    {
+      "step": 5,
+      "result": "PASS",
+      "notes": "cols=9"
+    },
+    {
+      "step": 6,
+      "result": "PASS",
+      "notes": "optgroups=2, type=00c77a6a-5419-45f9-a222-b27f1682295f"
+    }
+  ],
+  "m63": [
+    {
+      "step": 1,
+      "result": "PASS",
+      "notes": ""
+    },
+    {
+      "step": 2,
+      "result": "PASS",
+      "notes": "ox=visible"
+    },
+    {
+      "step": 3,
+      "result": "PASS",
+      "notes": ""
+    },
+    {
+      "step": 4,
+      "result": "PASS",
+      "notes": ""
+    },
+    {
+      "step": 5,
+      "result": "PASS",
+      "notes": "12-123-456789"
+    },
+    {
+      "step": 6,
+      "result": "PASS",
+      "notes": ""
+    },
+    {
+      "step": 7,
+      "result": "PASS",
+      "notes": ""
+    },
+    {
+      "step": 8,
+      "result": "PASS",
+      "notes": "edit grid=9, transfer modal ok"
+    },
+    {
+      "step": 9,
+      "result": "PASS",
+      "notes": "M61 family/supplier msgs + D7"
+    }
+  ],
+  "m64": [
+    {
+      "step": 1,
+      "result": "PASS",
+      "notes": "expanded=true, 1104/1104"
+    },
+    {
+      "step": 2,
+      "result": "PASS",
+      "notes": "1088/812 ox=auto"
+    },
+    {
+      "step": 3,
+      "result": "PASS",
+      "notes": ""
+    },
+    {
+      "step": 4,
+      "result": "PASS",
+      "notes": ""
+    },
+    {
+      "step": 5,
+      "result": "PASS",
+      "notes": ""
+    }
+  ]
+}

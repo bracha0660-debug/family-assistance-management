@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { listFamilies, type FamilyListResponse } from '../api/families';
 import { FamiliesTable } from '../components/FamiliesTable';
 
-export function ManagerFamiliesPage() {
+export function ManagerFamiliesPage({ user: _user }: { user?: import('../api/auth').UserDto }) {
   const [data, setData] = useState<FamilyListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');

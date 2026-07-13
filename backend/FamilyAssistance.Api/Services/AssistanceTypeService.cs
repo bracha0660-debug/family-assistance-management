@@ -29,25 +29,14 @@ public sealed class AssistanceTypeService(
         var types = await db.AssistanceTypes
             .Where(t => t.OrganizationId == organizationId)
             .OrderBy(t => t.TypeCode)
-            .Select(t => new AssistanceTypeDto
-            {
-                Id = t.Id,
-                TypeCode = t.TypeCode,
-                Name = t.Name,
-                Description = t.Description,
-                DefaultAmount = t.DefaultAmount,
-                Currency = t.Currency,
-                Frequency = t.Frequency,
-                Status = t.Status,
-                Version = t.Version,
-                CreatedAt = t.CreatedAt,
-                UpdatedAt = t.UpdatedAt
-            })
             .ToListAsync(cancellationToken);
 
-        var total = types.Count;
-        var active = types.Count(t => t.Status == "active");
-        var inactive = types.Count(t => t.Status == "inactive");
+        var relatedByType = await LoadRelatedSuppliersByTypeAsync(organizationId, cancellationToken);
+        var dtos = types.Select(t => Map(t, relatedByType.GetValueOrDefault(t.Id, []))).ToList();
+
+        var total = dtos.Count;
+        var active = dtos.Count(t => t.Status == "active");
+        var inactive = dtos.Count(t => t.Status == "inactive");
 
         return new AssistanceTypeListResponse
         {
@@ -57,7 +46,7 @@ public sealed class AssistanceTypeService(
                 Active = active,
                 Inactive = inactive
             },
-            AssistanceTypes = types
+            AssistanceTypes = dtos
         };
     }
 
@@ -71,6 +60,13 @@ public sealed class AssistanceTypeService(
         if (errors.Count > 0)
             return ServiceResult<AssistanceTypeDto>.Fail(400, "VALIDATION_ERROR", errors[0], errors);
 
+        if (request.RelatedSupplierIds is { Count: > 0 })
+        {
+            var duplicateError = ValidateNoDuplicateSupplierIds(request.RelatedSupplierIds);
+            if (duplicateError is not null)
+                return ServiceResult<AssistanceTypeDto>.Fail(400, "VALIDATION_ERROR", duplicateError);
+        }
+
         var code = request.TypeCode.Trim().ToUpperInvariant();
         if (await db.AssistanceTypes.AnyAsync(
                 t => t.OrganizationId == organizationId && t.TypeCode == code, cancellationToken))
@@ -79,6 +75,7 @@ public sealed class AssistanceTypeService(
         }
 
         var now = DateTime.UtcNow;
+        var frequency = ResolveCreateFrequency(request.Frequency);
         var type = new AssistanceType
         {
             Id = Guid.NewGuid(),
@@ -88,7 +85,7 @@ public sealed class AssistanceTypeService(
             Description = NormalizeOptional(request.Description),
             DefaultAmount = request.DefaultAmount,
             Currency = "ILS",
-            Frequency = request.Frequency.Trim(),
+            Frequency = frequency,
             Status = "active",
             Version = 1,
             CreatedAt = now,
@@ -117,8 +114,19 @@ public sealed class AssistanceTypeService(
                 })
             });
 
+            if (request.RelatedSupplierIds is { Count: > 0 })
+            {
+                await SyncRelatedSuppliersAsync(
+                    organizationId, type.Id, request.RelatedSupplierIds, actorUserId, cancellationToken);
+            }
+
             await db.SaveChangesAsync(cancellationToken);
             await tx.CommitAsync(cancellationToken);
+        }
+        catch (ArgumentException ex)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return ServiceResult<AssistanceTypeDto>.Fail(400, "VALIDATION_ERROR", ex.Message);
         }
         catch
         {
@@ -126,7 +134,8 @@ public sealed class AssistanceTypeService(
             return ServiceResult<AssistanceTypeDto>.Fail(500, "INTERNAL_ERROR", "שגיאת מערכת");
         }
 
-        return ServiceResult<AssistanceTypeDto>.Ok(Map(type));
+        var related = await GetRelatedSuppliersAsync(organizationId, type.Id, cancellationToken);
+        return ServiceResult<AssistanceTypeDto>.Ok(Map(type, related));
     }
 
     public async Task<ServiceResult<AssistanceTypeDto>> GetAsync(
@@ -139,7 +148,8 @@ public sealed class AssistanceTypeService(
         if (type is null)
             return ServiceResult<AssistanceTypeDto>.Fail(404, "NOT_FOUND", "סוג הסיוע לא נמצא");
 
-        return ServiceResult<AssistanceTypeDto>.Ok(Map(type));
+        var related = await GetRelatedSuppliersAsync(organizationId, id, cancellationToken);
+        return ServiceResult<AssistanceTypeDto>.Ok(Map(type, related));
     }
 
     public async Task<ServiceResult<AssistanceTypeDto>> UpdateAsync(
@@ -230,11 +240,22 @@ public sealed class AssistanceTypeService(
         if (errors.Count > 0)
             return ServiceResult<AssistanceTypeDto>.Fail(400, "VALIDATION_ERROR", errors[0], errors);
 
-        if (changes.Count == 0)
+        var willSyncLinks = request.RelatedSupplierIds is not null;
+        if (willSyncLinks)
+        {
+            var duplicateError = ValidateNoDuplicateSupplierIds(request.RelatedSupplierIds!);
+            if (duplicateError is not null)
+                return ServiceResult<AssistanceTypeDto>.Fail(400, "VALIDATION_ERROR", duplicateError);
+        }
+
+        if (changes.Count == 0 && !willSyncLinks)
             return ServiceResult<AssistanceTypeDto>.Fail(400, "NO_CHANGES", "אין שינויים לעדכון");
 
-        type.Version++;
-        type.UpdatedAt = DateTime.UtcNow;
+        if (changes.Count > 0)
+        {
+            type.Version++;
+            type.UpdatedAt = DateTime.UtcNow;
+        }
 
         await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
         try
@@ -255,6 +276,24 @@ public sealed class AssistanceTypeService(
                 });
             }
 
+            if (willSyncLinks)
+            {
+                var linksChanged = await SyncRelatedSuppliersAsync(
+                    organizationId, type.Id, request.RelatedSupplierIds!, actorUserId, cancellationToken);
+
+                if (!linksChanged && changes.Count == 0)
+                {
+                    await tx.RollbackAsync(cancellationToken);
+                    return ServiceResult<AssistanceTypeDto>.Fail(400, "NO_CHANGES", "אין שינויים לעדכון");
+                }
+
+                if (linksChanged && changes.Count == 0)
+                {
+                    type.Version++;
+                    type.UpdatedAt = DateTime.UtcNow;
+                }
+            }
+
             await db.SaveChangesAsync(cancellationToken);
             await tx.CommitAsync(cancellationToken);
         }
@@ -269,7 +308,8 @@ public sealed class AssistanceTypeService(
             return ServiceResult<AssistanceTypeDto>.Fail(500, "INTERNAL_ERROR", "שגיאת מערכת");
         }
 
-        return ServiceResult<AssistanceTypeDto>.Ok(Map(type));
+        var related = await GetRelatedSuppliersAsync(organizationId, type.Id, cancellationToken);
+        return ServiceResult<AssistanceTypeDto>.Ok(Map(type, related));
     }
 
     public async Task<ServiceResult<AssistanceTypeDto>> DeactivateAsync(
@@ -336,7 +376,126 @@ public sealed class AssistanceTypeService(
             return ServiceResult<AssistanceTypeDto>.Fail(500, "INTERNAL_ERROR", "שגיאת מערכת");
         }
 
-        return ServiceResult<AssistanceTypeDto>.Ok(Map(type));
+        var related = await GetRelatedSuppliersAsync(organizationId, type.Id, cancellationToken);
+        return ServiceResult<AssistanceTypeDto>.Ok(Map(type, related));
+    }
+
+    private async Task<Dictionary<Guid, IReadOnlyList<RelatedSupplierDto>>> LoadRelatedSuppliersByTypeAsync(
+        Guid organizationId,
+        CancellationToken cancellationToken)
+    {
+        var rows = await (
+            from link in db.AssistanceTypeSuppliers
+            join supplier in db.Suppliers on link.SupplierId equals supplier.Id
+            where link.OrganizationId == organizationId
+                  && supplier.OrganizationId == organizationId
+                  && supplier.Status == "active"
+            orderby supplier.Name
+            select new { link.AssistanceTypeId, SupplierId = supplier.Id, supplier.Name }
+        ).ToListAsync(cancellationToken);
+
+        return rows
+            .GroupBy(r => r.AssistanceTypeId)
+            .ToDictionary(
+                g => g.Key,
+                g => (IReadOnlyList<RelatedSupplierDto>)g
+                    .Select(r => new RelatedSupplierDto { Id = r.SupplierId, Name = r.Name })
+                    .ToList());
+    }
+
+    private async Task<IReadOnlyList<RelatedSupplierDto>> GetRelatedSuppliersAsync(
+        Guid organizationId,
+        Guid assistanceTypeId,
+        CancellationToken cancellationToken)
+    {
+        var byType = await LoadRelatedSuppliersByTypeAsync(organizationId, cancellationToken);
+        return byType.GetValueOrDefault(assistanceTypeId, []);
+    }
+
+    private async Task<bool> SyncRelatedSuppliersAsync(
+        Guid organizationId,
+        Guid assistanceTypeId,
+        IReadOnlyList<Guid> supplierIds,
+        Guid actorUserId,
+        CancellationToken cancellationToken)
+    {
+        var distinctIds = supplierIds.Distinct().ToList();
+
+        if (distinctIds.Count > 0)
+        {
+            var suppliers = await db.Suppliers
+                .Where(s => s.OrganizationId == organizationId && distinctIds.Contains(s.Id))
+                .ToListAsync(cancellationToken);
+
+            if (suppliers.Count != distinctIds.Count)
+                throw new ArgumentException("ספק לא נמצא בארגון");
+
+            if (suppliers.Any(s => s.Status != "active"))
+                throw new ArgumentException("ניתן לקשר רק ספק פעיל");
+        }
+
+        var existing = await db.AssistanceTypeSuppliers
+            .Where(ats => ats.OrganizationId == organizationId && ats.AssistanceTypeId == assistanceTypeId)
+            .ToListAsync(cancellationToken);
+
+        var existingIds = existing.Select(e => e.SupplierId).ToHashSet();
+        var desiredIds = distinctIds.ToHashSet();
+        var toRemove = existing.Where(e => !desiredIds.Contains(e.SupplierId)).ToList();
+        var toAdd = distinctIds.Where(id => !existingIds.Contains(id)).ToList();
+
+        if (toRemove.Count == 0 && toAdd.Count == 0)
+            return false;
+
+        var now = DateTime.UtcNow;
+        foreach (var link in toRemove)
+        {
+            auditService.Stage(new AuditEntry
+            {
+                EventCode = BusinessEventCodes.AssistanceTypeRelatedSupplierRemove,
+                OrganizationId = organizationId,
+                ActorUserId = actorUserId,
+                EntityType = "assistance_type",
+                EntityId = assistanceTypeId,
+                Action = "related_supplier_remove",
+                FieldName = "supplier_id",
+                OldValue = link.SupplierId.ToString(),
+                NewValue = null
+            });
+            db.AssistanceTypeSuppliers.Remove(link);
+        }
+
+        foreach (var supplierId in toAdd)
+        {
+            db.AssistanceTypeSuppliers.Add(new AssistanceTypeSupplier
+            {
+                Id = Guid.NewGuid(),
+                OrganizationId = organizationId,
+                AssistanceTypeId = assistanceTypeId,
+                SupplierId = supplierId,
+                CreatedAt = now
+            });
+            auditService.Stage(new AuditEntry
+            {
+                EventCode = BusinessEventCodes.AssistanceTypeRelatedSupplierAdd,
+                OrganizationId = organizationId,
+                ActorUserId = actorUserId,
+                EntityType = "assistance_type",
+                EntityId = assistanceTypeId,
+                Action = "related_supplier_add",
+                FieldName = "supplier_id",
+                OldValue = null,
+                NewValue = supplierId.ToString()
+            });
+        }
+
+        return true;
+    }
+
+    private static string? ValidateNoDuplicateSupplierIds(IReadOnlyList<Guid> supplierIds)
+    {
+        if (supplierIds.Count != supplierIds.Distinct().Count())
+            return "מזהה ספק כפול בבקשה";
+        return null;
     }
 
     private List<string> ValidateCreateRequest(CreateAssistanceTypeRequest request)
@@ -360,12 +519,16 @@ public sealed class AssistanceTypeService(
             errors.Add("סכום ברירת מחדל חייב להיות בין 0 ל-1,000,000");
 
         var freq = request.Frequency?.Trim() ?? string.Empty;
-        if (freq.Length == 0)
-            errors.Add("תדירות היא שדה חובה");
-        else if (!AllowedFrequencies.Contains(freq))
+        if (freq.Length > 0 && !AllowedFrequencies.Contains(freq))
             errors.Add("תדירות לא חוקית");
 
         return errors;
+    }
+
+    private static string ResolveCreateFrequency(string? frequency)
+    {
+        var trimmed = frequency?.Trim() ?? string.Empty;
+        return trimmed.Length == 0 ? "one_time" : trimmed;
     }
 
     private static string? NormalizeOptional(string? value)
@@ -375,7 +538,7 @@ public sealed class AssistanceTypeService(
         return trimmed.Length == 0 ? null : trimmed;
     }
 
-    private static AssistanceTypeDto Map(AssistanceType t) => new()
+    private static AssistanceTypeDto Map(AssistanceType t, IReadOnlyList<RelatedSupplierDto> related) => new()
     {
         Id = t.Id,
         TypeCode = t.TypeCode,
@@ -387,6 +550,7 @@ public sealed class AssistanceTypeService(
         Status = t.Status,
         Version = t.Version,
         CreatedAt = t.CreatedAt,
-        UpdatedAt = t.UpdatedAt
+        UpdatedAt = t.UpdatedAt,
+        RelatedSuppliers = related
     };
 }

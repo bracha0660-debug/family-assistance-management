@@ -101,13 +101,33 @@ function Get-JsonArray($jsonText, $path) {
     return @($v)
 }
 
+function New-FamilyBody([hashtable]$Extra = @{}) {
+    $body = @{
+        familyLastName = "Test Family"
+        bankNumber = "12"
+        branchNumber = "345"
+        accountNumber = "1234567"
+        accountHolderName = "Test Holder"
+    }
+    foreach ($k in $Extra.Keys) { $body[$k] = $Extra[$k] }
+    return ($body | ConvertTo-Json -Compress)
+}
+
+function Get-OrgRoleIdByPreset($cookieFile, $presetKey) {
+    $rolesResp = Invoke-CurlJson -Uri "$baseApi/api/v1/org/roles" -CookieFile $cookieFile
+    $roles = Get-JsonArray $rolesResp.Content "roles"
+    $match = $roles | Where-Object { $_.factoryPresetKey -eq $presetKey } | Select-Object -First 1
+    return $match.id
+}
+
 function Login($cookieFile, $username, $password) {
     $body = (@{ username = $username; password = $password } | ConvertTo-Json -Compress)
     return Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/auth/login" -Body $body -CookieFile $cookieFile
 }
 
-function Create-User($cookieFile, $username, $fullName, $role) {
-    $body = (@{ username = $username; password = $userPwd; fullName = $fullName; role = $role } | ConvertTo-Json -Compress)
+function Create-User($cookieFile, $username, $fullName, $presetKey) {
+    $roleId = Get-OrgRoleIdByPreset $cookieFile $presetKey
+    $body = (@{ username = $username; password = $userPwd; fullName = $fullName; organizationRoleId = $roleId } | ConvertTo-Json -Compress)
     return Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/users" -Body $body -CookieFile $cookieFile
 }
 
@@ -159,23 +179,23 @@ try {
     Write-Result 8 "OrgAdmin B login" ($oaB.StatusCode -eq 200) ""
 
     # 9-12: OrgAdmin A creates Step 4 fixture users (2 coords + finance + manager)
-    $c1 = Create-User $cookieOaA $coordA1 "Coord A1" "Coordinator"
+    $c1 = Create-User $cookieOaA $coordA1 "Coord A1" "preset_coordinator"
     $coordA1Id = Get-JsonField $c1.Content "user.id"
     Write-Result 9 "Create Coordinator A1" ($c1.StatusCode -eq 201) ""
 
-    $c2 = Create-User $cookieOaA $coordA2 "Coord A2" "Coordinator"
+    $c2 = Create-User $cookieOaA $coordA2 "Coord A2" "preset_coordinator"
     $coordA2Id = Get-JsonField $c2.Content "user.id"
     Write-Result 10 "Create Coordinator A2" ($c2.StatusCode -eq 201) ""
 
-    $fa = Create-User $cookieOaA $financeA "Finance A" "Finance"
+    $fa = Create-User $cookieOaA $financeA "Finance A" "preset_finance"
     $financeAId = Get-JsonField $fa.Content "user.id"
     Write-Result 11 "Create Finance A" ($fa.StatusCode -eq 201) ""
 
-    $ma = Create-User $cookieOaA $managerA "Manager A" "Manager"
+    $ma = Create-User $cookieOaA $managerA "Manager A" "preset_manager"
     $managerAId = Get-JsonField $ma.Content "user.id"
     Write-Result 12 "Create Manager A" ($ma.StatusCode -eq 201) ""
 
-    $cb = Create-User $cookieOaB $coordB "Coord B" "Coordinator"
+    $cb = Create-User $cookieOaB $coordB "Coord B" "preset_coordinator"
     $coordBId = Get-JsonField $cb.Content "user.id"
     Write-Result 13 "Create Coordinator B" ($cb.StatusCode -eq 201) ""
 
@@ -196,47 +216,46 @@ try {
     $saF = Invoke-CurlJson -Uri "$baseApi/api/v1/org/families" -CookieFile $cookieSa
     Write-Result 20 "SuperAdmin GET /org/families returns 403" ($saF.StatusCode -eq 403) "HTTP $($saF.StatusCode)"
 
-    # 21: Finance GET /org/families -> 403 (not family viewer)
+    # 21: Finance GET /org/families -> 200 (preset_finance includes families.view per §13)
     $finF = Invoke-CurlJson -Uri "$baseApi/api/v1/org/families" -CookieFile $cookieFinanceA
-    Write-Result 21 "Finance GET /org/families returns 403" ($finF.StatusCode -eq 403) "HTTP $($finF.StatusCode)"
+    Write-Result 21 "Finance GET /org/families returns 200 (view grant)" ($finF.StatusCode -eq 200) "HTTP $($finF.StatusCode)"
 
     # 22: Manager creating family -> 403
-    $mgrCreateBody = (@{ headOfHouseholdName = "Manager Attempt" } | ConvertTo-Json -Compress)
+    $mgrCreateBody = (New-FamilyBody @{ familyLastName = "Manager Attempt" })
     $mgrCreate = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/families" -Body $mgrCreateBody -CookieFile $cookieManagerA
     Write-Result 22 "Manager POST /org/families returns 403" ($mgrCreate.StatusCode -eq 403) "HTTP $($mgrCreate.StatusCode)"
 
-    # 23: OrgAdmin creating family -> 403
+    # 23: OrgAdmin creating family -> 201 (full org bypass per §13)
     $oaCreate = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/families" -Body $mgrCreateBody -CookieFile $cookieOaA
-    Write-Result 23 "OrgAdmin POST /org/families returns 403" ($oaCreate.StatusCode -eq 403) "HTTP $($oaCreate.StatusCode)"
+    Write-Result 23 "OrgAdmin POST /org/families returns 201" ($oaCreate.StatusCode -eq 201) "HTTP $($oaCreate.StatusCode)"
 
     # === Families happy path (Coordinator A1) ===
 
     # 24: Coordinator A1 creates family -> 201 with F-000001
-    $famBody = (@{
-        headOfHouseholdName = "Cohen Test Family"
-        headIdNumber = "000000018"
+    $famBody = (New-FamilyBody @{
+        familyLastName = "Cohen Test Family"
+        fatherIsraeliId = "000000018"
         phone = "050-1234567"
         address = "Herzl St 1, Tel Aviv"
-        householdSize = 4
-        notes = "Verification test family"
-    } | ConvertTo-Json -Compress)
+    })
     $fam1 = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/families" -Body $famBody -CookieFile $cookieCoordA1
     $fam1Id = Get-JsonField $fam1.Content "family.id"
     $fam1Code = Get-JsonField $fam1.Content "family.familyCode"
     $fam1Version = Get-JsonField $fam1.Content "family.version"
     $fam1Coord = Get-JsonField $fam1.Content "family.assignedCoordinatorId"
-    Write-Result 24 "Coordinator creates family (201)" ($fam1.StatusCode -eq 201 -and $fam1Code -eq "F-000001") "code=$fam1Code"
+    Write-Result 24 "Coordinator creates family (201)" ($fam1.StatusCode -eq 201 -and $fam1Code -match '^F-\d{6}$') "code=$fam1Code"
 
     # 25: family_code auto-assigned + coordinator pinned to actor
     Write-Result 25 "Family auto-pinned to creator coordinator" ($fam1Coord -eq $coordA1Id) "coord=$fam1Coord"
 
     # 26: Second family auto-increments code
-    $famBody2 = (@{ headOfHouseholdName = "Levi Test"; householdSize = 2 } | ConvertTo-Json -Compress)
+    $famBody2 = (New-FamilyBody @{ familyLastName = "Levi Test" })
     $fam2 = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/families" -Body $famBody2 -CookieFile $cookieCoordA1
     $fam2Code = Get-JsonField $fam2.Content "family.familyCode"
     $fam2Id = Get-JsonField $fam2.Content "family.id"
     $fam2Version = Get-JsonField $fam2.Content "family.version"
-    Write-Result 26 "Second family auto-increments to F-000002" ($fam2.StatusCode -eq 201 -and $fam2Code -eq "F-000002") "code=$fam2Code"
+    $fam1Num = [int]($fam1Code -replace '^F-','')
+    Write-Result 26 "Second family auto-increments code" ($fam2.StatusCode -eq 201 -and $fam2Code -eq ("F-{0:D6}" -f ($fam1Num + 1))) "code=$fam2Code"
 
     # 27: AUD-007 written
     $audQ = "SELECT event_code FROM audit_logs WHERE event_code = 'AUD-007' AND entity_id = '$fam1Id';"
@@ -244,13 +263,13 @@ try {
     Write-Result 27 "AUD-007 written on family create" ($audRows -match 'AUD-007') ""
 
     # 28: Coordinator A2 creates own family - counter shared org-wide
-    $famBody3 = (@{ headOfHouseholdName = "Peretz Test"; householdSize = 3 } | ConvertTo-Json -Compress)
+    $famBody3 = (New-FamilyBody @{ familyLastName = "Peretz Test" })
     $fam3 = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/families" -Body $famBody3 -CookieFile $cookieCoordA2
     $fam3Code = Get-JsonField $fam3.Content "family.familyCode"
-    Write-Result 28 "Org-wide counter: A2 family is F-000003" ($fam3.StatusCode -eq 201 -and $fam3Code -eq "F-000003") "code=$fam3Code"
+    Write-Result 28 "Org-wide counter: A2 family increments after A1 families" ($fam3.StatusCode -eq 201 -and $fam3Code -eq ("F-{0:D6}" -f ($fam1Num + 2))) "code=$fam3Code"
 
     # 29: Org B counter is independent (starts at 1)
-    $famBBody = (@{ headOfHouseholdName = "Test B"; householdSize = 1 } | ConvertTo-Json -Compress)
+    $famBBody = (New-FamilyBody @{ familyLastName = "Test B" })
     $famB = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/families" -Body $famBBody -CookieFile $cookieCoordB
     $famBCode = Get-JsonField $famB.Content "family.familyCode"
     Write-Result 29 "Org B counter independent (F-000001)" ($famB.StatusCode -eq 201 -and $famBCode -eq "F-000001") "code=$famBCode"
@@ -258,35 +277,35 @@ try {
     # === Israeli ID validation ===
 
     # 30: Invalid Israeli ID (bad checksum) - rejected
-    $badIdBody = (@{ headOfHouseholdName = "Bad ID"; headIdNumber = "123456789" } | ConvertTo-Json -Compress)
+    $badIdBody = (New-FamilyBody @{ familyLastName = "Bad ID"; fatherIsraeliId = "123456789" })
     $badId = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/families" -Body $badIdBody -CookieFile $cookieCoordA1
     $badIdErr = Get-JsonField $badId.Content "error"
     Write-Result 30 "Invalid Israeli ID checksum rejected" ($badId.StatusCode -eq 400 -and $badIdErr -ne $null) "HTTP $($badId.StatusCode) err=$badIdErr"
 
     # 31: Wrong length ID (8 digits)
-    $shortIdBody = (@{ headOfHouseholdName = "Short ID"; headIdNumber = "12345678" } | ConvertTo-Json -Compress)
+    $shortIdBody = (New-FamilyBody @{ familyLastName = "Short ID"; fatherIsraeliId = "12345678" })
     $shortId = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/families" -Body $shortIdBody -CookieFile $cookieCoordA1
     Write-Result 31 "Israeli ID wrong length rejected" ($shortId.StatusCode -eq 400) "HTTP $($shortId.StatusCode)"
 
     # 32: Null/missing ID accepted
-    $noIdBody = (@{ headOfHouseholdName = "No ID Person" } | ConvertTo-Json -Compress)
+    $noIdBody = (New-FamilyBody @{ familyLastName = "No ID Person" })
     $noId = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/families" -Body $noIdBody -CookieFile $cookieCoordA1
     Write-Result 32 "Missing Israeli ID accepted" ($noId.StatusCode -eq 201) "HTTP $($noId.StatusCode)"
 
     # 33: Empty string ID accepted (normalized to null)
-    $emptyIdBody = (@{ headOfHouseholdName = "Empty ID"; headIdNumber = "" } | ConvertTo-Json -Compress)
+    $emptyIdBody = (New-FamilyBody @{ familyLastName = "Empty ID"; fatherIsraeliId = "" })
     $emptyId = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/families" -Body $emptyIdBody -CookieFile $cookieCoordA1
     Write-Result 33 "Empty Israeli ID treated as missing" ($emptyId.StatusCode -eq 201) "HTTP $($emptyId.StatusCode)"
 
     # 34: Another valid checksum - 123456782 (verified Luhn-valid 9-digit test ID)
-    $validIdBody = (@{ headOfHouseholdName = "Valid ID"; headIdNumber = "123456782" } | ConvertTo-Json -Compress)
+    $validIdBody = (New-FamilyBody @{ familyLastName = "Valid ID"; fatherIsraeliId = "123456782" })
     $validId = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/families" -Body $validIdBody -CookieFile $cookieCoordA1
     Write-Result 34 "Valid Israeli ID checksum accepted" ($validId.StatusCode -eq 201) "HTTP $($validId.StatusCode)"
 
     # === Family edit (Coordinator) ===
 
     # 35: Coordinator A1 edits own family
-    $editBody = (@{ phone = "052-9999999"; householdSize = 5 } | ConvertTo-Json -Compress)
+    $editBody = (@{ phone = "052-9999999" } | ConvertTo-Json -Compress)
     $edit = Invoke-CurlJson -Method PATCH -Uri "$baseApi/api/v1/org/families/$fam1Id" `
         -Body $editBody -CookieFile $cookieCoordA1 -Headers @{ "If-Match" = "$fam1Version" }
     $editPhone = Get-JsonField $edit.Content "family.phone"
@@ -349,11 +368,11 @@ try {
         -CookieFile $cookieCoordA1
     Write-Result 45 "Coordinator POST /org/assistance-types returns 403" ($coordTC.StatusCode -eq 403) ""
 
-    # 46: OrgAdmin POST /org/assistance-types -> 403
+    # 46: OrgAdmin POST /org/assistance-types -> 201 (full org bypass per §13)
     $oaTC = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/assistance-types" `
-        -Body (@{ typeCode = "X"; name = "x"; frequency = "monthly" } | ConvertTo-Json -Compress) `
+        -Body (@{ typeCode = "ORGADMIN-TYPE"; name = "OrgAdmin type"; frequency = "monthly" } | ConvertTo-Json -Compress) `
         -CookieFile $cookieOaA
-    Write-Result 46 "OrgAdmin POST /org/assistance-types returns 403" ($oaTC.StatusCode -eq 403) ""
+    Write-Result 46 "OrgAdmin POST /org/assistance-types returns 201" ($oaTC.StatusCode -eq 201) "HTTP $($oaTC.StatusCode)"
 
     # 47: Finance creates type
     $typeBody = (@{
@@ -466,7 +485,7 @@ try {
     # 64: Org B can't see org A families
     $bF = Invoke-CurlJson -Uri "$baseApi/api/v1/org/families" -CookieFile $cookieOaB
     $bFList = Get-JsonArray $bF.Content "families"
-    $orgALeak = $bFList | Where-Object { $_.headOfHouseholdName -eq "Cohen Test Family" }
+    $orgALeak = $bFList | Where-Object { $_.familyLastName -eq "Cohen Test Family" }
     Write-Result 64 "Org B cannot see org A families" ($bF.StatusCode -eq 200 -and $orgALeak.Count -eq 0) ""
 
     # 65: Org B GET org A type ID -> 404
@@ -501,9 +520,9 @@ try {
 
     # 69: Family households size out of range
     $bigSize = Invoke-CurlJson -Method POST -Uri "$baseApi/api/v1/org/families" `
-        -Body (@{ headOfHouseholdName = "Big"; householdSize = 100 } | ConvertTo-Json -Compress) `
+        -Body (@{ familyLastName = "No Bank" } | ConvertTo-Json -Compress) `
         -CookieFile $cookieCoordA1
-    Write-Result 69 "Household size > 50 rejected" ($bigSize.StatusCode -eq 400) "HTTP $($bigSize.StatusCode)"
+    Write-Result 69 "Create without bank fields allowed" ($bigSize.StatusCode -eq 201) "HTTP $($bigSize.StatusCode)"
 
     # 70: Activity log (OrgAdmin) shows AUD-007..AUD-012 entries
     $act = Invoke-CurlJson -Uri "$baseApi/api/v1/org/activity?limit=200" -CookieFile $cookieOaA
@@ -512,13 +531,11 @@ try {
     $hasAll = @('AUD-007','AUD-008','AUD-009','AUD-010','AUD-011','AUD-012') | Where-Object { $codes -contains $_ }
     Write-Result 70 "Activity log includes AUD-007..AUD-012" ($act.StatusCode -eq 200 -and $hasAll.Count -eq 6) "found=$($hasAll -join ',')"
 
-    # 71: No Step 5+ APIs exposed yet
-    $noStep5 = $true
-    foreach ($p in @("/api/v1/org/suppliers", "/api/v1/org/committee-decisions", "/api/v1/org/reports", "/api/v1/org/billing")) {
-        $r = Invoke-CurlJson -Uri "$baseApi$p" -CookieFile $cookieOaA
-        if ($r.StatusCode -ne 404) { $noStep5 = $false; Write-Host "  unexpected $p -> $($r.StatusCode)" -ForegroundColor Yellow }
-    }
-    Write-Result 71 "No Step 5+ APIs exposed" $noStep5 ""
+    # 71: §15 APIs available to OrgAdmin
+    $suppliersApi = Invoke-CurlJson -Uri "$baseApi/api/v1/org/suppliers" -CookieFile $cookieOaA
+    $committeeApi = Invoke-CurlJson -Uri "$baseApi/api/v1/org/committee-decisions" -CookieFile $cookieOaA
+    Write-Result 71 "Suppliers and committee-decisions APIs available (200)" `
+        ($suppliersApi.StatusCode -eq 200 -and $committeeApi.StatusCode -eq 200) "sup=$($suppliersApi.StatusCode) cd=$($committeeApi.StatusCode)"
 
     # 72: Frontend Hebrew RTL (regression)
     try {

@@ -8,11 +8,14 @@ public class User
     public string PasswordHash { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
+    public Guid? OrganizationRoleId { get; set; }
     public string Status { get; set; } = "active";
     public int Version { get; set; } = 1;
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 
     public Organization? Organization { get; set; }
+    public OrganizationRole? OrganizationRole { get; set; }
     public ICollection<UserSession> Sessions { get; set; } = [];
+    public ICollection<UserPermissionOverride> PermissionOverrides { get; set; } = [];
 }

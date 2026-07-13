@@ -25,10 +25,25 @@ builder.Services.AddSingleton<LoginRateLimiter>();
 builder.Services.AddScoped<SessionService>();
 builder.Services.AddScoped<ISecurityAuditService, SecurityAuditService>();
 builder.Services.AddScoped<IAuditService, AuditService>();
+builder.Services.AddScoped<PermissionService>();
+builder.Services.AddScoped<OrganizationPermissionService>();
+builder.Services.AddScoped<OrganizationRoleService>();
 builder.Services.AddScoped<OrganizationAdminService>();
+builder.Services.AddScoped<UserDtoBuilder>();
 builder.Services.AddScoped<OrganizationUserService>();
+builder.Services.AddScoped<UserPermissionOverrideService>();
 builder.Services.AddScoped<OrganizationActivityService>();
 builder.Services.AddScoped<FamilyService>();
+builder.Services.AddScoped<SupplierService>();
+builder.Services.AddScoped<CommitteeDecisionService>();
+builder.Services.AddScoped<AssistanceItemService>();
+builder.Services.AddScoped<AssistanceItemHistoryService>();
+builder.Services.AddScoped<AssistanceItemPaymentEditService>();
+builder.Services.AddScoped<PaymentService>();
+builder.Services.AddScoped<ExportBatchService>();
+builder.Services.AddScoped<HomeWidgetComposer>();
+builder.Services.AddScoped<WorkflowDashboardService>();
+builder.Services.AddSingleton<DocumentStorageService>();
 builder.Services.AddScoped<AssistanceTypeService>();
 builder.Services.AddAuthorizationPolicies();
 
@@ -51,9 +66,10 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var permissionService = scope.ServiceProvider.GetRequiredService<PermissionService>();
     var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-    await DbSeeder.SeedAsync(db, config, logger);
+    await DbSeeder.SeedAsync(db, permissionService, config, logger);
 }
 
 app.UseCors();
@@ -63,7 +79,15 @@ app.MapAuthEndpoints();
 app.MapAdminOrganizationsEndpoints();
 app.MapOrgUsersEndpoints();
 app.MapOrgActivityEndpoints();
+app.MapOrgPermissionsEndpoints();
+app.MapOrgRolesEndpoints();
 app.MapFamiliesEndpoints();
+app.MapSuppliersEndpoints();
+app.MapCommitteeDecisionsEndpoints();
+app.MapAssistanceItemsEndpoints();
+app.MapPaymentsEndpoints();
+app.MapExportBatchesEndpoints();
+app.MapWorkflowEndpoints();
 app.MapAssistanceTypesEndpoints();
 
 app.Run();

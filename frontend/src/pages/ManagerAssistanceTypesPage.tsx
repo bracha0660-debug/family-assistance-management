@@ -5,7 +5,7 @@ import {
 } from '../api/assistanceTypes';
 import { AssistanceTypesTable } from '../components/AssistanceTypesTable';
 
-export function ManagerAssistanceTypesPage() {
+export function ManagerAssistanceTypesPage({ user: _user }: { user?: import('../api/auth').UserDto }) {
   const [data, setData] = useState<AssistanceTypeListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');

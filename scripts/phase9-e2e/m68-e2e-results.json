@@ -1,0 +1,37 @@
+{
+  "passCount": 6,
+  "total": 6,
+  "ok": true,
+  "results": [
+    {
+      "step": "M1",
+      "result": "PASS",
+      "notes": "deleteBtn=true modalClosed=true rowGone=true confirm=\"למחוק לצמיתות את הטיוטה? | פעולה זו אינה ניתנת לשחזור.\""
+    },
+    {
+      "step": "M2",
+      "result": "PASS",
+      "notes": "delete=0 cancel=0 status=submitted"
+    },
+    {
+      "step": "M3",
+      "result": "PASS",
+      "notes": "delete=0 meetingEditable=true status=returned_for_revision"
+    },
+    {
+      "step": "M4",
+      "result": "PASS",
+      "notes": "deleteStatus=204 getStatus=404 rowGone=true"
+    },
+    {
+      "step": "M5",
+      "result": "PASS",
+      "notes": "readonly=true label=\"פרטי בנק\""
+    },
+    {
+      "step": "M6",
+      "result": "PASS",
+      "notes": "popover=true summary=\"12-123-456789\" rows=1"
+    }
+  ]
+}
