@@ -69,7 +69,7 @@ using (var scope = app.Services.CreateScope())
     var permissionService = scope.ServiceProvider.GetRequiredService<PermissionService>();
     var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-    await DbSeeder.SeedAsync(db, permissionService, config, logger);
+    await DbSeeder.SeedAsync(db, permissionService, config, logger, app.Environment);
 }
 
 app.UseCors();
