@@ -4,7 +4,7 @@
 PHASE=16.1
 
 ## Status
-STATUS: BLOCKED — **M161-1 → M161-7 and M161-9 complete locally**. **M161-8 Render production evidence pending** (repair not yet on `origin/main`; no Render CLI/`gh` access in this environment). Implementation is ready for Manager/Architect review of code + local PostgreSQL evidence. Phase 17 bulk actions **not** implemented.
+STATUS: BLOCKED — **M161-1 → M161-7 and M161-9 complete**. Repair is **merged to `main`** (PR #2 → `6398b92`). **M161-8 production Render evidence still incomplete**: no Render API key / service id / production API URL / backup confirmation available in this environment. Phase 16.1 **not** marked complete. Phase 17 bulk actions **not** opened. `PHASE=16.1`.
 
 ## Source References
 
@@ -34,7 +34,7 @@ Phase 16.1 production schema repair:
 | M161-5 — PostgreSQL scenarios A–E | **Yes** | All PASS on `fam_p161` (evidence below) |
 | M161-6 — Build + automated tests | **Yes** | Docker API image build; tests **121** passed (incl. 6 Phase 16.1) |
 | M161-7 — Authenticated smoke | **Yes** | `GET /api/v1/auth/me` 200; `GET /api/v1/org/workflow/dashboard` 200; no `42703` |
-| M161-8 — Render production evidence | **No** | Blocked: changes not committed/pushed to `main`; Render deploy/logs not available here |
+| M161-8 — Render production evidence | **Partial** | Merged to `main` (`6398b92`). Still blocked on verified prod backup + Render deploy logs + prod auth/dashboard smoke |
 | M161-9 — Developer evidence packet | **Yes** | This document (§14 items 1–14) |
 
 ---
@@ -156,19 +156,22 @@ Previous history rows retained; exactly one new repair history row added via nor
 
 ### 10. Render deployment commit identifier
 
-**NOT AVAILABLE YET.**
+| Field | Value |
+|---|---|
+| Branch | `fix/phase16.1-production-schema-repair` (not pushed to `main` directly) |
+| PR | https://github.com/bracha0660-debug/family-assistance-management/pull/2 |
+| Feature commit | `44c8e3ad5f90eb54a2cb0af1354ccbf48fb92285` |
+| Merged to `main` | **Yes** — merge commit `6398b92a8ab8b200f638d7527676a16481ddd2c8` |
+| Render deploy of exact merged commit | **NOT VERIFIED** — no Render API credentials / service id / deploy hook in this environment |
+| Verified production DB backup before deploy | **NOT CONFIRMED** — requires operator confirmation in Render / Postgres backup store |
 
-- Working tree has Phase 16.1 changes uncommitted on local `main` (`9743d8c` = current `origin/main` tip without repair).
-- No commit created (Developer does not commit unless explicitly requested).
-- No Render CLI / `gh` available in this environment to observe production deploys.
-
-**Required next step for M161-8:** commit → push to `main` → confirm Render auto-deploy → capture deploy commit SHA + migration logs.
+**Remaining for M161-8 close:** confirm backup → deploy `6398b92` (or current `main` tip containing it) on Render → capture logs → prod smoke.
 
 ### 11. Render migration logs
 
-**NOT AVAILABLE YET** (blocked on §10).
+**NOT CAPTURED YET** (Render access missing). Auto-deploy may occur from `main` if configured; cannot be observed here.
 
-Local equivalent (main API after repair) for readiness reference:
+Local equivalent (Compose API after repair) for readiness reference:
 
 ```text
 Database migrations: 23 applied, 1 pending
@@ -234,8 +237,8 @@ Local API (`http://localhost:8080`) after repair:
 | Method | API + CLI (local Docker Compose PostgreSQL + API) |
 | Steps | 1) Rebuild/recreate API with repair migration 2) Observe migrate + schema verify logs 3) Login as superadmin 4) Enter org 5) `GET /api/v1/auth/me` 6) `GET /api/v1/org/workflow/dashboard` |
 | Expected Result | Repair applies once; contracts valid; auth me success; dashboard HTTP 2xx; no `42703` |
-| Actual Result | **PASS** (local). **Render production not yet verified** |
-| Notes | Infrastructure-primary with dashboard recovery functional outcome. Phase 17 not started. |
+| Actual Result | **PASS** (local). **Merged to main (`6398b92`)**. **Render production not yet verified** |
+| Notes | Infrastructure-primary with dashboard recovery functional outcome. Phase 16.1 not closed; Phase 17 not started. |
 
 ## Documentation Update Evidence
 
@@ -271,7 +274,7 @@ Local API (`http://localhost:8080`) after repair:
 
 ## Known Issues / Limitations
 
-1. **M161-8 Render evidence incomplete** until repair commit is on `main` and Render deploy logs are captured.
+1. **M161-8 Render evidence incomplete** after merge: need verified production backup confirmation, Render deploy of `6398b92`, migration/schema logs, and production `/auth/me` + dashboard smoke with no `42703`.
 2. Scenario D / Production-guard one-shot containers may still show `Running=true` briefly while crashing (race with `docker inspect`); failure is proven by exception logs and absence of ready message.
 3. Local dashboard JSON titles may show mojibake in PowerShell console encoding; HTTP status **200** is the acceptance signal.
 
@@ -287,7 +290,7 @@ Local API (`http://localhost:8080`) after repair:
 
 ## Developer Declaration
 
-Sarah (Developer): M161-1–M161-7 implemented and evidenced locally against PostgreSQL. M161-9 packet written. **M161-8 blocked** on production deploy of this repair to Render via `main`. Request: approve commit + push to `main`, then capture Render migration/schema logs to close M161-8.
+Sarah (Developer): M161-1–M161-7 implemented and evidenced. Repair committed on `fix/phase16.1-production-schema-repair`, PR #2 merged to `main` as `6398b92`. `PHASE` kept at **16.1**. Phase 16.1 **not** declared complete. Phase 17 **not** opened. **M161-8 remains blocked** until Render backup + deploy logs + production smoke are supplied/captured.
 
 ```text
 Detected phase: 16.1
