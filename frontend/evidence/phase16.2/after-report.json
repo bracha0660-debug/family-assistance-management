@@ -1,0 +1,89 @@
+{
+  "phase": "after",
+  "base": "http://127.0.0.1:5173",
+  "api": "http://localhost:8080",
+  "timestamp": "2026-07-15T07:36:52.285Z",
+  "files": {
+    "createNewDecision": "C:\\Users\\user\\.cursor\\projects\\family-assistance-management\\family-assistance-management-1\\frontend\\evidence\\phase16.2\\after-create-new-decision-1366x768.png",
+    "createFirstEntryWide": "C:\\Users\\user\\.cursor\\projects\\family-assistance-management\\family-assistance-management-1\\frontend\\evidence\\phase16.2\\after-create-decision-first-entry-wide-1366x768.png",
+    "committeeEdit": "C:\\Users\\user\\.cursor\\projects\\family-assistance-management\\family-assistance-management-1\\frontend\\evidence\\phase16.2\\after-committee-edit-item-1366x768.png",
+    "committeeEditSmall": "C:\\Users\\user\\.cursor\\projects\\family-assistance-management\\family-assistance-management-1\\frontend\\evidence\\phase16.2\\after-committee-edit-item-390x844.png",
+    "paymentsEdit": "C:\\Users\\user\\.cursor\\projects\\family-assistance-management\\family-assistance-management-1\\frontend\\evidence\\phase16.2\\after-payments-edit-item-1366x768.png"
+  },
+  "asserts": [
+    {
+      "name": "create_detail_not_modal_item_edit",
+      "pass": true
+    },
+    {
+      "name": "edit_has_modal_item_edit",
+      "pass": true
+    },
+    {
+      "name": "form_not_scroll_owner",
+      "pass": true,
+      "detail": {
+        "scrollWidth": 1248,
+        "clientWidth": 1248,
+        "scrollHeight": 283,
+        "clientHeight": 283,
+        "overflowX": "hidden",
+        "overflowY": "hidden"
+      }
+    },
+    {
+      "name": "shell_no_vertical_scroll",
+      "pass": true,
+      "detail": "visible"
+    },
+    {
+      "name": "body_scrollWidth_le_clientWidth",
+      "pass": true,
+      "detail": {
+        "scrollWidth": 1248,
+        "clientWidth": 1248,
+        "scrollHeight": 121,
+        "clientHeight": 121,
+        "overflowX": "hidden",
+        "overflowY": "auto"
+      }
+    },
+    {
+      "name": "form_scrollWidth_le_clientWidth",
+      "pass": true,
+      "detail": {
+        "scrollWidth": 1248,
+        "clientWidth": 1248,
+        "scrollHeight": 283,
+        "clientHeight": 283,
+        "overflowX": "hidden",
+        "overflowY": "hidden"
+      }
+    },
+    {
+      "name": "save_cancel_reachable",
+      "pass": true
+    },
+    {
+      "name": "payments_save_cancel_reachable",
+      "pass": true
+    },
+    {
+      "name": "create_regression_createNewDecision_pixel_identical",
+      "pass": false,
+      "beforeSha256": "f9f189d8e3d560d328bb46855b721aeee469d3d0c4803a38eac45569cd04801a",
+      "afterSha256": "848b09b8193f0ece31821b5b5cb02c25e80e21d57d2ec1a843b80324eab1b8a9"
+    },
+    {
+      "name": "create_regression_createNewDecision_visual_review_required",
+      "pass": true,
+      "note": "Hashes differ (dynamic decision codes/dates may change). Manual visual review of PNGs required."
+    },
+    {
+      "name": "create_regression_createFirstEntryWide_pixel_identical",
+      "pass": true,
+      "beforeSha256": "34c438239deb4e00daecf5331a1fc08c0b6e9e1911763d3d642de4bfdd033feb",
+      "afterSha256": "34c438239deb4e00daecf5331a1fc08c0b6e9e1911763d3d642de4bfdd033feb"
+    }
+  ]
+}

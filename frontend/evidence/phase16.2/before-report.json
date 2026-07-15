@@ -1,0 +1,18 @@
+{
+  "phase": "before",
+  "base": "http://localhost:3000",
+  "api": "http://localhost:8080",
+  "timestamp": "2026-07-15T07:36:23.382Z",
+  "files": {
+    "createNewDecision": "C:\\Users\\user\\.cursor\\projects\\family-assistance-management\\family-assistance-management-1\\frontend\\evidence\\phase16.2\\before-create-new-decision-1366x768.png",
+    "createFirstEntryWide": "C:\\Users\\user\\.cursor\\projects\\family-assistance-management\\family-assistance-management-1\\frontend\\evidence\\phase16.2\\before-create-decision-first-entry-wide-1366x768.png",
+    "committeeEdit": "C:\\Users\\user\\.cursor\\projects\\family-assistance-management\\family-assistance-management-1\\frontend\\evidence\\phase16.2\\before-committee-edit-item-1366x768.png",
+    "paymentsEdit": "C:\\Users\\user\\.cursor\\projects\\family-assistance-management\\family-assistance-management-1\\frontend\\evidence\\phase16.2\\before-payments-edit-item-1366x768.png"
+  },
+  "asserts": [
+    {
+      "name": "create_detail_not_modal_item_edit",
+      "pass": true
+    }
+  ]
+}
