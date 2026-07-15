@@ -19,6 +19,13 @@ public sealed class AuthorizationContext
         SystemRole == Constants.Roles.OrganizationAdministrator
         || (SystemRole == Constants.Roles.SuperAdmin && ActingOrganizationId is not null);
 
+    /// <summary>
+    /// Phase 16.3 — SuperAdmin currently acting inside an organization.
+    /// Ownership bypass for records uses this flag only (never <see cref="FullOrgAccess"/>).
+    /// </summary>
+    public bool IsSuperAdminInOrganization =>
+        SystemRole == Constants.Roles.SuperAdmin && ActingOrganizationId is not null;
+
     public Guid? EffectiveOrganizationId =>
         SystemRole == Constants.Roles.SuperAdmin
             ? ActingOrganizationId

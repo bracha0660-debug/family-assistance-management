@@ -13,6 +13,13 @@ public static class WorkflowHelpers
     public static bool IsDecisionOwnedByUser(CommitteeDecision decision, Guid userId) =>
         decision.CreatedByUserId == userId;
 
+    /// <summary>
+    /// Phase 16.3 — owner or SuperAdmin acting in org may perform owner-scoped draft actions.
+    /// Does not use FullOrgAccess (OrganizationAdministrator stays owner-scoped).
+    /// </summary>
+    public static bool CanActAsDecisionOwner(CommitteeDecision decision, AuthorizationContext auth) =>
+        IsDecisionOwnedByUser(decision, auth.UserId) || auth.IsSuperAdminInOrganization;
+
     public static IQueryable<CommitteeDecision> ApplyOwnershipMine(
         IQueryable<CommitteeDecision> query,
         Guid userId) =>
@@ -117,14 +124,14 @@ public static class WorkflowHelpers
     public static IReadOnlyList<string> AvailableDecisionActions(CommitteeDecision decision, AuthorizationContext auth)
     {
         var actions = new List<string>();
-        var owned = IsDecisionOwnedByUser(decision, auth.UserId);
+        var effectiveOwned = CanActAsDecisionOwner(decision, auth);
 
         // Post-submit decision transitions are deprecated (item-level). Keep draft/cancel only.
         if (decision.Status is CommitteeDecisionStatuses.Draft or CommitteeDecisionStatuses.ReturnedForRevision)
         {
-            if (PermissionService.HasWorkflowGrant(auth, PermissionKeys.CommitteeDecisionsEditDraft) && owned)
+            if (PermissionService.HasWorkflowGrant(auth, PermissionKeys.CommitteeDecisionsEditDraft) && effectiveOwned)
                 actions.Add("edit");
-            if (PermissionService.HasWorkflowGrant(auth, PermissionKeys.CommitteeDecisionsSubmit) && owned
+            if (PermissionService.HasWorkflowGrant(auth, PermissionKeys.CommitteeDecisionsSubmit) && effectiveOwned
                 && decision.Items.Count > 0)
                 actions.Add("submit");
         }
@@ -151,7 +158,7 @@ public static class WorkflowHelpers
         AuthorizationContext auth)
     {
         var actions = new List<string>();
-        var owned = IsDecisionOwnedByUser(parent, auth.UserId);
+        var effectiveOwned = CanActAsDecisionOwner(parent, auth);
 
         switch (item.Status)
         {
@@ -169,9 +176,9 @@ public static class WorkflowHelpers
                 break;
 
             case AssistanceItemStatuses.Returned:
-                if (PermissionService.HasWorkflowGrant(auth, PermissionKeys.AssistanceItemsEdit) && owned)
+                if (PermissionService.HasWorkflowGrant(auth, PermissionKeys.AssistanceItemsEdit) && effectiveOwned)
                     actions.Add("edit");
-                if (PermissionService.HasWorkflowGrant(auth, PermissionKeys.CommitteeDecisionsSubmit) && owned)
+                if (PermissionService.HasWorkflowGrant(auth, PermissionKeys.CommitteeDecisionsSubmit) && effectiveOwned)
                     actions.Add("resubmit");
                 break;
 
