@@ -176,7 +176,7 @@ public sealed class CommitteeDecisionService(
         if (!ScopeEvaluator.CanAccessCommitteeDecision(auth, decision, PermissionKeys.CommitteeDecisionsEditDraft))
             return ServiceResult<CommitteeDecisionDto>.Fail(403, "FORBIDDEN", "אין הרשאה");
 
-        if (!WorkflowHelpers.IsDecisionOwnedByUser(decision, auth.UserId))
+        if (!WorkflowHelpers.CanActAsDecisionOwner(decision, auth))
             return ServiceResult<CommitteeDecisionDto>.Fail(403, "FORBIDDEN", "אין הרשאה");
 
         if (!CommitteeDecisionStatuses.EditableHeader.Contains(decision.Status))
@@ -258,7 +258,7 @@ public sealed class CommitteeDecisionService(
             return ServiceResult<CommitteeDecisionDto>.Fail(decision.StatusCode, decision.Code, decision.Error);
 
         var entity = decision.Value!;
-        if (!WorkflowHelpers.IsDecisionOwnedByUser(entity, auth.UserId))
+        if (!WorkflowHelpers.CanActAsDecisionOwner(entity, auth))
             return ServiceResult<CommitteeDecisionDto>.Fail(403, "FORBIDDEN", "אין הרשאה");
         if (entity.Items.Count == 0)
             return ServiceResult<CommitteeDecisionDto>.Fail(400, "VALIDATION_ERROR", "יש להוסיף לפחות פריט סיוע אחד");
@@ -459,7 +459,7 @@ public sealed class CommitteeDecisionService(
         if (!CommitteeDecisionStatuses.EditableItems.Contains(decision.Status))
             return ServiceResult<(AssistanceItemDto, int)>.Fail(409, "INVALID_STATUS", "לא ניתן לערוך פריטים במצב זה");
 
-        if (!WorkflowHelpers.IsDecisionOwnedByUser(decision, auth.UserId))
+        if (!WorkflowHelpers.CanActAsDecisionOwner(decision, auth))
             return ServiceResult<(AssistanceItemDto, int)>.Fail(403, "FORBIDDEN", "אין הרשאה");
 
         if (decision.Items.Count >= MaxItems)
@@ -599,7 +599,7 @@ public sealed class CommitteeDecisionService(
             return ServiceResult<AssistanceItemDto>.Fail(409, "INVALID_STATUS", "לא ניתן לערוך פריטים במצב זה");
 
         if (item.Status is AssistanceItemStatuses.Draft or AssistanceItemStatuses.Returned
-            && !WorkflowHelpers.IsDecisionOwnedByUser(decision, auth.UserId))
+            && !WorkflowHelpers.CanActAsDecisionOwner(decision, auth))
             return ServiceResult<AssistanceItemDto>.Fail(403, "FORBIDDEN", "אין הרשאה");
 
         if (item.Version != expectedVersion)

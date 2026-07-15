@@ -132,7 +132,7 @@ public sealed class AssistanceItemService(
         if (!PermissionService.HasWorkflowGrant(auth, PermissionKeys.CommitteeDecisionsSubmit))
             return ServiceResult<AssistanceItemListDto>.Fail(403, "FORBIDDEN", "אין הרשאה");
 
-        if (!WorkflowHelpers.IsDecisionOwnedByUser(loaded.CommitteeDecision!, auth.UserId))
+        if (!WorkflowHelpers.CanActAsDecisionOwner(loaded.CommitteeDecision!, auth))
             return ServiceResult<AssistanceItemListDto>.Fail(403, "FORBIDDEN", "אין הרשאה");
 
         if (loaded.Status != AssistanceItemStatuses.Returned)

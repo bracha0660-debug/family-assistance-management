@@ -107,15 +107,33 @@ function renderAmountTrackingPrimary(amt: { amount: number; original: number | n
   return formatMoney(amt.amount);
 }
 
-function resolveDraftListOptions(filter: HomeNavigationTarget | null | undefined) {
+function isSuperAdminInOrganization(user: UserDto): boolean {
+  return user.role === 'SuperAdmin' && !!user.actingOrganizationId;
+}
+
+/** Phase 16.3 — SuperAdmin-in-org defaults to org-wide drafts; explicit ownership=mine is preserved. */
+function resolveDraftListOptions(
+  filter: HomeNavigationTarget | null | undefined,
+  user: UserDto,
+) {
+  const defaultOwnership = isSuperAdminInOrganization(user)
+    ? undefined
+    : ('mine' as const);
+
   if (filter?.targetTab === 'decisions' && filter.listView === 'assistance_items') {
-    return { status: 'draft', ownership: 'mine' as const };
+    return {
+      status: 'draft',
+      ...(filter.ownership === 'mine' || defaultOwnership
+        ? { ownership: (filter.ownership ?? defaultOwnership) as 'mine' }
+        : {}),
+    };
   }
   if (filter?.targetTab === 'decisions' && filter.listView === 'draft_decisions') {
+    const ownership = filter.ownership ?? defaultOwnership;
     return {
       section: filter.section,
       status: filter.status ?? 'draft',
-      ownership: filter.ownership ?? 'mine',
+      ...(ownership ? { ownership } : {}),
       minAgeDays: filter.minAgeDays,
     };
   }
@@ -125,16 +143,24 @@ function resolveDraftListOptions(filter: HomeNavigationTarget | null | undefined
       'waiting_for_reference', 'paid', 'completed',
     ]);
     if (filter.status && itemStatuses.has(filter.status)) {
-      return { status: 'draft', ownership: 'mine' as const };
+      const ownership = filter.ownership ?? defaultOwnership;
+      return {
+        status: 'draft',
+        ...(ownership ? { ownership } : {}),
+      };
     }
+    const ownership = filter.ownership ?? defaultOwnership;
     return {
       section: filter.section,
       status: filter.status ?? 'draft',
-      ownership: filter.ownership ?? 'mine',
+      ...(ownership ? { ownership } : {}),
       minAgeDays: filter.minAgeDays,
     };
   }
-  return { status: 'draft', ownership: 'mine' as const };
+  return {
+    status: 'draft',
+    ...(defaultOwnership ? { ownership: defaultOwnership } : {}),
+  };
 }
 
 function resolveItemListOptions(filter: HomeNavigationTarget | null | undefined) {
@@ -771,11 +797,11 @@ export function CommitteeDecisionsPage({ user, initialFilter }: CommitteeDecisio
   const focusedTable = listViewFocus(activeFilter);
 
   const loadDrafts = useCallback(async (filter?: HomeNavigationTarget | null) => {
-    const listOptions = resolveDraftListOptions(filter);
+    const listOptions = resolveDraftListOptions(filter, user);
     const decisions = await listCommitteeDecisions(listOptions);
     setDraftData(decisions);
     return decisions;
-  }, []);
+  }, [user]);
 
   const loadItems = useCallback(async (filter?: HomeNavigationTarget | null) => {
     const listOptions = resolveItemListOptions(filter);
