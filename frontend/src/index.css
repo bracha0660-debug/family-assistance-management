@@ -3847,6 +3847,75 @@ body {
   overflow-x: visible;
 }
 
+/* Phase 16.2 — Shared Assistance Item Edit Modal Layout only.
+   Vertical one-column at every viewport. Does not alter .modal-committee-expanded. */
+.modal-card.modal-item-edit {
+  display: flex;
+  flex-direction: column;
+  width: min(440px, calc(100vw - 32px));
+  max-width: 440px;
+  min-width: 0;
+  max-height: calc(100dvh - 32px);
+  overflow: hidden;
+  resize: none;
+}
+
+.modal-card.modal-item-edit .modal-form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  height: 100%;
+}
+
+.modal-card.modal-item-edit .modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.modal-card.modal-item-edit .modal-footer {
+  flex-shrink: 0;
+}
+
+.modal-item-edit .committee-items-shell {
+  --committee-items-min-width: 0;
+  overflow: visible;
+  min-width: 0;
+  width: 100%;
+}
+
+.modal-item-edit .committee-item-form {
+  --committee-items-min-width: 0;
+  margin-block-end: 0.75rem;
+  padding-block-end: 0;
+  border-block-end: none;
+  min-width: 0;
+  width: 100%;
+}
+
+.modal-item-edit .committee-item-form__grid {
+  --committee-items-min-width: 0;
+  grid-template-columns: 1fr;
+  min-width: 0;
+  width: 100%;
+}
+
+.modal-item-edit .committee-item-form__field label {
+  white-space: normal;
+}
+
+.modal-item-edit .committee-item-form__field--urgent {
+  align-items: flex-start;
+}
+
+.modal-item-edit .committee-item-form__field--urgent .checkbox-label {
+  align-items: flex-start;
+  text-align: start;
+}
+
 /* Phase 16 — PaymentsQueuePage (layout via .queue-page) */
 .payments-queue-page .org-table--compact .amount-tracking {
   font-size: 0.72rem;
