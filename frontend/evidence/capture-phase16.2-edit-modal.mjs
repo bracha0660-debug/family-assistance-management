@@ -363,10 +363,34 @@ async function main() {
     report.files.committeeEdit = editPath;
 
     if (phase === 'after') {
-      const hasClass = await editCard.evaluate((el) =>
-        el.classList.contains('modal-item-edit') && el.classList.contains('modal-committee-expanded'));
+      const hasClass = await editCard.evaluate((el) => el.classList.contains('modal-item-edit'));
+      const noExpanded = await editCard.evaluate((el) => !el.classList.contains('modal-committee-expanded'));
       report.asserts.push({ name: 'edit_has_modal_item_edit', pass: hasClass });
-      if (!hasClass) throw new Error('Edit modal missing modal-item-edit classes');
+      report.asserts.push({ name: 'edit_not_modal_committee_expanded', pass: noExpanded });
+      if (!hasClass) throw new Error('Edit modal missing modal-item-edit class');
+      if (!noExpanded) throw new Error('Edit modal must not use modal-committee-expanded');
+
+      const layout = await editCard.evaluate((el) => {
+        const grid = el.querySelector('.committee-item-form__grid');
+        const cs = getComputedStyle(el);
+        const gcs = grid ? getComputedStyle(grid) : null;
+        return {
+          width: el.getBoundingClientRect().width,
+          maxWidth: cs.maxWidth,
+          columns: gcs?.gridTemplateColumns ?? null,
+        };
+      });
+      const colParts = String(layout.columns || '').trim().split(/\s+/).filter(Boolean);
+      report.asserts.push({
+        name: 'edit_vertical_one_column',
+        pass: colParts.length === 1,
+        detail: layout,
+      });
+      report.asserts.push({
+        name: 'edit_desktop_width_le_640',
+        pass: layout.width <= 640 + 1,
+        detail: layout,
+      });
 
       await assertNoHorizontalOverflow(page, [
         '.modal-card.modal-item-edit .modal-body',

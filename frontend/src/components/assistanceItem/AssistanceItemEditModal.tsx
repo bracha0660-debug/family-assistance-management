@@ -211,7 +211,7 @@ export function AssistanceItemEditModal({
   return (
     <ModalShell
       title={title}
-      sizeClassName="modal-committee-expanded modal-item-edit"
+      sizeClassName="modal-item-edit"
       loading={loading}
       onClose={onClose}
       onSubmit={handleSubmit}
