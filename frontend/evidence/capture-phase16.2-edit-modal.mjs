@@ -387,8 +387,8 @@ async function main() {
         detail: layout,
       });
       report.asserts.push({
-        name: 'edit_desktop_width_le_640',
-        pass: layout.width <= 640 + 1,
+        name: 'edit_desktop_width_le_440',
+        pass: layout.width <= 440 + 1,
         detail: layout,
       });
 

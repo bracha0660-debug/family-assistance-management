@@ -2,7 +2,7 @@
   "phase": "after",
   "base": "http://127.0.0.1:5173",
   "api": "http://localhost:8080",
-  "timestamp": "2026-07-15T08:45:01.011Z",
+  "timestamp": "2026-07-15T08:50:12.902Z",
   "files": {
     "createNewDecision": "C:\\Users\\user\\.cursor\\projects\\family-assistance-management\\family-assistance-management-1\\frontend\\evidence\\phase16.2\\after-create-new-decision-1366x768.png",
     "createFirstEntryWide": "C:\\Users\\user\\.cursor\\projects\\family-assistance-management\\family-assistance-management-1\\frontend\\evidence\\phase16.2\\after-create-decision-first-entry-wide-1366x768.png",
@@ -27,26 +27,26 @@
       "name": "edit_vertical_one_column",
       "pass": true,
       "detail": {
-        "width": 640,
-        "maxWidth": "640px",
-        "columns": "592px"
+        "width": 440,
+        "maxWidth": "440px",
+        "columns": "392px"
       }
     },
     {
-      "name": "edit_desktop_width_le_640",
+      "name": "edit_desktop_width_le_440",
       "pass": true,
       "detail": {
-        "width": 640,
-        "maxWidth": "640px",
-        "columns": "592px"
+        "width": 440,
+        "maxWidth": "440px",
+        "columns": "392px"
       }
     },
     {
       "name": "form_not_scroll_owner",
       "pass": true,
       "detail": {
-        "scrollWidth": 640,
-        "clientWidth": 640,
+        "scrollWidth": 440,
+        "clientWidth": 440,
         "scrollHeight": 736,
         "clientHeight": 736,
         "overflowX": "hidden",
@@ -62,8 +62,8 @@
       "name": "body_scrollWidth_le_clientWidth",
       "pass": true,
       "detail": {
-        "scrollWidth": 640,
-        "clientWidth": 640,
+        "scrollWidth": 440,
+        "clientWidth": 440,
         "scrollHeight": 670,
         "clientHeight": 574,
         "overflowX": "hidden",
@@ -74,8 +74,8 @@
       "name": "form_scrollWidth_le_clientWidth",
       "pass": true,
       "detail": {
-        "scrollWidth": 640,
-        "clientWidth": 640,
+        "scrollWidth": 440,
+        "clientWidth": 440,
         "scrollHeight": 736,
         "clientHeight": 736,
         "overflowX": "hidden",
@@ -94,7 +94,7 @@
       "name": "create_regression_createNewDecision_pixel_identical",
       "pass": false,
       "beforeSha256": "f9f189d8e3d560d328bb46855b721aeee469d3d0c4803a38eac45569cd04801a",
-      "afterSha256": "8c1c39029b439e34f762f4a7fcd34c05738a1ba4f181b1de1582db7813539054"
+      "afterSha256": "848b09b8193f0ece31821b5b5cb02c25e80e21d57d2ec1a843b80324eab1b8a9"
     },
     {
       "name": "create_regression_createNewDecision_visual_review_required",

@@ -3852,8 +3852,8 @@ body {
 .modal-card.modal-item-edit {
   display: flex;
   flex-direction: column;
-  width: min(640px, calc(100vw - 32px));
-  max-width: 640px;
+  width: min(440px, calc(100vw - 32px));
+  max-width: 440px;
   min-width: 0;
   max-height: calc(100dvh - 32px);
   overflow: hidden;
